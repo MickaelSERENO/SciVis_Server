@@ -24,11 +24,16 @@ endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WARNING_FLAGS}")
 set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   ${WARNING_FLAGS}")
 
+#Handles PKG Config files
 find_package(PkgConfig REQUIRED)
+PKG_CHECK_MODULES(SERVER_ENGINE REQUIRED serenoServer)
 
 #Search for files
 file(GLOB_RECURSE SRCS    src/*.cpp)
 file(GLOB_RECURSE HEADERS include/*.h)
 
 #Add an executable to create
-add_executable(VRCamera ${SRCS} ${HEADERS})
+include_directories(${CMAKE_SOURCE_DIR}/include/)
+add_executable(VFVServer ${SRCS} ${HEADERS})
+target_compile_options(VFVServer PUBLIC ${SERVER_ENGINE_CFLAGS})
+target_link_libraries(VFVServer PUBLIC ${SERVER_ENGINE_LDFLAGS} -lm -lpthread)
