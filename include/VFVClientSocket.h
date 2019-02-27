@@ -14,9 +14,9 @@
 #include "VFVDataInformation.h"
 #include "VFVBufferValue.h"
 #include "Types/ServerType.h"
+#include "writeData.h"
 
-#define HOLOLENS_PORT 8080
-#define TABLET_PORT   8082
+#define CLIENT_PORT 8000
 
 namespace sereno
 {
@@ -32,13 +32,11 @@ namespace sereno
     /* \brief The type of message this application can receive */
     enum VFVMessageType
     {
-        NOTHING        = -1,
-        IDENT_HOLOLENS = 0,
-        IDENT_TABLET   = 1,
-        ADD_DATASET,
-        REMOVE_DATASET,
-        ROTATE_DATASET,
-        CHANGE_COLOR,  
+        NOTHING            = -1,
+        IDENT_HOLOLENS     = 0,
+        IDENT_TABLET       = 1,
+        ADD_BINARY_DATASET = 2,
+        ADD_VTK_DATASET    = 3,
         END_MESSAGE_TYPE
     };
 
@@ -76,10 +74,11 @@ namespace sereno
 
         union
         {
-            struct VFVIdentTabletInformation identTablet; /*!< Ident information of a tablet*/
-            struct VFVDatasetInformation     dataset;     /*!< Dataset information (ADD_DATASET, REMOVE_DATASET)*/
-            struct VFVColorInformation       color;       /*!< The color information sent from a tablet*/
-            struct VFVRotationInformation    rotate;      /*!< The rotate information sent from a tablet*/
+            struct VFVIdentTabletInformation identTablet;      /*!< Ident information of a tablet*/
+            struct VFVBinaryDatasetInformation  binaryDataset; /*!< Binary Dataset information*/
+            struct VFVVTKDatasetInformation     vtkDataset;    /*!< Binary Dataset information*/
+            struct VFVColorInformation          color;         /*!< The color information sent from a tablet*/
+            struct VFVRotationInformation       rotate;        /*!< The rotate information sent from a tablet*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -102,15 +101,11 @@ namespace sereno
                         case IDENT_TABLET:
                             identTablet = cpy.identTablet;
                             break;
-                        case ADD_DATASET:
-                        case REMOVE_DATASET:
-                            dataset = cpy.dataset;
+                        case ADD_BINARY_DATASET:
+                            binaryDataset = cpy.binaryDataset;
                             break;
-                        case CHANGE_COLOR:
-                            color = cpy.color;
-                            break;
-                        case ROTATE_DATASET:
-                            rotate = cpy.rotate;
+                        case ADD_VTK_DATASET:
+                            vtkDataset = cpy.vtkDataset;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -131,18 +126,16 @@ namespace sereno
             type = t;
             switch(t)
             {
+                case IDENT_HOLOLENS:
+                    break;
                 case IDENT_TABLET:
                     new (&identTablet) VFVIdentTabletInformation;
                     break;
-                case ADD_DATASET:
-                case REMOVE_DATASET:
-                    new (&dataset) VFVDatasetInformation;
+                case ADD_BINARY_DATASET:
+                    new (&binaryDataset) VFVBinaryDatasetInformation;
                     break;
-                case CHANGE_COLOR:
-                    new (&color) VFVColorInformation;
-                    break;
-                case ROTATE_DATASET:
-                    new (&rotate) VFVRotationInformation;
+                case ADD_VTK_DATASET:
+                    new (&vtkDataset) VFVVTKDatasetInformation;
                     break;
                 case NOTHING:
                     break;
@@ -153,7 +146,28 @@ namespace sereno
             return true;
         }
 
-        ~VFVMessage(){}
+        ~VFVMessage()
+        {
+            switch(type)
+            {
+                case IDENT_HOLOLENS:
+                    break;
+                case IDENT_TABLET:
+                    identTablet.~VFVIdentTabletInformation();
+                    break;
+                case ADD_BINARY_DATASET:
+                    binaryDataset.~VFVBinaryDatasetInformation();
+                    break;
+                case ADD_VTK_DATASET:
+                    vtkDataset.~VFVVTKDatasetInformation();
+                    break;
+                case NOTHING:
+                    break;
+                default:
+                    WARNING << "Type " << type << " not handled yet in the destructor " << std::endl;
+                    break;
+            }
+        }
     };
 
     struct VFVTabletData

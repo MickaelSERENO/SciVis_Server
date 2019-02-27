@@ -110,17 +110,16 @@ namespace sereno
                     case IDENT_TABLET:
                         info = &m_curMsg.identTablet;
                         break;
-                    case ADD_DATASET:
-                    case REMOVE_DATASET:
-                        info = &m_curMsg.dataset;
+                    case ADD_VTK_DATASET:
+                        info = &m_curMsg.vtkDataset;
                         break;
-                    case CHANGE_COLOR:
-                        info = &m_curMsg.color;
+                    case ADD_BINARY_DATASET:
+                        info = &m_curMsg.binaryDataset;
                         break;
-                    case ROTATE_DATASET:
-                        info = &m_curMsg.rotate;
+                    case NOTHING:
                         break;
                     default:
+                        WARNING << "Type " << m_curMsg.type << " is not handled yet\n";
                         break;
                 }
 
@@ -201,12 +200,6 @@ namespace sereno
 
     bool VFVClientSocket::setAsTablet(const std::string& hololensIP)
     {
-        if(sockAddr.sin_port != htons(TABLET_PORT))
-        {
-            ERROR << "We are not connected to a tablet port... Quitting\n";
-            return false;
-        }
-
         m_identityType = TABLET;
 
         if(!inet_pton(AF_INET, hololensIP.c_str(), &(m_tablet.hololensAddr.sin_addr)))
@@ -214,7 +207,7 @@ namespace sereno
             ERROR << "The IP " << hololensIP << " is not valid" << std::endl;
             return false;
         }
-        m_tablet.hololensAddr.sin_port = htons(HOLOLENS_PORT);
+        m_tablet.hololensAddr.sin_port = htons(CLIENT_PORT);
         return true;
     }
 
@@ -227,7 +220,6 @@ namespace sereno
 
     bool VFVClientSocket::pullMessage(VFVMessage* msg)
     {
-        INFO << m_messages.size() << std::endl;
         if(m_messages.empty())
             return false;
 

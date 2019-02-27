@@ -11,7 +11,11 @@
 
 namespace sereno
 {
-    /* \brief Structure containing the Data information for the VFV Application */
+    /* \brief Structure containing the Data information for the VFV Application 
+     * I : uint32_t
+     * i : uint16_t
+     * s : string
+     * f : float*/
     struct VFVDataInformation
     {
         virtual ~VFVDataInformation(){}
@@ -21,7 +25,7 @@ namespace sereno
          * \return 's' for string, 'i' for uint16_t, 'I' for uint32_t and 'f' for float. 0 is returned if nothing should be at this position */
         virtual char getTypeAt(uint32_t cursor) const = 0;
 
-        /* \brief Get the maximum cursor position of the data being read
+        /* \brief Get the maximum cursor position of the data being read (included)
          * \return the maximum information ID */
         virtual uint32_t getMaxCursor() const = 0;
 
@@ -101,8 +105,8 @@ namespace sereno
         uint32_t getMaxCursor() const {return 0;}
     };
 
-    /* \brief Represents the information about dataset manipulation (adding, removing) */
-    struct VFVDatasetInformation : public VFVDataInformation
+    /* \brief Represents the information about binary dataset addition*/
+    struct VFVBinaryDatasetInformation : public VFVDataInformation
     {
         std::string name; /*!< The name of the dataset*/
 
@@ -124,6 +128,56 @@ namespace sereno
         }
 
         uint32_t getMaxCursor() const {return 0;}
+    };
+
+    /* \brief Represents the information about VTK Datasets*/
+    struct VFVVTKDatasetInformation : public VFVDataInformation
+    {
+        std::string name;                 /*!< The name of the dataset*/
+        uint32_t    nbPtFields   = 0;     /*!< The number of point field*/
+        uint32_t    nbCellFields = 0;     /*!< The number of cell field*/
+        std::vector<uint32_t> ptFields;   /*!<Indices of the point fields to read*/
+        std::vector<uint32_t> cellFields; /*!<Indices of the cell fields to read*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 's';
+            return 'I';
+        }
+
+        bool pushValue(uint32_t cursor, const std::string& value)
+        {
+            if(cursor == 0)
+            {
+                name = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 1)
+            {
+                nbPtFields = value;
+                return true;
+            }
+            if(cursor > 1 && cursor < nbPtFields+2)
+            {
+                ptFields.push_back(value);
+                return true;
+            }
+            if(cursor == nbPtFields+2)
+            {
+                nbCellFields = value;
+                return true;
+            }
+            cellFields.push_back(value);
+            return true;
+        }
+
+        uint32_t getMaxCursor() const {return 2+nbPtFields+nbCellFields;}
     };
 
     /* \brief Represents the information about the change of color of a dataset represented */
