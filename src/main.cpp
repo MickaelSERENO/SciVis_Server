@@ -2,6 +2,8 @@
 #include "VFVClientSocket.h"
 #include "InternalData.h"
 
+using namespace sereno;
+
 int main()
 {
     InternalData::initSingleton();
