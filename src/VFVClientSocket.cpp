@@ -119,6 +119,9 @@ namespace sereno
                     case ADD_BINARY_DATASET:
                         info = &m_curMsg.binaryDataset;
                         break;
+                    case ROTATE_DATASET:
+                        info = &m_curMsg.rotate;
+                        break;
                     case NOTHING:
                         break;
                     default:
@@ -204,13 +207,15 @@ namespace sereno
     bool VFVClientSocket::setAsTablet(const std::string& hololensIP)
     {
         m_identityType = TABLET;
-
-        if(!inet_pton(AF_INET, hololensIP.c_str(), &(m_tablet.hololensAddr.sin_addr)))
+        if(hololensIP.size())
         {
-            ERROR << "The IP " << hololensIP << " is not valid" << std::endl;
-            return false;
+            if(!inet_pton(AF_INET, hololensIP.c_str(), &(m_tablet.hololensAddr.sin_addr)))
+            {
+                ERROR << "The IP " << hololensIP << " is not valid" << std::endl;
+                return false;
+            }
+            m_tablet.hololensAddr.sin_port = htons(CLIENT_PORT);
         }
-        m_tablet.hololensAddr.sin_port = htons(CLIENT_PORT);
         return true;
     }
 

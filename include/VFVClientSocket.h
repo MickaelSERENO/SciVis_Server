@@ -113,6 +113,9 @@ namespace sereno
                         case ADD_VTK_DATASET:
                             vtkDataset = cpy.vtkDataset;
                             break;
+                        case ROTATE_DATASET:
+                            rotate = cpy.rotate;
+                            break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
                             break;
@@ -144,6 +147,9 @@ namespace sereno
                 case ADD_VTK_DATASET:
                     new (&vtkDataset) VFVVTKDatasetInformation;
                     break;
+                case ROTATE_DATASET:
+                    new (&rotate) VFVRotationInformation;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -168,6 +174,9 @@ namespace sereno
                     break;
                 case ADD_VTK_DATASET:
                     vtkDataset.~VFVVTKDatasetInformation();
+                    break;
+                case ROTATE_DATASET:
+                    rotate.~VFVRotationInformation();
                     break;
                 case NOTHING:
                     break;

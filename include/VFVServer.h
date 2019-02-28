@@ -40,6 +40,11 @@ namespace sereno
              * \param identTablet the message sent */
             void loginHololens(VFVClientSocket* client);
 
+            /* \brief Handle the rotation
+             * \param client the client asking for a rotation
+             * \param rotate the rotation data*/
+            void rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate);
+
             /* \brief  Add a VTKDataset to the visualized datasets
              * \param client the client adding the dataset
              * \param dataset the dataset information to add */

@@ -3,8 +3,22 @@
 namespace sereno
 {
 #define VFVSERVER_NOT_A_TABLET\
+    {\
         WARNING << "Disconnecting a client because he sent a wrong packet\n" << std::endl; \
-        closeClient(client->socket);
+        closeClient(client->socket);\
+    }
+
+#define VFVSERVER_DATASET_NOT_FOUND(datasetID)\
+    {\
+        WARNING << "Dataset ID " << (datasetID) << " not found... disconnecting the client!"; \
+        close(client->socket);\
+    }
+
+#define VFVSERVER_SUB_DATASET_NOT_FOUND(datasetID, subDatasetID)\
+    {\
+        WARNING << "Sub Dataset ID " << (subDatasetID) << " of dataset ID " << (datasetID) << " not found... disconnecting the client!"; \
+        close(client->socket);\
+    }
 
     uint64_t VFVServer::currentDataset = 0;
 
@@ -19,14 +33,17 @@ namespace sereno
 
     void VFVServer::loginTablet(VFVClientSocket* client,  VFVIdentTabletInformation& identTablet)
     {
-        INFO << "Tablet connected. Bound to Hololens IP " << identTablet.hololensIP << std::endl;
+        INFO << "Tablet connected.\n";
         if(!client->setAsTablet(identTablet.hololensIP))
         {
             VFVSERVER_NOT_A_TABLET
             return;
         }
-        else
+
+        //Useful if the packet was sent without hololens information
+        else if(identTablet.hololensIP.size() > 0)
         { 
+            INFO << "Tablet connected. Bound to Hololens IP " << identTablet.hololensIP << std::endl;
             //Go through all the tablet to look for an already connected hololens
             std::lock_guard<std::mutex> lock(m_mapMutex);
             for(auto& clt : m_clientTable)
@@ -41,6 +58,9 @@ namespace sereno
                 }
             }
         }
+
+        INFO << std::endl;
+        //TODO send already known datasets
     }
 
     void VFVServer::loginHololens(VFVClientSocket* client)
@@ -64,6 +84,8 @@ namespace sereno
                 }
             }
         }
+
+        //TODO send already known datasets
 
         INFO << std::endl;
     }
@@ -180,6 +202,21 @@ namespace sereno
         }
     }
 
+
+    void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
+    {
+        auto it = m_datasets.find(rotate.datasetID);
+        if(it == m_datasets.end())
+            VFVSERVER_DATASET_NOT_FOUND(rotate.datasetID)
+        if(it->second->getNbSubDatasets() <= rotate.subDatasetID)
+            VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
+
+        it->second->getSubDataset(rotate.subDatasetID)->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
+                                                                                    rotate.quaternion[3], rotate.quaternion[4]));
+
+        //TODO tell other
+    }
+
     void VFVServer::onMessage(uint32_t bufID, VFVClientSocket* client, uint8_t* data, uint32_t size)
     {
         VFVMessage msg;
@@ -212,6 +249,12 @@ namespace sereno
                 {
                     INFO << "Adding VTKDataset\n";
                     addVTKDataset(client, msg.vtkDataset);
+                    break;
+                }
+
+                case ROTATE_DATASET:
+                {
+                    rotateSubDataset(client, msg.rotate);
                     break;
                 }
 

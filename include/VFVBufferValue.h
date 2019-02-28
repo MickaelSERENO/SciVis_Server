@@ -88,7 +88,9 @@ namespace sereno
     template<>
     inline std::string VFVBufferValue<std::string>::getValue()
     {
-        return std::string((char*)buffer.data(), 0, buffer.size());
+        if(buffer.size() != 0)
+            return std::string((char*)buffer.data(), 0, buffer.size());
+        return "";
     }
 }
 
