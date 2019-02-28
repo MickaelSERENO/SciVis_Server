@@ -25,6 +25,7 @@ namespace sereno
     /* \brief The different type a client can be */
     enum VFVIdentityType
     {
+        NO_IDENT = -1,
         HOLOLENS = 0,
         TABLET   = 1
     };
@@ -37,6 +38,7 @@ namespace sereno
         IDENT_TABLET       = 1,
         ADD_BINARY_DATASET = 2,
         ADD_VTK_DATASET    = 3,
+        ROTATE_DATASET     = 4,
         END_MESSAGE_TYPE
     };
 
@@ -74,7 +76,8 @@ namespace sereno
 
         union
         {
-            struct VFVIdentTabletInformation identTablet;      /*!< Ident information of a tablet*/
+            struct VFVNoDataInformation         noData;        /*!< Structure for message with no internal data*/
+            struct VFVIdentTabletInformation    identTablet;   /*!< Ident information of a tablet*/
             struct VFVBinaryDatasetInformation  binaryDataset; /*!< Binary Dataset information*/
             struct VFVVTKDatasetInformation     vtkDataset;    /*!< Binary Dataset information*/
             struct VFVColorInformation          color;         /*!< The color information sent from a tablet*/
@@ -98,6 +101,9 @@ namespace sereno
                 {
                     switch(type)
                     {
+                        case IDENT_HOLOLENS:
+                            noData = cpy.noData;
+                            break;
                         case IDENT_TABLET:
                             identTablet = cpy.identTablet;
                             break;
@@ -127,6 +133,7 @@ namespace sereno
             switch(t)
             {
                 case IDENT_HOLOLENS:
+                    new (&noData) VFVNoDataInformation;
                     break;
                 case IDENT_TABLET:
                     new (&identTablet) VFVIdentTabletInformation;
@@ -151,6 +158,7 @@ namespace sereno
             switch(type)
             {
                 case IDENT_HOLOLENS:
+                    noData.~VFVNoDataInformation();
                     break;
                 case IDENT_TABLET:
                     identTablet.~VFVIdentTabletInformation();
@@ -231,7 +239,7 @@ namespace sereno
             VFVMessage             m_curMsg; /*!< The current in read message*/
             int32_t                m_cursor; /*!< Indice cursor (what information ID are we reading at ?)*/
 
-            VFVIdentityType        m_identityType; /*!< The type of the client (Tablet or hololens ?)*/
+            VFVIdentityType        m_identityType = NO_IDENT; /*!< The type of the client (Tablet or hololens ?)*/
             union
             {
                 VFVTabletData   m_tablet;   /*!< The client is considered a tablet*/

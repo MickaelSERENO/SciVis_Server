@@ -107,6 +107,9 @@ namespace sereno
                 VFVDataInformation* info = NULL;
                 switch(m_curMsg.type)
                 {
+                    case IDENT_HOLOLENS:
+                        info = &m_curMsg.noData;
+                        break;
                     case IDENT_TABLET:
                         info = &m_curMsg.identTablet;
                         break;
@@ -186,7 +189,7 @@ namespace sereno
                     }
 
                     //Full message received
-                    if((uint32_t)m_cursor == info->getMaxCursor()+1)
+                    if(m_cursor == info->getMaxCursor()+1)
                     {
                         m_messages.push(m_curMsg);
                         m_cursor = -1;

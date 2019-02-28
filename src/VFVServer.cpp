@@ -47,6 +47,8 @@ namespace sereno
     {
         client->setAsHololens();
 
+        INFO << "Connected as Hololens...\n";
+
         //Go through all the known client to look for an already connected tablet
         std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto& clt : m_clientTable)
@@ -62,6 +64,8 @@ namespace sereno
                 }
             }
         }
+
+        INFO << std::endl;
     }
 
     void VFVServer::addVTKDataset(VFVClientSocket* client, VFVVTKDatasetInformation& dataset)
@@ -118,6 +122,7 @@ namespace sereno
 
             VTKMetaData metaData;
             metaData.dataset = vtk;
+            metaData.name    = dataset.name;
             metaData.ptFieldValueIndices   = dataset.ptFields;
             metaData.cellFieldValueIndices = dataset.cellFields;
 
@@ -125,6 +130,8 @@ namespace sereno
             std::lock_guard<std::mutex> lock(m_datasetMutex);
             m_vtkDatasets.insert(std::pair<uint32_t, VTKMetaData>(currentDataset, metaData));
             m_datasets.insert(std::pair<uint32_t, VTKDataset*>(currentDataset, vtk));
+
+            currentDataset++;
         }
 
         //Send it to the other clients

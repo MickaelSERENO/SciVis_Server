@@ -27,7 +27,7 @@ namespace sereno
 
         /* \brief Get the maximum cursor position of the data being read (included)
          * \return the maximum information ID */
-        virtual uint32_t getMaxCursor() const = 0;
+        virtual int32_t getMaxCursor() const = 0;
 
         /* \brief Push a value into the data
          * \param cursor the information cursor
@@ -40,6 +40,13 @@ namespace sereno
         virtual bool pushValue(uint32_t cursor, uint16_t value)           {return pushValue(cursor, (uint32_t)value);}
         virtual bool pushValue(uint32_t cursor, int32_t value)            {return pushValue(cursor, (uint32_t)value);}
         virtual bool pushValue(uint32_t cursor, uint32_t value)           {return false;}
+    };
+
+    /** \brief  No Data information to receive yet */
+    struct VFVNoDataInformation : public VFVDataInformation
+    {
+        virtual char getTypeAt(uint32_t cursor) const {return 'I';}
+        virtual int32_t getMaxCursor() const {return -1;}
     };
 
     /* \brief Structure containing information about the rotation of the tablet */
@@ -77,7 +84,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        uint32_t getMaxCursor() const {return 4;}
+        int32_t getMaxCursor() const {return 4;}
     };
 
     /* \brief Represents the information the tablet send when authentifying */
@@ -102,7 +109,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        uint32_t getMaxCursor() const {return 0;}
+        int32_t getMaxCursor() const {return 0;}
     };
 
     /* \brief Represents the information about binary dataset addition*/
@@ -127,7 +134,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        uint32_t getMaxCursor() const {return 0;}
+        int32_t getMaxCursor() const {return 0;}
     };
 
     /* \brief Represents the information about VTK Datasets*/
@@ -177,7 +184,7 @@ namespace sereno
             return true;
         }
 
-        uint32_t getMaxCursor() const {return 2+nbPtFields+nbCellFields;}
+        int32_t getMaxCursor() const {return 2+nbPtFields+nbCellFields;}
     };
 
     /* \brief Represents the information about the change of color of a dataset represented */
@@ -230,7 +237,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        uint32_t getMaxCursor() const {return 3;}
+        int32_t getMaxCursor() const {return 3;}
     };
 }
 
