@@ -156,6 +156,14 @@ namespace sereno
             currentDataset++;
         }
 
+        //Acknowledge the current client
+        uint8_t* ackData = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
+        writeUint16(ackData, VFV_SEND_ACKNOWLEDGE_ADD_DATASET);
+        writeUint16(ackData+sizeof(uint16_t), currentDataset-1);
+        std::shared_ptr<uint8_t> ackSharedData(ackData);
+        SocketMessage<int> ackSm(client->socket, ackSharedData, ackSize);
+        writeMessage(ackSm);
+
         //Send it to the other clients
         for(auto clt : m_clientTable)
         {
