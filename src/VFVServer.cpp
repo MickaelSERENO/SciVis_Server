@@ -2,6 +2,8 @@
 
 namespace sereno
 {
+#define DATASET_DIRECTORY "Datasets/"
+
 #define VFVSERVER_NOT_A_TABLET\
     {\
         WARNING << "Disconnecting a client because he sent a wrong packet\n" << std::endl; \
@@ -60,7 +62,9 @@ namespace sereno
         }
 
         INFO << std::endl;
-        //TODO send already known datasets
+
+        //Send already known datasets
+        onLoginSendCurrentStatus(client);
     }
 
     void VFVServer::loginHololens(VFVClientSocket* client)
@@ -85,7 +89,7 @@ namespace sereno
             }
         }
 
-        //TODO send already known datasets
+        onLoginSendCurrentStatus(client);
 
         INFO << std::endl;
     }
@@ -98,7 +102,8 @@ namespace sereno
             return;
         }
 
-        VTKParser*  parser = new VTKParser("Datasets/"+dataset.name);
+        //Open the dataset asked
+        VTKParser*  parser = new VTKParser(DATASET_DIRECTORY+dataset.name);
         if(!parser->parse())
         {
             ERROR << "Could not parse the VTK Dataset " << dataset.name << std::endl;
@@ -138,21 +143,20 @@ namespace sereno
         INFO << "Opening VTK Dataset " << dataset.name << std::endl;
 
         //Create the dataset
+        std::shared_ptr<VTKParser> sharedParser(parser);
+        VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
+        VTKMetaData metaData;
+        metaData.dataset = vtk;
+        metaData.name    = dataset.name;
+        metaData.ptFieldValueIndices   = dataset.ptFields;
+        metaData.cellFieldValueIndices = dataset.cellFields;
+
+        //Add it to the list
         {
-            std::shared_ptr<VTKParser> sharedParser(parser);
-            VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
-
-            VTKMetaData metaData;
-            metaData.dataset = vtk;
-            metaData.name    = dataset.name;
-            metaData.ptFieldValueIndices   = dataset.ptFields;
-            metaData.cellFieldValueIndices = dataset.cellFields;
-
-            //Add it to the list
             std::lock_guard<std::mutex> lock(m_datasetMutex);
+            metaData.datasetID = currentDataset;
             m_vtkDatasets.insert(std::pair<uint32_t, VTKMetaData>(currentDataset, metaData));
             m_datasets.insert(std::pair<uint32_t, VTKDataset*>(currentDataset, vtk));
-
             currentDataset++;
         }
 
@@ -161,53 +165,13 @@ namespace sereno
         writeUint16(ackData, VFV_SEND_ACKNOWLEDGE_ADD_DATASET);
         writeUint16(ackData+sizeof(uint16_t), currentDataset-1);
         std::shared_ptr<uint8_t> ackSharedData(ackData);
-        SocketMessage<int> ackSm(client->socket, ackSharedData, ackSize);
+        SocketMessage<int> ackSm(client->socket, ackSharedData, sizeof(uint16_t)+sizeof(uint32_t));
         writeMessage(ackSm);
 
         //Send it to the other clients
         for(auto clt : m_clientTable)
-        {
             if(clt.second != client)
-            {
-                uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + 
-                                    sizeof(uint8_t)*dataset.name.size() +
-                                    sizeof(uint32_t)*(dataset.ptFields.size()+dataset.cellFields.size()+2);
-
-                uint8_t* data = (uint8_t*)malloc(dataSize);
-
-                uint32_t offset=0;
-
-                writeUint16(data, VFV_SEND_ADD_VTK_DATASET); //Type
-                offset += sizeof(uint16_t);
-
-                writeUint32(data+offset, dataset.name.size()); //Dataset name size
-                offset += sizeof(uint32_t); 
-
-                memcpy(data+offset, dataset.name.data(), dataset.name.size()); //Dataset name
-                offset += dataset.name.size()*sizeof(uint8_t);
-
-                writeUint32(data+offset, dataset.ptFields.size()); //ptFieldValueSize
-                offset+= sizeof(uint32_t);
-
-                for(int i : dataset.ptFields)
-                {
-                    writeUint32(data+offset, i); //ptFieldValue[i]
-                    offset += sizeof(uint32_t);
-                }
-
-                writeUint32(data+offset, dataset.cellFields.size()); //cellFieldValueSize
-                for(int i : dataset.cellFields)
-                {
-                    writeUint32(data+offset, i); //cellFieldValue[i]
-                    offset += sizeof(uint32_t);
-                }
-
-                INFO << "Sending data\n";
-                std::shared_ptr<uint8_t> sharedData(data);
-                SocketMessage<int> sm(clt.second->socket, sharedData, dataSize);
-                writeMessage(sm);
-            }
-        }
+                sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
     }
 
 
@@ -223,6 +187,68 @@ namespace sereno
                                                                                     rotate.quaternion[3], rotate.quaternion[4]));
 
         //TODO tell other
+    }
+
+    void VFVServer::sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t) + 
+                            sizeof(uint8_t)*dataset.name.size() +
+                            sizeof(uint32_t)*(dataset.ptFields.size()+dataset.cellFields.size()+2);
+
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+
+        uint32_t offset=0;
+
+        writeUint16(data, VFV_SEND_ADD_VTK_DATASET); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, dataset.name.size()); //Dataset name size
+        offset += sizeof(uint32_t); 
+
+        memcpy(data+offset, dataset.name.data(), dataset.name.size()); //Dataset name
+        offset += dataset.name.size()*sizeof(uint8_t);
+
+        writeUint32(data+offset, dataset.ptFields.size()); //ptFieldValueSize
+        offset+= sizeof(uint32_t);
+
+        for(int i : dataset.ptFields)
+        {
+            writeUint32(data+offset, i); //ptFieldValue[i]
+            offset += sizeof(uint32_t);
+        }
+
+        writeUint32(data+offset, dataset.cellFields.size()); //cellFieldValueSize
+        for(int i : dataset.cellFields)
+        {
+            writeUint32(data+offset, i); //cellFieldValue[i]
+            offset += sizeof(uint32_t);
+        }
+
+        INFO << "Sending ADD VTK DATASET Event data\n";
+        std::shared_ptr<uint8_t> sharedData(data);
+        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        writeMessage(sm);
+    }
+
+    void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        for(auto& it : m_vtkDatasets)
+        {
+            VFVVTKDatasetInformation dataset;
+
+            dataset.name         = it.second.name;
+            dataset.ptFields     = it.second.ptFieldValueIndices;
+            dataset.cellFields   = it.second.cellFieldValueIndices;
+            dataset.nbPtFields   = it.second.ptFieldValueIndices.size();
+            dataset.nbCellFields = it.second.cellFieldValueIndices.size();
+
+            //Send the event
+            sendAddVTKDatasetEvent(client, dataset, it.first);
+        }
     }
 
     void VFVServer::onMessage(uint32_t bufID, VFVClientSocket* client, uint8_t* data, uint32_t size)

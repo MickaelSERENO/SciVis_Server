@@ -16,9 +16,11 @@ namespace sereno
         return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
     }
 
+    /** \brief Enum describing what the server can push */
     enum VFVSendData
     {
-        VFV_SEND_ADD_VTK_DATASET = 0,
+        VFV_SEND_ADD_VTK_DATASET         = 0,
+        VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -49,6 +51,16 @@ namespace sereno
              * \param client the client adding the dataset
              * \param dataset the dataset information to add */
             void addVTKDataset(VFVClientSocket* client, VFVVTKDatasetInformation& dataset);
+
+            /* \brief  Send the Add VTK Dataset Event to a given client
+             * \param client the client to send the message
+             * \param dataset the dataset information 
+             * \param datasetID the datasetID*/
+            void sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID);
+
+            /* \brief  Send the current status of the server on login
+             * \param client the client to send the data */
+            void onLoginSendCurrentStatus(VFVClientSocket* client);
 
             void onMessage(uint32_t bufID, VFVClientSocket* client, uint8_t* data, uint32_t size);
 

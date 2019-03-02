@@ -9,7 +9,8 @@ namespace sereno
     /*!< Structure representing MetaData associated with the opened Datasets*/
     struct MetaData
     {
-        std::string name; /*!< The MetaData's name*/
+        std::string name;      /*!< The MetaData's name*/
+        uint32_t    datasetID; /* < The MetaData's ID*/
     };
 
     /** \brief  The VTK MetaData structure, containing metadata of VTK Datasets */

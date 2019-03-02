@@ -21,8 +21,12 @@ self.sendall(data)
 time.sleep(1.0)
 
 dataset = b"Agulhas_10_resampled.vtk";
-values = (3, len(dataset), dataset, 1, 1, 0)
+values = (3, len(dataset), dataset, 1, 2, 0)
 print(f"Sending open dataset dataset.vtk. Size : {2+4+len(dataset)+3*4}")
 packer = struct.Struct(f">HI{len(dataset)}sIII")
 data   = packer.pack(*values)
 self.sendall(data)
+
+print(f"Receiving acknowledge + datasetID")
+buf = self.recv(6)
+print(buf)
