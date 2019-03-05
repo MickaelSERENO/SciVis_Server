@@ -20,7 +20,8 @@ namespace sereno
     enum VFVSendData
     {
         VFV_SEND_ADD_VTK_DATASET         = 0,
-        VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1
+        VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1,
+        VFV_SEND_ROTATE_DATASET          = 2
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -57,6 +58,11 @@ namespace sereno
              * \param dataset the dataset information 
              * \param datasetID the datasetID*/
             void sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID);
+
+            /* \brief  Send a rotation event to client
+             * \param client the client to send the information
+             * \param rotate the rotate information*/
+            void sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
