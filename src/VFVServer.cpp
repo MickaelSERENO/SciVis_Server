@@ -22,8 +22,6 @@ namespace sereno
         close(client->socket);\
     }
 
-    uint64_t VFVServer::currentDataset = 0;
-
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {}
 
@@ -145,6 +143,14 @@ namespace sereno
         //Create the dataset
         std::shared_ptr<VTKParser> sharedParser(parser);
         VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
+
+        //Update the position
+        for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
+        {
+            SubDataset* sd = vtk->getSubDataset(i);
+            sd->setPosition(glm::vec3(m_currentSubDataset, 0.0f, 0.0f));
+        }
+
         VTKMetaData metaData;
         metaData.dataset = vtk;
         metaData.name    = dataset.name;
@@ -154,24 +160,29 @@ namespace sereno
         //Add it to the list
         {
             std::lock_guard<std::mutex> lock(m_datasetMutex);
-            metaData.datasetID = currentDataset;
-            m_vtkDatasets.insert(std::pair<uint32_t, VTKMetaData>(currentDataset, metaData));
-            m_datasets.insert(std::pair<uint32_t, VTKDataset*>(currentDataset, vtk));
-            currentDataset++;
+            metaData.datasetID = m_currentDataset;
+            m_vtkDatasets.insert(std::pair<uint32_t, VTKMetaData>(m_currentDataset, metaData));
+            m_datasets.insert(std::pair<uint32_t, VTKDataset*>(m_currentDataset, vtk));
+            m_currentDataset++;
         }
 
         //Acknowledge the current client
         uint8_t* ackData = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
         writeUint16(ackData, VFV_SEND_ACKNOWLEDGE_ADD_DATASET);
-        writeUint16(ackData+sizeof(uint16_t), currentDataset-1);
+        writeUint16(ackData+sizeof(uint16_t), m_currentDataset-1);
         std::shared_ptr<uint8_t> ackSharedData(ackData);
         SocketMessage<int> ackSm(client->socket, ackSharedData, sizeof(uint16_t)+sizeof(uint32_t));
         writeMessage(ackSm);
 
         //Send it to the other clients
         for(auto clt : m_clientTable)
+        {
             if(clt.second != client)
+            {
                 sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
+                sendDatasetStatus(clt.second, vtk, metaData.datasetID);
+            }
+        }
     }
 
 
@@ -272,6 +283,30 @@ namespace sereno
         writeMessage(sm);
     }
 
+    void VFVServer::sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 3*sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset=0;
+
+        writeUint16(data, VFV_SEND_MOVE_DATASET); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, position.datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, position.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        for(int i = 0; i < 3; i++, offset += sizeof(float)) //Vector3 position
+            writeFloat(data+offset, position.position[i]);
+
+        INFO << "Sending MOVE DATASET Event data\n";
+        std::shared_ptr<uint8_t> sharedData(data);
+        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        writeMessage(sm);
+    }
+
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
@@ -290,21 +325,31 @@ namespace sereno
         }
 
         for(auto& it : m_datasets)
-        {
-            for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
-            {
-                VFVRotationInformation rotate;
+            sendDatasetStatus(client, it.second, it.first);
+    }
 
-                rotate.datasetID    = it.first;
-                rotate.subDatasetID = i;
-                rotate.quaternion[0] = it.second->getSubDataset(i)->getGlobalRotate().w;
-                rotate.quaternion[1] = it.second->getSubDataset(i)->getGlobalRotate().x;
-                rotate.quaternion[2] = it.second->getSubDataset(i)->getGlobalRotate().y;
-                rotate.quaternion[3] = it.second->getSubDataset(i)->getGlobalRotate().z;
-            
-                sendRotateDatasetEvent(client, rotate);
-            }
-            
+    void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
+    {
+        for(uint32_t i = 0; i < dataset->getNbSubDatasets(); i++)
+        {
+            SubDataset* sd = dataset->getSubDataset(i);
+            //Send rotate
+            VFVRotationInformation rotate;
+            rotate.datasetID    = datasetID;
+            rotate.subDatasetID = i;
+            rotate.quaternion[0] = sd->getGlobalRotate().w;
+            rotate.quaternion[1] = sd->getGlobalRotate().x;
+            rotate.quaternion[2] = sd->getGlobalRotate().y;
+            rotate.quaternion[3] = sd->getGlobalRotate().z;
+            sendRotateDatasetEvent(client, rotate);
+
+            //Send move
+            VFVMoveInformation position;
+            position.datasetID    = datasetID;
+            position.subDatasetID = i;
+            for(uint32_t j = 0; j < 3; j++)
+                position.position[j] = sd->getPosition()[j];
+            sendMoveDatasetEvent(client, position);
         }
     }
 

@@ -21,7 +21,8 @@ namespace sereno
     {
         VFV_SEND_ADD_VTK_DATASET         = 0,
         VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1,
-        VFV_SEND_ROTATE_DATASET          = 2
+        VFV_SEND_ROTATE_DATASET          = 2,
+        VFV_SEND_MOVE_DATASET            = 3
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -31,7 +32,6 @@ namespace sereno
             VFVServer(uint32_t nbThread, uint32_t port);
             ~VFVServer();
         protected:
-            static uint64_t currentDataset; /*!< The current Dataset id to push */
 
             /* \brief  Login the tablet "client"
              * \param client the client logged as a tablet
@@ -64,6 +64,18 @@ namespace sereno
              * \param rotate the rotate information*/
             void sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate);
 
+            /* \brief  Send a position event to client
+             * \param client the client to send the information
+             * \param position the position information */
+            void sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position);
+
+            /* \brief  Send the whole dataset status to a client
+             * \param client the client to send the data
+             * \param dataset the dataset information
+             * \param datasetID the dataset ID
+             */
+            void sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID);
+
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
             void onLoginSendCurrentStatus(VFVClientSocket* client);
@@ -75,6 +87,9 @@ namespace sereno
             std::map<uint32_t, Dataset*>       m_datasets;       /*!< The datasets opened*/
 
             std::mutex                         m_datasetMutex;   /*!< The mutex handling the datasets*/
+
+            uint64_t m_currentDataset    = 0;                    /*!< The current Dataset id to push */
+            uint64_t m_currentSubDataset = 0;                    /*!< The current SubDatase id, useful to determine the next subdataset 3D position*/
     };
 }
 

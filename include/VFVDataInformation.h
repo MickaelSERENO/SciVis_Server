@@ -49,6 +49,50 @@ namespace sereno
         virtual int32_t getMaxCursor() const {return -1;}
     };
 
+    struct VFVMoveInformation : public VFVDataInformation
+    {
+        uint32_t datasetID;     /*!< The dataset ID*/
+        uint32_t subDatasetID;  /*!< The SubDataset ID*/
+        float    position[4];   /*!< The position information*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 2)
+                return 'I';
+            else if(cursor < 5)
+                return 'f';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor < 5 && cursor >= 2)
+            {
+                position[cursor-2] = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                datasetID = value;
+                return true;
+            }
+
+            if(cursor == 1)
+            {
+                subDatasetID = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 4;}
+    };
+
     /* \brief Structure containing information about the rotation of the tablet */
     struct VFVRotationInformation : public VFVDataInformation
     {
