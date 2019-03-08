@@ -148,7 +148,7 @@ namespace sereno
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
         {
             SubDataset* sd = vtk->getSubDataset(i);
-            sd->setPosition(glm::vec3(m_currentSubDataset, 0.0f, 0.0f));
+            sd->setPosition(glm::vec3(m_currentSubDataset*2.0f, 0.0f, 0.0f));
         }
 
         VTKMetaData metaData;
