@@ -6,7 +6,13 @@ namespace sereno
 
 #define VFVSERVER_NOT_A_TABLET\
     {\
-        WARNING << "Disconnecting a client because he sent a wrong packet\n" << std::endl; \
+        WARNING << "Disconnecting a client because he sent a wrong packet (excepted a TABLET)\n" << std::endl; \
+        closeClient(client->socket);\
+    }
+
+#define VFVSERVER_NOT_A_HEADSET\
+    {\
+        WARNING << "Disconnecting a client because he sent a wrong packet (excpected a HEADSET)\n" << std::endl; \
         closeClient(client->socket);\
     }
 
@@ -22,8 +28,18 @@ namespace sereno
         close(client->socket);\
     }
 
+    const uint32_t VFVServer::SCIVIS_DISTINGUISHABLE_COLORS[10] = {0xffe119, 0x4363d8, 0xf58231, 0xfabebe, 0xe6beff, 
+                                                                   0x800000, 0x000075, 0xa9a9a9, 0xffffff, 0x000000};
+
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
-    {}
+    {
+    }
+
+    VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
+    {
+        m_updateThread     = mvt.m_updateThread;
+        mvt.m_updateThread = NULL;
+    }
 
     VFVServer::~VFVServer()
     {
@@ -31,29 +47,85 @@ namespace sereno
             delete d.second;
     }
 
-    void VFVServer::loginTablet(VFVClientSocket* client,  VFVIdentTabletInformation& identTablet)
+    bool VFVServer::launch()
+    {
+        //Init the available color 
+        for(int32_t i = sizeof(SCIVIS_DISTINGUISHABLE_COLORS)/sizeof(SCIVIS_DISTINGUISHABLE_COLORS[0])-1; i >= 0; i--)
+            m_availableHeadsetColors.push(SCIVIS_DISTINGUISHABLE_COLORS[i]);
+
+        bool ret = Server::launch();
+        m_updateThread = new std::thread(&VFVServer::updateThread, this);
+
+        return ret;
+    }
+
+    void VFVServer::closeServer()
+    {
+        Server::closeServer();
+        if(m_updateThread)
+        {
+            if(m_updateThread->native_handle() != 0)
+            {
+                pthread_cancel(m_updateThread->native_handle());
+                m_updateThread->join();
+            }
+            delete m_updateThread;
+            m_updateThread = 0;
+        }
+    }
+
+    void VFVServer::closeClient(SOCKET client)
+    {
+        m_mapMutex.lock();
+            auto c = m_clientTable[client];
+
+            //Handle headset disconnections
+            if(c->isHeadset())
+            {
+                m_availableHeadsetColors.push(c->getHeadsetData().color);
+                m_nbConnectedHeadsets--;
+
+                //Disconnect with the tablet as well
+                for(auto it : m_clientTable)
+                    if(it.second->isTablet() && it.second->getTabletData().headset == c)
+                    {
+                        it.second->getTabletData().headset = NULL;
+                        break;
+                    }
+            }
+        m_mapMutex.unlock();
+
+        Server::closeClient(client);
+    }
+
+    /*----------------------------------------------------------------------------*/
+    /*----------------------------TREAT INCOMING DATA-----------------------------*/
+    /*----------------------------------------------------------------------------*/
+
+    void VFVServer::loginTablet(VFVClientSocket* client, const VFVIdentTabletInformation& identTablet)
     {
         INFO << "Tablet connected.\n";
-        if(!client->setAsTablet(identTablet.hololensIP))
+        if(!client->setAsTablet(identTablet.headsetIP))
         {
             VFVSERVER_NOT_A_TABLET
             return;
         }
 
-        //Useful if the packet was sent without hololens information
-        else if(identTablet.hololensIP.size() > 0)
+        //Useful if the packet was sent without headset information
+        else if(identTablet.headsetIP.size() > 0)
         { 
-            INFO << "Tablet connected. Bound to Hololens IP " << identTablet.hololensIP << std::endl;
-            //Go through all the tablet to look for an already connected hololens
+            //Go through all the tablet to look for an already connected headset
             std::lock_guard<std::mutex> lock(m_mapMutex);
             for(auto& clt : m_clientTable)
             {
                 
-                if(clt.second != client && clt.second->sockAddr.sin_addr.s_addr == client->getTabletData().hololensAddr.sin_addr.s_addr)
+                if(clt.second != client && clt.second->sockAddr.sin_addr.s_addr == client->getTabletData().headsetAddr.sin_addr.s_addr)
                 {
-                    INFO << "Hololens found!\n";
-                    clt.second->getHololensData().tablet = client;
-                    client->getTabletData().hololens     = clt.second;
+                    INFO << "Headset found!\n";
+                    clt.second->getHeadsetData().tablet = client;
+                    client->getTabletData().headset     = clt.second;
+
+                    sendHeadsetBindingInfo(client, clt.second);
                     return;
                 }
             }
@@ -65,34 +137,60 @@ namespace sereno
         onLoginSendCurrentStatus(client);
     }
 
-    void VFVServer::loginHololens(VFVClientSocket* client)
+    void VFVServer::loginHeadset(VFVClientSocket* client)
     {
-        client->setAsHololens();
+        std::lock_guard<std::mutex> lock(m_mapMutex);
 
-        INFO << "Connected as Hololens...\n";
+        if(m_nbConnectedHeadsets >= MAX_NB_HEADSETS)
+        {
+            WARNING << "Too much headsets connected... Disconnecting this one\n";
+            closeClient(client->socket);
+            return;
+        }
+        m_nbConnectedHeadsets++;
+
+        client->setAsHeadset();
+
+        INFO << "Connected as Headset...\n";
 
         //Go through all the known client to look for an already connected tablet
-        std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto& clt : m_clientTable)
         {
             if(clt.second->isTablet())
             { 
-                if(clt.second != client && client->sockAddr.sin_addr.s_addr == clt.second->getTabletData().hololensAddr.sin_addr.s_addr)
+                if(clt.second != client && client->sockAddr.sin_addr.s_addr == clt.second->getTabletData().headsetAddr.sin_addr.s_addr)
                 {
                     INFO << "Tablet found!\n";
-                    client->getHololensData().tablet     = clt.second;
-                    clt.second->getTabletData().hololens = client;
+                    client->getHeadsetData().tablet     = clt.second;
+                    clt.second->getTabletData().headset = client;
+
+                    sendHeadsetBindingInfo(clt.second, client);
                     break;
                 }
             }
         }
+
+        //Set visualizable color
+        client->getHeadsetData().color = m_availableHeadsetColors.top();
+        m_availableHeadsetColors.pop();
 
         onLoginSendCurrentStatus(client);
 
         INFO << std::endl;
     }
 
-    void VFVServer::addVTKDataset(VFVClientSocket* client, VFVVTKDatasetInformation& dataset)
+    void VFVServer::sendEmptyMessage(VFVClientSocket* client, uint16_t type)
+    {
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t));
+        writeUint16(data, type);
+
+        INFO << "Sending EMPTY MESSAGE Event data. Type : " << type << std::endl;
+        std::shared_ptr<uint8_t> sharedData(data);
+        SocketMessage<int> sm(client->socket, sharedData, sizeof(int16_t));
+        writeMessage(sm);
+    }
+
+    void VFVServer::addVTKDataset(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset)
     {
         if(!client->isTablet())
         {
@@ -185,8 +283,7 @@ namespace sereno
         }
     }
 
-
-    void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
+    void VFVServer::rotateSubDataset(VFVClientSocket* client, const VFVRotationInformation& rotate)
     {
         Dataset* dataset = NULL;
         {
@@ -214,6 +311,25 @@ namespace sereno
             if(clt.second != client)
                 sendRotateDatasetEvent(clt.second, rotate);
     }
+
+    void VFVServer::updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset)
+    {
+        if(!client->isHeadset())
+        {
+            VFVSERVER_NOT_A_HEADSET  
+            return;
+        }
+
+        auto& internalData = client->getHeadsetData();
+        for(uint32_t i = 0; i < 3; i++)
+            internalData.position[i] = headset.position[i];
+        for(uint32_t i = 0; i < 4; i++)
+            internalData.rotation[i] = headset.rotation[i];
+    }
+
+    /*----------------------------------------------------------------------------*/
+    /*-------------------------------SEND MESSAGES--------------------------------*/
+    /*----------------------------------------------------------------------------*/
 
     void VFVServer::sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID)
     {
@@ -309,6 +425,27 @@ namespace sereno
 
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
+        //Send headset personal data
+        if(client->isHeadset())
+        {
+            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
+            uint32_t offset = 0;
+
+            //The type of the message
+            writeUint16(data+offset, VFV_SEND_HEADSET_INIT);
+            offset += sizeof(uint16_t);
+
+            //The color
+            writeUint32(data+offset, client->getHeadsetData().color);
+            offset += sizeof(uint32_t);
+
+            INFO << "Sending 'init headset' event data" << std::endl;
+            std::shared_ptr<uint8_t> sharedData(data);
+            SocketMessage<int> sm(client->socket, sharedData, offset);
+            writeMessage(sm);
+        }
+
+        //Send common data
         std::lock_guard<std::mutex> lock(m_datasetMutex);
         for(auto& it : m_vtkDatasets)
         {
@@ -326,6 +463,7 @@ namespace sereno
 
         for(auto& it : m_datasets)
             sendDatasetStatus(client, it.second, it.first);
+
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
@@ -353,6 +491,34 @@ namespace sereno
         }
     }
 
+    void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset)
+    {
+         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t));
+         uint32_t offset = 0;
+
+         //Type
+         writeUint16(data+offset, VFV_SEND_HEADSET_BINDING_INFO);
+         offset+=sizeof(uint16_t);
+
+         //Headset ID
+         writeUint32(data+offset, headset->getHeadsetData().id);
+         offset+=sizeof(uint32_t);
+
+         //Headset color
+         writeUint32(data+offset, headset->getHeadsetData().color);
+         offset+=sizeof(uint32_t);
+         
+         INFO << "Sending HEADSET BINDING INFO Event data\n";
+         std::shared_ptr<uint8_t> sharedData(data);
+         SocketMessage<int> sm(client->socket, sharedData, offset);
+         writeMessage(sm);
+    }
+
+
+    /*----------------------------------------------------------------------------*/
+    /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
+    /*----------------------------------------------------------------------------*/
+
     void VFVServer::onMessage(uint32_t bufID, VFVClientSocket* client, uint8_t* data, uint32_t size)
     {
         VFVMessage msg;
@@ -366,7 +532,6 @@ namespace sereno
         //Handles the message received and reconstructed
         while(client->pullMessage(&msg))
         {
-            INFO << "Pulling message\n\n";
             switch(msg.type)
             {
                 case IDENT_TABLET:
@@ -375,15 +540,14 @@ namespace sereno
                     break;
                 }
 
-                case IDENT_HOLOLENS:
+                case IDENT_HEADSET:
                 {
-                    loginHololens(client);
+                    loginHeadset(client);
                     break;
                 }
 
                 case ADD_VTK_DATASET:
                 {
-                    INFO << "Adding VTKDataset\n";
                     addVTKDataset(client, msg.vtkDataset);
                     break;
                 }
@@ -394,6 +558,11 @@ namespace sereno
                     break;
                 }
 
+                case UPDATE_HEADSET:
+                {
+                    updateHeadset(client, msg.headset);
+                    break;
+                }
                 default:
                     WARNING << "Type " << msg.type << " not handled yet\n";
                     break;
@@ -405,5 +574,69 @@ namespace sereno
     clientError:
         closeClient(client->socket);
         return;
+    }
+
+    void VFVServer::updateThread()
+    {
+        while(!m_closeThread)
+        {
+            struct timespec beg;
+            struct timespec end;
+
+            clock_gettime(CLOCK_REALTIME, &beg);
+            {
+                //Send HEADSETS_STATUS
+                std::lock_guard<std::mutex> lock(m_mapMutex);
+                for(auto& it : m_clientTable)
+                {
+                    if(it.second->isHeadset())
+                    {
+                        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
+                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 2*sizeof(uint32_t)));
+                        uint32_t offset    = 0;
+                        uint32_t nbHeadset = 0;
+
+                        //Type
+                        writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
+                        offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
+
+                        for(auto& it2 : m_clientTable)
+                        {
+                            if(it2.second->isHeadset() && it2.second != it.second)
+                            {
+                                //ID
+                                writeUint32(data+offset, it2.second->getHeadsetData().id);
+                                offset += sizeof(uint32_t);
+
+                                //Position
+                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, it2.second->getHeadsetData().position[i]);
+
+                                //Rotation
+                                for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, it2.second->getHeadsetData().rotation[i]);
+
+                                //Color
+                                writeUint32(data+offset, it2.second->getHeadsetData().color);
+                                offset += sizeof(uint32_t);
+
+                                nbHeadset++;
+                            }
+                        }
+
+                        //Write the number of headset to take account of
+                        writeUint32(data+sizeof(uint16_t), nbHeadset);
+
+                        std::shared_ptr<uint8_t> sharedData(data);
+                        SocketMessage<int> sm(it.first, sharedData, offset);
+                        writeMessage(sm);
+                    }
+                }
+            }
+            clock_gettime(CLOCK_REALTIME, &end);
+
+            usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - (end.tv_nsec*1.e-3 + end.tv_sec*1.e6) +
+                                                                (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
+        }
     }
 }

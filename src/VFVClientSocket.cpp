@@ -2,6 +2,8 @@
 
 namespace sereno
 {
+    uint32_t VFVClientSocket::nextHeadsetID = 0;
+
     VFVClientSocket::VFVClientSocket() : ClientSocket(), m_cursor(-1), stringBuffer(-1)
     {
         m_curMsg.type = NOTHING;
@@ -89,10 +91,7 @@ namespace sereno
                     bool ret = m_curMsg.setType((VFVMessageType)(uint16Buffer.getValue()));
                     uint16Buffer.clear();
                     if(ret)
-                    {
-                        INFO << "Type " << m_curMsg.type << " found \n";
                         m_cursor = 0;
-                    }
                     else
                     {
                         WARNING << "Wrong type parsed in the client" << std::endl;
@@ -107,7 +106,7 @@ namespace sereno
                 VFVDataInformation* info = NULL;
                 switch(m_curMsg.type)
                 {
-                    case IDENT_HOLOLENS:
+                    case IDENT_HEADSET:
                         info = &m_curMsg.noData;
                         break;
                     case IDENT_TABLET:
@@ -121,6 +120,9 @@ namespace sereno
                         break;
                     case ROTATE_DATASET:
                         info = &m_curMsg.rotate;
+                        break;
+                    case UPDATE_HEADSET:
+                        info = &m_curMsg.headset;
                         break;
                     case NOTHING:
                         break;
@@ -204,25 +206,27 @@ namespace sereno
         return true;
     }
 
-    bool VFVClientSocket::setAsTablet(const std::string& hololensIP)
+    bool VFVClientSocket::setAsTablet(const std::string& headsetIP)
     {
         m_identityType = TABLET;
-        if(hololensIP.size())
+        if(headsetIP.size())
         {
-            if(!inet_pton(AF_INET, hololensIP.c_str(), &(m_tablet.hololensAddr.sin_addr)))
+            if(!inet_pton(AF_INET, headsetIP.c_str(), &(m_tablet.headsetAddr.sin_addr)))
             {
-                ERROR << "The IP " << hololensIP << " is not valid" << std::endl;
+                ERROR << "The IP " << headsetIP << " is not valid" << std::endl;
                 return false;
             }
-            m_tablet.hololensAddr.sin_port = htons(CLIENT_PORT);
+            m_tablet.headsetAddr.sin_port = htons(CLIENT_PORT);
+            INFO << "Bound to Headset IP " << headsetIP << " port " << CLIENT_PORT << std::endl;
         }
         return true;
     }
 
 
-    bool VFVClientSocket::setAsHololens()
+    bool VFVClientSocket::setAsHeadset()
     {
-        m_identityType = HOLOLENS;
+        m_identityType = HEADSET;
+        m_headset.id   = nextHeadsetID++;
         return true;
     }
 

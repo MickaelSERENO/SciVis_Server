@@ -1,0 +1,52 @@
+i = int16
+I = int32
+s = string
+f = float
+
+VFV_SEND_ADD_VTK_DATASET:
+    i 'type'
+    s 'path'
+    I 'nbPointField'
+    0 -> nbPointField:
+        I 'indicePointField'
+    I 'nbCellField'
+    0 -> nbCellField:
+        I 'indiceCellField'
+    
+VFV_SEND_ACKNOWLEDGE_ADD_DATASET:
+    i 'type'
+
+VFV_SEND_ROTATE_DATASET:
+    i 'type'
+    I 'datasetID'
+    I 'subDatasetID'
+    f 'rotationW'
+    f 'rotationX'
+    f 'rotationY'
+    f 'rotationZ'
+
+VFV_SEND_MOVE_DATASET:
+    i 'type'
+    I 'datasetID'
+    I 'subDatasetID'
+    f 'posX'
+    f 'posY'
+    f 'posZ'
+
+VFV_SEND_HEADSET_INIT:
+    i 'type'
+    I 'color'
+
+VFV_SEND_HEADSETS_STATUS:
+    i 'type'
+    I 'nbHeadset' (this one excluded)
+    0 -> nbHeadset:
+        I 'id'
+        f 'posX'
+        f 'posY'
+        f 'posZ'
+        f 'rotationW'
+        f 'rotationX'
+        f 'rotationY'
+        f 'rotationZ'
+        I 'color'

@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <string>
 #include <tuple>
+#include <glm/glm.hpp>
 #include "utils.h"
 #include "ClientSocket.h"
 #include "ColorMode.h"
@@ -15,6 +16,7 @@
 #include "VFVBufferValue.h"
 #include "Types/ServerType.h"
 #include "writeData.h"
+#include "Quaternion.h"
 
 #define CLIENT_PORT 8000
 
@@ -26,7 +28,7 @@ namespace sereno
     enum VFVIdentityType
     {
         NO_IDENT = -1,
-        HOLOLENS = 0,
+        HEADSET = 0,
         TABLET   = 1
     };
 
@@ -34,11 +36,12 @@ namespace sereno
     enum VFVMessageType
     {
         NOTHING            = -1,
-        IDENT_HOLOLENS     = 0,
+        IDENT_HEADSET      = 0,
         IDENT_TABLET       = 1,
         ADD_BINARY_DATASET = 2,
         ADD_VTK_DATASET    = 3,
         ROTATE_DATASET     = 4,
+        UPDATE_HEADSET     = 5,
         END_MESSAGE_TYPE
     };
 
@@ -82,6 +85,7 @@ namespace sereno
             struct VFVVTKDatasetInformation     vtkDataset;    /*!< Binary Dataset information*/
             struct VFVColorInformation          color;         /*!< The color information sent from a tablet*/
             struct VFVRotationInformation       rotate;        /*!< The rotate information sent from a tablet*/
+            struct VFVUpdateHeadset             headset;       /*!< The headset update data information*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -101,7 +105,7 @@ namespace sereno
                 {
                     switch(type)
                     {
-                        case IDENT_HOLOLENS:
+                        case IDENT_HEADSET:
                             noData = cpy.noData;
                             break;
                         case IDENT_TABLET:
@@ -115,6 +119,9 @@ namespace sereno
                             break;
                         case ROTATE_DATASET:
                             rotate = cpy.rotate;
+                            break;
+                        case UPDATE_HEADSET:
+                            headset = cpy.headset;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -135,7 +142,7 @@ namespace sereno
             type = t;
             switch(t)
             {
-                case IDENT_HOLOLENS:
+                case IDENT_HEADSET:
                     new (&noData) VFVNoDataInformation;
                     break;
                 case IDENT_TABLET:
@@ -150,6 +157,9 @@ namespace sereno
                 case ROTATE_DATASET:
                     new (&rotate) VFVRotationInformation;
                     break;
+                case UPDATE_HEADSET:
+                    new (&headset) VFVUpdateHeadset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -163,7 +173,7 @@ namespace sereno
         {
             switch(type)
             {
-                case IDENT_HOLOLENS:
+                case IDENT_HEADSET:
                     noData.~VFVNoDataInformation();
                     break;
                 case IDENT_TABLET:
@@ -178,6 +188,9 @@ namespace sereno
                 case ROTATE_DATASET:
                     rotate.~VFVRotationInformation();
                     break;
+                case UPDATE_HEADSET:
+                    headset.~VFVUpdateHeadset();
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -187,15 +200,21 @@ namespace sereno
         }
     };
 
+    /** \brief  Tablet data structur */
     struct VFVTabletData
     {
-        SOCKADDR_IN      hololensAddr;
-        VFVClientSocket* hololens = NULL;
+        SOCKADDR_IN      headsetAddr;    /*!< What is the address of the headset bound to this tablet?*/
+        VFVClientSocket* headset = NULL; /*!< WHat is the headset bound to this tablet?*/
     };
 
-    struct VFVHololensData
+    /** \brief  Headset data structure */
+    struct VFVHeadsetData
     {
-        VFVClientSocket* tablet = NULL;
+        uint32_t         id;                /*!< ID of the headset*/
+        VFVClientSocket* tablet = NULL;     /*!< The tablet bound to this Headset*/
+        uint32_t         color  = 0x000000; /*!< The displayed color representing this headset*/
+        glm::vec3        position;          /*!< 3D position of the headset*/
+        Quaternionf      rotation;          /*!< 3D rotation of the headset*/
     };
 
     /* \brief VFVClientSocket class. Represent a Client for VFV Application */
@@ -208,12 +227,12 @@ namespace sereno
             bool feedMessage(uint8_t* message, uint32_t size);
 
             /* \brief Set the client as tablet
-             * \param hololens IP the hololens IP */
-            bool setAsTablet(const std::string& hololensIP);
+             * \param headset IP the headset IP */
+            bool setAsTablet(const std::string& headsetIP);
 
-            /* \brief  Set the client as hololens
+            /* \brief  Set the client as headset
              * \return true on success, false on failure */
-            bool setAsHololens();
+            bool setAsHeadset();
 
             /* \brief Get a message 
              * \param msg[out] the variable to modify which will contain the message
@@ -224,9 +243,9 @@ namespace sereno
              * \return whether or not the client is a tablet */
             bool isTablet() const {return m_identityType == TABLET;}
 
-            /* \brief Is the client a hololens ?
-             * \return whether or not the client is a hololens */
-            bool isHololens() const {return m_identityType == HOLOLENS;}
+            /* \brief Is the client a headset ?
+             * \return whether or not the client is a headset */
+            bool isHeadset() const {return m_identityType == HEADSET;}
 
             /** \brief  Get the TabletData. Works only if isTablet returns true!
              * \return the Tablet Data*/
@@ -236,23 +255,25 @@ namespace sereno
              * \return the Tablet Data*/
             VFVTabletData& getTabletData() {return m_tablet;}
 
-            /** \brief  Get the HololensData. Works only if isHololens returns true!
-             * \return the Hololens Data*/
-            const VFVHololensData& getHololensData() const {return m_hololens;}
+            /** \brief  Get the HeadsetData. Works only if isHeadset returns true!
+             * \return the Headset Data*/
+            const VFVHeadsetData& getHeadsetData() const {return m_headset;}
 
-            /** \brief  Get the HololensData. Works only if isHololens returns true!
-             * \return the Hololens Data*/
-            VFVHololensData& getHololensData() {return m_hololens;}
+            /** \brief  Get the HeadsetData. Works only if isHeadset returns true!
+             * \return the Headset Data*/
+            VFVHeadsetData& getHeadsetData() {return m_headset;}
         private:
-            std::queue<VFVMessage> m_messages; /*!< List of messages*/
-            VFVMessage             m_curMsg; /*!< The current in read message*/
-            int32_t                m_cursor; /*!< Indice cursor (what information ID are we reading at ?)*/
+            static uint32_t nextHeadsetID;
 
-            VFVIdentityType        m_identityType = NO_IDENT; /*!< The type of the client (Tablet or hololens ?)*/
+            std::queue<VFVMessage> m_messages; /*!< List of messages parsed*/
+            VFVMessage             m_curMsg;   /*!< The current in read message*/
+            int32_t                m_cursor;   /*!< Indice cursor (what information ID are we reading at ?)*/
+
+            VFVIdentityType        m_identityType = NO_IDENT; /*!< The type of the client (Tablet or headset ?)*/
             union
             {
                 VFVTabletData   m_tablet;   /*!< The client is considered a tablet*/
-                VFVHololensData m_hololens; /*!< The client is considered as a hololens*/
+                VFVHeadsetData m_headset; /*!< The client is considered as a headset*/
             };
 
             VFVBufferValue<uint32_t>    uint32Buffer; /*!< The current uint32 buffer*/

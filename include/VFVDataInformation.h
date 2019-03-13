@@ -49,11 +49,43 @@ namespace sereno
         virtual int32_t getMaxCursor() const {return -1;}
     };
 
+    /** \brief  Structure containing continuous stream of headset status */
+    struct VFVUpdateHeadset : public VFVDataInformation
+    {
+        float position[3]; /*!< 3D headset position*/
+        float rotation[4]; /*!< 3D quaternion headset rotation*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 7)
+                return 'f';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor < 3)
+            {
+                position[cursor] = value;
+                return true;
+            }
+            else if(cursor < 7)
+            {
+                rotation[cursor-3] = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 6;}
+    };
+
+    /** \brief  Structure containing information for dataset movement */
     struct VFVMoveInformation : public VFVDataInformation
     {
         uint32_t datasetID;     /*!< The dataset ID*/
         uint32_t subDatasetID;  /*!< The SubDataset ID*/
-        float    position[4];   /*!< The position information*/
+        float    position[3];   /*!< The position information*/
 
         char getTypeAt(uint32_t cursor) const
         {
@@ -141,7 +173,7 @@ namespace sereno
     /* \brief Represents the information the tablet send when authentifying */
     struct VFVIdentTabletInformation : public VFVDataInformation
     {
-        std::string hololensIP; /*!< The hololens IP adresse it is bound to*/
+        std::string headsetIP; /*!< The headset IP adresse it is bound to*/
 
         char getTypeAt(uint32_t cursor) const
         {
@@ -154,7 +186,7 @@ namespace sereno
         {
             if(cursor == 0)
             {
-                hololensIP = value;
+                headsetIP = value;
                 return true;
             }
             VFV_DATA_ERROR
