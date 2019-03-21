@@ -82,6 +82,7 @@ namespace sereno
             //Handle headset disconnections
             if(c->isHeadset())
             {
+                INFO << "Disconnecting a headset client\n";
                 m_availableHeadsetColors.push(c->getHeadsetData().color);
                 m_nbConnectedHeadsets--;
 
