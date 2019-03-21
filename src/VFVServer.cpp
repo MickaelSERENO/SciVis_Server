@@ -284,7 +284,7 @@ namespace sereno
         }
     }
 
-    void VFVServer::rotateSubDataset(VFVClientSocket* client, const VFVRotationInformation& rotate)
+    void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
     {
         Dataset* dataset = NULL;
         {
@@ -306,6 +306,9 @@ namespace sereno
 
         dataset->getSubDataset(rotate.subDatasetID)->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
                                                                                  rotate.quaternion[3], rotate.quaternion[0]));
+
+        if(client->isTablet() && client->getTabletData().headset)
+            rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
 
         std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto& clt : m_clientTable)
@@ -378,7 +381,7 @@ namespace sereno
 
     void VFVServer::sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate)
     {
-        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 4*sizeof(float);
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 4*sizeof(float);
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset=0;
 
@@ -389,6 +392,9 @@ namespace sereno
         offset += sizeof(uint32_t);
 
         writeUint32(data+offset, rotate.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        writeUint32(data+offset, rotate.headsetID); //The headset ID
         offset += sizeof(uint32_t); 
 
         for(int i = 0; i < 4; i++, offset += sizeof(float)) //Quaternion rotation
@@ -402,7 +408,7 @@ namespace sereno
 
     void VFVServer::sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position)
     {
-        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 3*sizeof(float);
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 3*sizeof(float);
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset=0;
 
@@ -413,6 +419,9 @@ namespace sereno
         offset += sizeof(uint32_t);
 
         writeUint32(data+offset, position.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        writeUint32(data+offset, position.headsetID); //The headset ID
         offset += sizeof(uint32_t); 
 
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //Vector3 position
@@ -494,25 +503,42 @@ namespace sereno
 
     void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset)
     {
-         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t));
-         uint32_t offset = 0;
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t));
+        uint32_t offset = 0;
 
-         //Type
-         writeUint16(data+offset, VFV_SEND_HEADSET_BINDING_INFO);
-         offset+=sizeof(uint16_t);
+        //Type
+        writeUint16(data+offset, VFV_SEND_HEADSET_BINDING_INFO);
+        offset+=sizeof(uint16_t);
 
-         //Headset ID
-         writeUint32(data+offset, headset->getHeadsetData().id);
-         offset+=sizeof(uint32_t);
+        //First headset
+        data[offset] = 1;
+        m_mapMutex.lock();
+        {
+            for(auto& clt : m_clientTable)
+            {
+                if(clt.second->isHeadset())
+                {
+                    data[offset]=0;
+                    break;
+                }
+            }
+        }
+        m_mapMutex.unlock();
+        offset++;
 
-         //Headset color
-         writeUint32(data+offset, headset->getHeadsetData().color);
-         offset+=sizeof(uint32_t);
-         
-         INFO << "Sending HEADSET BINDING INFO Event data\n";
-         std::shared_ptr<uint8_t> sharedData(data);
-         SocketMessage<int> sm(client->socket, sharedData, offset);
-         writeMessage(sm);
+        //Headset ID
+        writeUint32(data+offset, headset->getHeadsetData().id);
+        offset+=sizeof(uint32_t);
+
+
+        //Headset color
+        writeUint32(data+offset, headset->getHeadsetData().color);
+        offset+=sizeof(uint32_t);
+        
+        INFO << "Sending HEADSET BINDING INFO Event data\n";
+        std::shared_ptr<uint8_t> sharedData(data);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
     }
 
 
@@ -567,6 +593,19 @@ namespace sereno
                 case ANNOTATION_DATA:
                 {
                     INFO << "Received annotation data!" << std::endl;
+                    break;
+                }
+
+                case ANCHORING_DATA_SEGMENT:
+                {
+                    INFO << "Receiving anchor data segment sized : " << msg.defaultByteArray.dataSize << std::endl;
+                    m_anchorData.pushDataSegment(msg.defaultByteArray);
+                    break;
+                }
+                case ANCHORING_DATA_STATUS:
+                {
+                    INFO << "Receiving end of anchoring data : " << msg.anchoringDataStatus.succeed << std::endl;
+                    m_anchorData.finalize(msg.anchoringDataStatus.succeed);
                     break;
                 }
                 default:

@@ -43,6 +43,8 @@ namespace sereno
         ROTATE_DATASET     = 4,
         UPDATE_HEADSET     = 5,
         ANNOTATION_DATA    = 6,
+        ANCHORING_DATA_SEGMENT = 7,
+        ANCHORING_DATA_STATUS  = 8,
         END_MESSAGE_TYPE
     };
 
@@ -88,6 +90,8 @@ namespace sereno
             struct VFVRotationInformation       rotate;        /*!< The rotate information sent from a tablet*/
             struct VFVUpdateHeadset             headset;       /*!< The headset update data information*/
             struct VFVAnnotation                annotation;    /*!< The annotation data information*/
+            struct VFVDefaultByteArray          defaultByteArray;    /*!< Default byte array information*/
+            struct VFVAnchoringDataStatus       anchoringDataStatus; /*!< Anchoring data status*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -127,6 +131,12 @@ namespace sereno
                             break;
                         case ANNOTATION_DATA:
                             annotation = cpy.annotation;
+                            break;
+                        case ANCHORING_DATA_SEGMENT:
+                            defaultByteArray = cpy.defaultByteArray;
+                            break;
+                        case ANCHORING_DATA_STATUS:
+                            anchoringDataStatus = cpy.anchoringDataStatus;                            
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -168,6 +178,12 @@ namespace sereno
                 case ANNOTATION_DATA:
                     new (&annotation) VFVAnnotation;
                     break;
+                case ANCHORING_DATA_SEGMENT:
+                    new (&defaultByteArray) VFVDefaultByteArray;
+                    break;
+                case ANCHORING_DATA_STATUS:
+                    new (&anchoringDataStatus) VFVAnchoringDataStatus;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -201,6 +217,12 @@ namespace sereno
                     break;
                 case ANNOTATION_DATA:
                     annotation.~VFVAnnotation();
+                    break;
+                case ANCHORING_DATA_SEGMENT:
+                    defaultByteArray.~VFVDefaultByteArray();
+                    break;
+                case ANCHORING_DATA_STATUS:
+                    anchoringDataStatus.~VFVAnchoringDataStatus();
                     break;
                 case NOTHING:
                     break;
@@ -283,7 +305,7 @@ namespace sereno
             VFVIdentityType        m_identityType = NO_IDENT; /*!< The type of the client (Tablet or headset ?)*/
             union
             {
-                VFVTabletData   m_tablet;   /*!< The client is considered a tablet*/
+                VFVTabletData  m_tablet;   /*!< The client is considered a tablet*/
                 VFVHeadsetData m_headset; /*!< The client is considered as a headset*/
             };
 
@@ -291,6 +313,8 @@ namespace sereno
             VFVBufferValue<uint16_t>    uint16Buffer; /*!< The current uint16_t buffer*/
             VFVBufferValue<float>       floatBuffer;  /*!< The current float buffer*/
             VFVBufferValue<std::string> stringBuffer; /*!< The current std::string buffer*/
+            uint8_t*                    arrBuffer;    /*!< The uint8_t array buffer*/
+            uint32_t                    arrBufferIdx; /*!< The current array buffer Idx*/
     };
 }
 

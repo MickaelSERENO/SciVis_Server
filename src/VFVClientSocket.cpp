@@ -65,6 +65,26 @@ namespace sereno
         }\
     }
 
+#define PUSH_BYTE_ARRAY \
+    if(!arrBuffer) \
+    {\
+        PUSH_UINT32 \
+        if(uint32Buffer.isFull()) \
+        {\
+            arrBufferIdx = 0;\
+            if((int32_t)uint32Buffer.getValue() < 0)\
+                WARNING << "Negative string size detected" << std::endl;\
+            else\
+                arrBuffer = (uint8_t*)malloc(sizeof(uint8_t)*uint32Buffer.getValue());\
+            while(arrBufferIdx < uint32Buffer.getValue() && size)\
+            {\
+                arrBuffer[arrBufferIdx++] = message[0];\
+                ADVANCE_BUFFER\
+            }\
+        }\
+    }\
+
+
 #define ERROR_VALUE \
     {\
         ERROR << "Could not push a value..." << std::endl;\
@@ -126,6 +146,12 @@ namespace sereno
                         break;
                     case ANNOTATION_DATA:
                         info = &m_curMsg.annotation;
+                        break;
+                    case ANCHORING_DATA_SEGMENT:
+                        info = &m_curMsg.defaultByteArray;
+                        break;
+                    case ANCHORING_DATA_STATUS:
+                        info = &m_curMsg.anchoringDataStatus;
                         break;
                     case NOTHING:
                         break;
@@ -190,6 +216,29 @@ namespace sereno
                                 floatBuffer.clear();
                             }
                             break;
+                        }
+                        case 'b':
+                        {
+                            size--;
+                            message++;
+                            if(!info->pushValue(m_cursor, message[-1]))
+                                ERROR_VALUE
+                            m_cursor++;
+                        }
+                        case 'a':
+                        {
+                            PUSH_BYTE_ARRAY
+                            if(arrBufferIdx == uint32Buffer.getValue())
+                            {
+                                uint32Buffer.clear();
+                                if(!info->pushValue(m_cursor, std::shared_ptr<uint8_t>(arrBuffer), arrBufferIdx))
+                                {
+                                    arrBuffer = NULL;
+                                    ERROR_VALUE
+                                }
+                                arrBuffer = NULL;
+                                m_cursor++;
+                            }
                         }
                         default:
                             WARNING << "Buffer typed '" << info->getTypeAt(m_cursor) << "' not handled yet at cursor = " << m_cursor << std::endl;

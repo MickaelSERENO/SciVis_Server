@@ -4,6 +4,7 @@
 #include "utils.h"
 #include <string>
 #include <cstdint>
+#include <memory>
 
 #define VFV_DATA_ERROR \
     ERROR << "The parameter value as not the correct type for cursor = " << cursor << std::endl;\
@@ -33,13 +34,17 @@ namespace sereno
          * \param cursor the information cursor
          * \param value the value to push
          * \return true if success, false otherwise */
-        virtual bool pushValue(uint32_t cursor, const std::string& value) {return false;}
-        virtual bool pushValue(uint32_t cursor, float value)              {return false;}
-        virtual bool pushValue(uint32_t cursor, double value)             {return pushValue(cursor, (float)value);}
-        virtual bool pushValue(uint32_t cursor, int16_t value)            {return pushValue(cursor, (uint16_t)value);}
-        virtual bool pushValue(uint32_t cursor, uint16_t value)           {return pushValue(cursor, (uint32_t)value);}
-        virtual bool pushValue(uint32_t cursor, int32_t value)            {return pushValue(cursor, (uint32_t)value);}
-        virtual bool pushValue(uint32_t cursor, uint32_t value)           {return false;}
+        virtual bool pushValue(uint32_t cursor, const std::string& value)       {return false;}
+        virtual bool pushValue(uint32_t cursor, float value)                    {return false;}
+        virtual bool pushValue(uint32_t cursor, double value)                   {return pushValue(cursor, (float)value);}
+        virtual bool pushValue(uint32_t cursor, int16_t value)                  {return pushValue(cursor, (uint16_t)value);}
+        virtual bool pushValue(uint32_t cursor, uint16_t value)                 {return pushValue(cursor, (uint32_t)value);}
+        virtual bool pushValue(uint32_t cursor, int32_t value)                  {return pushValue(cursor, (uint32_t)value);}
+        virtual bool pushValue(uint32_t cursor, uint32_t value)                 {return false;}
+        virtual bool pushValue(uint32_t cursor, uint8_t value)                  {return pushValue(cursor, (uint32_t)value);}
+
+        virtual bool pushValue(uint32_t cursor, std::shared_ptr<uint8_t> value, uint32_t size)
+        {return false;}
     };
 
     /** \brief  No Data information to receive yet */
@@ -55,6 +60,55 @@ namespace sereno
         ANNOTATION_STROKE,
         ANNOTATION_TEXT,
         ANNOTATION_NONE
+    };
+
+    struct VFVAnchoringDataStatus : public VFVDataInformation
+    {
+        bool succeed = false;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 'b';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor != 0)
+                VFV_DATA_ERROR
+            succeed = (value != 0);
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 0;}
+    };
+
+    /** \brief  default ByteArray message */
+    struct VFVDefaultByteArray : public VFVDataInformation
+    {
+        std::shared_ptr<uint8_t> data;         /*!< Raw data*/
+        uint32_t                 dataSize = 0; /*!< Data size*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 'a';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, std::shared_ptr<uint8_t> value, uint32_t size)
+        {
+            if(cursor == 0)
+            {
+                dataSize = size;
+                data     = value;
+                return true;
+            }
+            return false;
+        }
+
+        int32_t getMaxCursor() const {return 0;}
     };
 
     /** \brief  Annotation stroke message */
@@ -112,6 +166,8 @@ namespace sereno
         }
 
         bool pushValue(uint32_t cursor, const std::string& value) {return false;}
+
+        bool pushValue(uint32_t cursor, std::shared_ptr<uint8_t> value, uint32_t size) {return false;}
 
         int32_t getMaxCursor() const {return 2+2*nbPoints;}
     };
@@ -172,6 +228,8 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
+        bool pushValue(uint32_t cursor, std::shared_ptr<uint8_t> value, uint32_t size) {return false;}
+
         int32_t getMaxCursor() const {return 3;}
     };
 
@@ -227,6 +285,20 @@ namespace sereno
         bool pushValue(uint32_t cursor, float value)
         {
             ANNOTATION_PUSH_VALUE
+        }
+
+        bool pushValue(uint32_t cursor, std::shared_ptr<uint8_t> value, uint32_t size)
+        {
+            checkCreateInformation(cursor);
+            bool _ret = false;
+            if(m_annotType == ANNOTATION_STROKE)
+                _ret = m_strokeParse.pushValue(cursor - m_onCreationCursor, value, size);
+            else if(m_annotType == ANNOTATION_TEXT)
+                _ret = m_textParse.pushValue(cursor - m_onCreationCursor, value, size);
+            checkEndInformation(cursor);
+            if(_ret)
+                m_lastCursor = cursor;
+            return _ret;
         }
 
         bool pushValue(uint32_t cursor, uint32_t value)
@@ -355,6 +427,7 @@ namespace sereno
         uint32_t datasetID;     /*!< The dataset ID*/
         uint32_t subDatasetID;  /*!< The SubDataset ID*/
         float    position[3];   /*!< The position information*/
+        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 
         char getTypeAt(uint32_t cursor) const
         {
@@ -397,9 +470,10 @@ namespace sereno
     /* \brief Structure containing information about the rotation of the tablet */
     struct VFVRotationInformation : public VFVDataInformation
     {
-        uint32_t datasetID;     /*!< The dataset ID*/
-        uint32_t subDatasetID;  /*!< The SubDataset ID*/
-        float    quaternion[4]; /*!< The quaternion information*/
+        uint32_t datasetID;      /*!< The dataset ID*/
+        uint32_t subDatasetID;   /*!< The SubDataset ID*/
+        float    quaternion[4];  /*!< The quaternion information*/
+        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 
         char getTypeAt(uint32_t cursor) const
         {

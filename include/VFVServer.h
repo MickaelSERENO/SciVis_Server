@@ -8,6 +8,7 @@
 #include "VFVClientSocket.h"
 #include "Datasets/BinaryDataset.h"
 #include "MetaData.h"
+#include "AnchorHeadsetData.h"
 
 #define UPDATE_THREAD_FRAMERATE 1
 #define MAX_NB_HEADSETS         10
@@ -68,8 +69,8 @@ namespace sereno
 
             /* \brief Handle the rotation
              * \param client the client asking for a rotation
-             * \param rotate the rotation data*/
-            void rotateSubDataset(VFVClientSocket* client, const VFVRotationInformation& rotate);
+             * \param rotate the rotation data. Not constant because the headset ID will change*/
+            void rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate);
 
             /* \brief  Add a VTKDataset to the visualized datasets
              * \param client the client adding the dataset
@@ -139,6 +140,8 @@ namespace sereno
             uint64_t m_currentDataset    = 0;                    /*!< The current Dataset id to push */
             uint64_t m_currentSubDataset = 0;                    /*!< The current SubDatase id, useful to determine the next subdataset 3D position*/
             uint32_t m_nbConnectedHeadsets = 0;
+
+            AnchorHeadsetData m_anchorData;
     };
 }
 
