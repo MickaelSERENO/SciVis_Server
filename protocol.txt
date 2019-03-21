@@ -50,3 +50,25 @@ VFV_SEND_HEADSETS_STATUS:
         f 'rotationY'
         f 'rotationZ'
         I 'color'
+
+ANNOTATION_DATA:
+    i 'type'
+    I 'datasetID'
+    I 'subDatasetID'
+    I 'annotationID'
+    I 'textureWidth'
+    I 'textureHeight'
+    I 'nbStroke'
+    I 'nbText'
+    0 -> nbStroke:
+        I 'color'
+        f 'width'
+        I 'nbPoints'
+        0 -> nbPoints:
+            f 'x'
+            f 'y'
+    0 -> nbText:
+        I 'color'
+        f 'posX'
+        f 'posY'
+        s 'text'

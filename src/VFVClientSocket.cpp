@@ -124,6 +124,9 @@ namespace sereno
                     case UPDATE_HEADSET:
                         info = &m_curMsg.headset;
                         break;
+                    case ANNOTATION_DATA:
+                        info = &m_curMsg.annotation;
+                        break;
                     case NOTHING:
                         break;
                     default:
@@ -189,12 +192,12 @@ namespace sereno
                             break;
                         }
                         default:
-                            WARNING << "Buffer typed " << info->getTypeAt(m_cursor) << "not handled yet" << std::endl;
+                            WARNING << "Buffer typed '" << info->getTypeAt(m_cursor) << "' not handled yet at cursor = " << m_cursor << std::endl;
                             return false;
                     }
 
                     //Full message received
-                    if(m_cursor == info->getMaxCursor()+1)
+                    if(m_cursor >= info->getMaxCursor()+1)
                     {
                         m_messages.push(m_curMsg);
                         m_cursor = -1;

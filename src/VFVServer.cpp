@@ -564,6 +564,11 @@ namespace sereno
                     updateHeadset(client, msg.headset);
                     break;
                 }
+                case ANNOTATION_DATA:
+                {
+                    INFO << "Received annotation data!" << std::endl;
+                    break;
+                }
                 default:
                     WARNING << "Type " << msg.type << " not handled yet\n";
                     break;

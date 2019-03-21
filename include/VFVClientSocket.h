@@ -42,6 +42,7 @@ namespace sereno
         ADD_VTK_DATASET    = 3,
         ROTATE_DATASET     = 4,
         UPDATE_HEADSET     = 5,
+        ANNOTATION_DATA    = 6,
         END_MESSAGE_TYPE
     };
 
@@ -86,6 +87,7 @@ namespace sereno
             struct VFVColorInformation          color;         /*!< The color information sent from a tablet*/
             struct VFVRotationInformation       rotate;        /*!< The rotate information sent from a tablet*/
             struct VFVUpdateHeadset             headset;       /*!< The headset update data information*/
+            struct VFVAnnotation                annotation;    /*!< The annotation data information*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -122,6 +124,9 @@ namespace sereno
                             break;
                         case UPDATE_HEADSET:
                             headset = cpy.headset;
+                            break;
+                        case ANNOTATION_DATA:
+                            annotation = cpy.annotation;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -160,6 +165,9 @@ namespace sereno
                 case UPDATE_HEADSET:
                     new (&headset) VFVUpdateHeadset;
                     break;
+                case ANNOTATION_DATA:
+                    new (&annotation) VFVAnnotation;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -190,6 +198,9 @@ namespace sereno
                     break;
                 case UPDATE_HEADSET:
                     headset.~VFVUpdateHeadset();
+                    break;
+                case ANNOTATION_DATA:
+                    annotation.~VFVAnnotation();
                     break;
                 case NOTHING:
                     break;
