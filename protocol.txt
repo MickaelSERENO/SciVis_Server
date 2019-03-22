@@ -2,73 +2,118 @@ i = int16
 I = int32
 s = string
 f = float
+b = byte
+a = array of bytes
 
-VFV_SEND_ADD_VTK_DATASET:
-    i 'type'
-    s 'path'
-    I 'nbPointField'
-    0 -> nbPointField:
-        I 'indicePointField'
-    I 'nbCellField'
-    0 -> nbCellField:
-        I 'indiceCellField'
-    
-VFV_SEND_ACKNOWLEDGE_ADD_DATASET:
-    i 'type'
+Sending:
+    VFV_SEND_ADD_VTK_DATASET:
+        i 'type'
+        s 'path'
+        I 'nbPointField'
+        0 -> nbPointField:
+            I 'indicePointField'
+        I 'nbCellField'
+        0 -> nbCellField:
+            I 'indiceCellField'
+        
+    VFV_SEND_ACKNOWLEDGE_ADD_DATASET:
+        i 'type'
 
-VFV_SEND_ROTATE_DATASET:
-    i 'type'
-    I 'datasetID'
-    I 'subDatasetID'
-    f 'rotationW'
-    f 'rotationX'
-    f 'rotationY'
-    f 'rotationZ'
-
-VFV_SEND_MOVE_DATASET:
-    i 'type'
-    I 'datasetID'
-    I 'subDatasetID'
-    f 'posX'
-    f 'posY'
-    f 'posZ'
-
-VFV_SEND_HEADSET_INIT:
-    i 'type'
-    I 'color'
-
-VFV_SEND_HEADSETS_STATUS:
-    i 'type'
-    I 'nbHeadset' (this one excluded)
-    0 -> nbHeadset:
-        I 'id'
-        f 'posX'
-        f 'posY'
-        f 'posZ'
+    VFV_SEND_ROTATE_DATASET:
+        i 'type'
+        I 'datasetID'
+        I 'subDatasetID'
+        I 'headsetID'. -1 == no headset sent the message (server only)
         f 'rotationW'
         f 'rotationX'
         f 'rotationY'
         f 'rotationZ'
-        I 'color'
 
-ANNOTATION_DATA:
-    i 'type'
-    I 'datasetID'
-    I 'subDatasetID'
-    I 'annotationID'
-    I 'textureWidth'
-    I 'textureHeight'
-    I 'nbStroke'
-    I 'nbText'
-    0 -> nbStroke:
-        I 'color'
-        f 'width'
-        I 'nbPoints'
-        0 -> nbPoints:
-            f 'x'
-            f 'y'
-    0 -> nbText:
-        I 'color'
+    VFV_SEND_MOVE_DATASET:
+        i 'type'
+        I 'datasetID'
+        I 'subDatasetID'
+        I 'headsetID'. -1 == no headset sent the message (server only)
         f 'posX'
         f 'posY'
-        s 'text'
+        f 'posZ'
+
+    VFV_SEND_HEADSET_INIT:
+        i 'type'
+        I 'ID'
+        I 'color'
+        b 'tabletConnected'
+        b 'firstHeadset'
+
+    VFV_SEND_HEADSETS_STATUS:
+        i 'type'
+        I 'nbHeadset' (this one excluded)
+        0 -> nbHeadset:
+            I 'id'
+            I 'color'
+            f 'posX'
+            f 'posY'
+            f 'posZ'
+            f 'rotationW'
+            f 'rotationX'
+            f 'rotationY'
+            f 'rotationZ'
+
+RECEIVING:
+    IDENT_HEADSET:
+        i 'type'
+
+    IDENT_TABLET
+        i 'type'
+        s 'headset IP' (can be empty : no headset yet)
+
+    ADD_VTK_DATASET
+        i 'type'
+        s 'path'
+        I 'nbPointField'
+        0 -> nbPointField:
+            I 'indicePointField'
+        I 'nbCellField'
+        0 -> nbCellField:
+            I 'indiceCellField'
+        
+    ROTATE_DATASET:
+        i 'type'
+        I 'datasetID'
+        I 'subDatasetID'
+        I 'headsetID'. -1 == no headset sent the message (server only)
+        f 'rotationW'
+        f 'rotationX'
+        f 'rotationY'
+        f 'rotationZ'
+
+    UPDATE_HEADSET:
+        i 'type'
+        f 'posX'
+        f 'posY'
+        f 'posZ'
+        f 'rotationX'
+        f 'rotationY'
+        f 'rotationZ'
+
+    ANNOTATION_DATA:
+        i 'type'
+        I 'datasetID'
+        I 'subDatasetID'
+        I 'annotationID'
+        I 'textureWidth'
+        I 'textureHeight'
+        I 'nbStroke'
+        I 'nbText'
+        0 -> nbStroke:
+            I 'color'
+            f 'width'
+            I 'nbPoints'
+            0 -> nbPoints:
+                f 'x'
+                f 'y'
+        0 -> nbText:
+            I 'color'
+            f 'posX'
+            f 'posY'
+            s 'text'

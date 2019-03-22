@@ -12,21 +12,11 @@ self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 print(f"Local address : {self.getsockname()}")
 
 print("Sending login...")
-hololensIP = b"127.0.0.1"
+hololensIP = b"192.168.1.109"
 values = (1, len(hololensIP), hololensIP)
 packer = struct.Struct(f">HI{len(hololensIP)}s")
 data   = packer.pack(*values)
 self.sendall(data)
 
-time.sleep(1.0)
-
-dataset = b"Agulhas_10_resampled.vtk";
-values = (3, len(dataset), dataset, 1, 2, 0)
-print(f"Sending open dataset dataset.vtk. Size : {2+4+len(dataset)+3*4}")
-packer = struct.Struct(f">HI{len(dataset)}sIII")
-data   = packer.pack(*values)
-self.sendall(data)
-
-print(f"Receiving acknowledge + datasetID")
-buf = self.recv(6)
-print(buf)
+while True:
+    time.sleep(1.0)

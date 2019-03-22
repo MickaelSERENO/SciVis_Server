@@ -34,10 +34,8 @@ namespace sereno
         VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1, //Acknowledge an event "add vtk"
         VFV_SEND_ROTATE_DATASET          = 2, //Send the rotation status of a dataset
         VFV_SEND_MOVE_DATASET            = 3, //Send the position status of a dataset
-        VFV_SEND_HEADSET_INIT            = 4, //Send the initial values of a headset
+        VFV_SEND_HEADSET_BINDING_INFO    = 4, //Send the binding headset information
         VFV_SEND_HEADSETS_STATUS         = 5, //Send all the headsets status except the client receiving the message
-        VFV_SEND_HEADSET_BINDING_INFO    = 6, //Send the binding headset information to the client tablet
-            
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -56,6 +54,10 @@ namespace sereno
         protected:
 
             void closeClient(SOCKET client);
+
+
+            /* \brief  Ask for a new anchor headset */
+            void askNewAnchor();
 
             /* \brief  Login the tablet "client"
              * \param client the client logged as a tablet
@@ -109,8 +111,8 @@ namespace sereno
              * \param datasetID the dataset ID */
             void sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID);
 
-            /* \brief Send the binding information to the tablet connected with a headset 
-             * \param client the client to send the data (tablet)
+            /* \brief Send the binding information to the tablet and headset about the binding information
+             * \param client the client to send the data (tablet or headset)
              * \param headset the headset bound to the client */
             void sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset);
 
@@ -141,7 +143,8 @@ namespace sereno
             uint64_t m_currentSubDataset = 0;                    /*!< The current SubDatase id, useful to determine the next subdataset 3D position*/
             uint32_t m_nbConnectedHeadsets = 0;
 
-            AnchorHeadsetData m_anchorData;
+            VFVClientSocket*  m_headsetAnchorClient = NULL;      /*!< The client sending the anchor. If the client is NULL, m_anchorData has to be redone*/
+            AnchorHeadsetData m_anchorData;                      /*!< The anchor data registered*/
     };
 }
 

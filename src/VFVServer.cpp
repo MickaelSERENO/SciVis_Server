@@ -91,12 +91,52 @@ namespace sereno
                     if(it.second->isTablet() && it.second->getTabletData().headset == c)
                     {
                         it.second->getTabletData().headset = NULL;
+                        sendHeadsetBindingInfo(it.second, NULL);
+                        break;
+                    }
+
+                if(m_headsetAnchorClient == c)
+                {
+                    m_anchorData.finalize(false);
+                    m_headsetAnchorClient = NULL;
+                }
+            }
+
+            //Handle table disconnections
+            else if(c->isTablet())
+            {
+                INFO << "Disconnecting a tablet client\n";
+
+                //Disconnect with the headset as well
+                for(auto it : m_clientTable)
+                    if(it.second->isHeadset() && it.second->getHeadsetData().tablet == c)
+                    {
+                        it.second->getHeadsetData().tablet = NULL;
+                        sendHeadsetBindingInfo(it.second, it.second);
                         break;
                     }
             }
         m_mapMutex.unlock();
 
         Server::closeClient(client);
+
+        askNewAnchor();
+    }
+
+    void VFVServer::askNewAnchor()
+    {
+        //Re ask for a new anchor
+        if(m_headsetAnchorClient == NULL)
+        {
+            m_mapMutex.lock();
+                for(auto it : m_clientTable)
+                    if(it.second->isHeadset())
+                    {
+                        sendHeadsetBindingInfo(it.second, it.second);
+                        break;
+                    }
+            m_mapMutex.unlock();
+        }
     }
 
     /*----------------------------------------------------------------------------*/
@@ -119,14 +159,12 @@ namespace sereno
             std::lock_guard<std::mutex> lock(m_mapMutex);
             for(auto& clt : m_clientTable)
             {
-                
                 if(clt.second != client && clt.second->sockAddr.sin_addr.s_addr == client->getTabletData().headsetAddr.sin_addr.s_addr)
                 {
                     INFO << "Headset found!\n";
                     clt.second->getHeadsetData().tablet = client;
                     client->getTabletData().headset     = clt.second;
-
-                    sendHeadsetBindingInfo(client, clt.second);
+                    sendHeadsetBindingInfo(clt.second, clt.second); //Send the headset the binding information
                     return;
                 }
             }
@@ -164,7 +202,7 @@ namespace sereno
                     INFO << "Tablet found!\n";
                     client->getHeadsetData().tablet     = clt.second;
                     clt.second->getTabletData().headset = client;
-
+                    //Send the tablet the binding information
                     sendHeadsetBindingInfo(clt.second, client);
                     break;
                 }
@@ -435,25 +473,11 @@ namespace sereno
 
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
-        //Send headset personal data
+        //Send binding information
         if(client->isHeadset())
-        {
-            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
-            uint32_t offset = 0;
-
-            //The type of the message
-            writeUint16(data+offset, VFV_SEND_HEADSET_INIT);
-            offset += sizeof(uint16_t);
-
-            //The color
-            writeUint32(data+offset, client->getHeadsetData().color);
-            offset += sizeof(uint32_t);
-
-            INFO << "Sending 'init headset' event data" << std::endl;
-            std::shared_ptr<uint8_t> sharedData(data);
-            SocketMessage<int> sm(client->socket, sharedData, offset);
-            writeMessage(sm);
-        }
+            sendHeadsetBindingInfo(client, client);
+        else if(client->isTablet())
+            sendHeadsetBindingInfo(client, client->getTabletData().headset);
 
         //Send common data
         std::lock_guard<std::mutex> lock(m_datasetMutex);
@@ -503,37 +527,58 @@ namespace sereno
 
     void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset)
     {
-        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t));
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint8_t) + 2*sizeof(uint32_t));
         uint32_t offset = 0;
 
         //Type
         writeUint16(data+offset, VFV_SEND_HEADSET_BINDING_INFO);
         offset+=sizeof(uint16_t);
 
-        //First headset
-        data[offset] = 1;
-        m_mapMutex.lock();
+        if(headset)
         {
+            //Headset ID
+            writeUint32(data+offset, headset->getHeadsetData().id);
+            offset+=sizeof(uint32_t);
+
+            //Headset color
+            writeUint32(data+offset, headset->getHeadsetData().color);
+            offset+=sizeof(uint32_t);
+
+            //Tablet connected
+            data[offset++] = headset->getHeadsetData().tablet != NULL;
+        }
+        else
+        {
+            //Headset ID
+            writeUint32(data+offset, -1);
+            offset += sizeof(uint32_t);
+
+            //Headset Color
+            writeUint32(data+offset, 0x000000);
+            offset+=sizeof(uint32_t);
+
+            //Tablet connected
+            data[offset++] = 0;
+        }
+
+        //First headset
+        data[offset] = 0;
+        if(m_headsetAnchorClient == NULL)
+        {
+            data[offset] = 1;
             for(auto& clt : m_clientTable)
             {
-                if(clt.second->isHeadset())
+                if(clt.second != client && clt.second->isHeadset())
                 {
                     data[offset]=0;
                     break;
                 }
             }
+
+            if(data[offset] && client == headset) //Send only if we are discussing with the headset and not the tablet
+                m_headsetAnchorClient = headset;
         }
-        m_mapMutex.unlock();
         offset++;
-
-        //Headset ID
-        writeUint32(data+offset, headset->getHeadsetData().id);
-        offset+=sizeof(uint32_t);
-
-
-        //Headset color
-        writeUint32(data+offset, headset->getHeadsetData().color);
-        offset+=sizeof(uint32_t);
         
         INFO << "Sending HEADSET BINDING INFO Event data\n";
         std::shared_ptr<uint8_t> sharedData(data);
@@ -653,6 +698,10 @@ namespace sereno
                                 writeUint32(data+offset, it2.second->getHeadsetData().id);
                                 offset += sizeof(uint32_t);
 
+                                //Color
+                                writeUint32(data+offset, it2.second->getHeadsetData().color);
+                                offset += sizeof(uint32_t);
+
                                 //Position
                                 for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
                                     writeFloat(data+offset, it2.second->getHeadsetData().position[i]);
@@ -660,10 +709,6 @@ namespace sereno
                                 //Rotation
                                 for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
                                     writeFloat(data+offset, it2.second->getHeadsetData().rotation[i]);
-
-                                //Color
-                                writeUint32(data+offset, it2.second->getHeadsetData().color);
-                                offset += sizeof(uint32_t);
 
                                 nbHeadset++;
                             }

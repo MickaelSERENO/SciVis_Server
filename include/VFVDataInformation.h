@@ -7,8 +7,10 @@
 #include <memory>
 
 #define VFV_DATA_ERROR \
+{\
     ERROR << "The parameter value as not the correct type for cursor = " << cursor << std::endl;\
-    return false;
+    return false;\
+}
 
 namespace sereno
 {
@@ -75,10 +77,12 @@ namespace sereno
 
         bool pushValue(uint32_t cursor, uint32_t value)
         {
-            if(cursor != 0)
-                VFV_DATA_ERROR
-            succeed = (value != 0);
-            return true;
+            if(cursor == 0)
+            {
+                succeed = (value != 0);
+                return true;
+            }
+            VFV_DATA_ERROR
         }
 
         int32_t getMaxCursor() const {return 0;}

@@ -224,6 +224,7 @@ namespace sereno
                             if(!info->pushValue(m_cursor, message[-1]))
                                 ERROR_VALUE
                             m_cursor++;
+                            break;
                         }
                         case 'a':
                         {
@@ -239,6 +240,7 @@ namespace sereno
                                 arrBuffer = NULL;
                                 m_cursor++;
                             }
+                            break;
                         }
                         default:
                             WARNING << "Buffer typed '" << info->getTypeAt(m_cursor) << "' not handled yet at cursor = " << m_cursor << std::endl;
