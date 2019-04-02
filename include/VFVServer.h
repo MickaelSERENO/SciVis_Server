@@ -36,6 +36,8 @@ namespace sereno
         VFV_SEND_MOVE_DATASET            = 3, //Send the position status of a dataset
         VFV_SEND_HEADSET_BINDING_INFO    = 4, //Send the binding headset information
         VFV_SEND_HEADSETS_STATUS         = 5, //Send all the headsets status except the client receiving the message
+        VFV_SEND_HEADSET_ANCHOR_SEGMENT  = 6, //Send anchor segment
+        VFV_SEND_HEADSET_ANCHOR_EOF      = 7, //Send anchor end of stream
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -115,6 +117,13 @@ namespace sereno
              * \param client the client to send the data (tablet or headset)
              * \param headset the headset bound to the client */
             void sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset);
+
+            /** \brief  Send the anchoring data to he given client
+             * \param client the client to send the anchoring*/
+            void sendAnchoring(VFVClientSocket* client);
+
+            /** \brief  Send the anchoring data to all the client connected */
+            void sendAnchoring();
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

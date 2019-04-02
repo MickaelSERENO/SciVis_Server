@@ -243,11 +243,12 @@ namespace sereno
     /** \brief  Headset data structure */
     struct VFVHeadsetData
     {
-        uint32_t         id;                /*!< ID of the headset*/
-        VFVClientSocket* tablet = NULL;     /*!< The tablet bound to this Headset*/
-        uint32_t         color  = 0x000000; /*!< The displayed color representing this headset*/
-        glm::vec3        position;          /*!< 3D position of the headset*/
-        Quaternionf      rotation;          /*!< 3D rotation of the headset*/
+        uint32_t         id;                     /*!< ID of the headset*/
+        VFVClientSocket* tablet = NULL;          /*!< The tablet bound to this Headset*/
+        uint32_t         color  = 0x000000;      /*!< The displayed color representing this headset*/
+        glm::vec3        position;               /*!< 3D position of the headset*/
+        Quaternionf      rotation;               /*!< 3D rotation of the headset*/
+        bool             anchoringSent  = false; /*!< Has the anchoring data been sent?*/
     };
 
     /* \brief VFVClientSocket class. Represent a Client for VFV Application */

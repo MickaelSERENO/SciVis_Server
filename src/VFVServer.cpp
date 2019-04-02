@@ -152,6 +152,15 @@ namespace sereno
             return;
         }
 
+        //Tell the old bound headset the tablet disconnection
+        if(client->getTabletData().headset)
+        {
+            std::lock_guard<std::mutex> lock(m_mapMutex);
+            sendHeadsetBindingInfo(client->getTabletData().headset, NULL);
+            client->getTabletData().headset->getHeadsetData().tablet = NULL;
+            client->getTabletData().headset = NULL;
+        }
+
         //Useful if the packet was sent without headset information
         else if(identTablet.headsetIP.size() > 0)
         { 
@@ -498,6 +507,9 @@ namespace sereno
         for(auto& it : m_datasets)
             sendDatasetStatus(client, it.second, it.first);
 
+        //Send anchoring data
+        if(client->isHeadset())
+            sendAnchoring(client);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
@@ -586,6 +598,50 @@ namespace sereno
         writeMessage(sm);
     }
 
+    void VFVServer::sendAnchoring(VFVClientSocket* client)
+    {
+        if(!client->isHeadset() || client->getHeadsetData().anchoringSent)
+            return;
+
+        //Send segment by segment
+        for(auto& itSegment : m_anchorData.getSegmentData())
+        {
+            uint8_t* data = (uint8_t*)malloc(sizeof(uint8_t)*6);
+            uint32_t offset = 0;
+
+            writeUint16(data, VFV_SEND_HEADSET_ANCHOR_SEGMENT);
+            offset += sizeof(uint16_t);
+
+            writeUint32(data, itSegment.dataSize);
+            offset += sizeof(uint32_t);
+
+            //Send header
+            std::shared_ptr<uint8_t> sharedData(data);
+            SocketMessage<int> sm(client->socket, sharedData, offset);
+            writeMessage(sm);
+
+            //Send data stream
+            SocketMessage<int> smSegment(client->socket, itSegment.data, itSegment.dataSize);
+            writeMessage(smSegment);
+        }
+
+        //Send end of anchor
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint8_t)*2);
+        writeUint16(data, VFV_SEND_HEADSET_ANCHOR_EOF);
+        std::shared_ptr<uint8_t> sharedData(data);
+        SocketMessage<int> sm(client->socket, sharedData, sizeof(uint16_t));
+        writeMessage(sm);
+
+        client->getHeadsetData().anchoringSent = true;
+    }
+
+    void VFVServer::sendAnchoring()
+    {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+
+        for(auto& it : m_clientTable)
+            sendAnchoring(it.second);
+    }
 
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
@@ -651,6 +707,7 @@ namespace sereno
                 {
                     INFO << "Receiving end of anchoring data : " << msg.anchoringDataStatus.succeed << std::endl;
                     m_anchorData.finalize(msg.anchoringDataStatus.succeed);
+                    sendAnchoring();
                     break;
                 }
                 default:
