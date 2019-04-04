@@ -65,29 +65,34 @@ namespace sereno
         }\
     }
 
-#define PUSH_BYTE_ARRAY \
-    if(!arrBuffer) \
+#define FILL_BYTE_ARRAY\
     {\
-        PUSH_UINT32 \
-        if(uint32Buffer.isFull()) \
+        while(arrBufferIdx < uint32Buffer.getValue() && size)\
         {\
-            arrBufferIdx = 0;\
-            if((int32_t)uint32Buffer.getValue() < 0)\
-                WARNING << "Negative string size detected" << std::endl;\
-            else\
-                arrBuffer = (uint8_t*)malloc(sizeof(uint8_t)*uint32Buffer.getValue());\
-            while(arrBufferIdx < uint32Buffer.getValue() && size)\
-            {\
-                arrBuffer[arrBufferIdx++] = message[0];\
-                ADVANCE_BUFFER\
-            }\
+            arrBuffer[arrBufferIdx++] = message[0];\
+            ADVANCE_BUFFER\
         }\
     }\
 
+#define PUSH_BYTE_ARRAY \
+    {\
+        if(!arrBuffer) \
+        {\
+            PUSH_UINT32 \
+            if(uint32Buffer.isFull()) \
+            {\
+                arrBufferIdx = 0;\
+                arrBuffer = (uint8_t*)malloc(sizeof(uint8_t)*uint32Buffer.getValue());\
+                FILL_BYTE_ARRAY\
+            }\
+        }\
+        else\
+            FILL_BYTE_ARRAY\
+    }\
 
 #define ERROR_VALUE \
     {\
-        ERROR << "Could not push a value..." << std::endl;\
+        ERROR << "Could not push a value... type: m_curMsg.type" << std::endl;\
         return false;\
     }
 
@@ -229,7 +234,7 @@ namespace sereno
                         case 'a':
                         {
                             PUSH_BYTE_ARRAY
-                            if(arrBufferIdx == uint32Buffer.getValue())
+                            if(arrBufferIdx == uint32Buffer.getValue() && arrBuffer)
                             {
                                 uint32Buffer.clear();
                                 if(!info->pushValue(m_cursor, std::shared_ptr<uint8_t>(arrBuffer), arrBufferIdx))

@@ -12,7 +12,13 @@ namespace sereno
 
 #define VFVSERVER_NOT_A_HEADSET\
     {\
-        WARNING << "Disconnecting a client because he sent a wrong packet (excpected a HEADSET)\n" << std::endl; \
+        WARNING << "Disconnecting a client because he sent a wrong packet (expected a HEADSET)\n" << std::endl; \
+        closeClient(client->socket);\
+    }
+
+#define VFVSERVER_NOT_CORRECT_HEADSET\
+    {\
+        WARNING << "Disconnecting a client because he sent a wrong packet (expected the correct HEADSET)\n" << std::endl; \
         closeClient(client->socket);\
     }
 
@@ -96,10 +102,7 @@ namespace sereno
                     }
 
                 if(m_headsetAnchorClient == c)
-                {
-                    m_anchorData.finalize(false);
                     m_headsetAnchorClient = NULL;
-                }
             }
 
             //Handle table disconnections
@@ -121,6 +124,7 @@ namespace sereno
         Server::closeClient(client);
 
         askNewAnchor();
+        INFO << "End of disconnection\n";
     }
 
     void VFVServer::askNewAnchor()
@@ -129,6 +133,12 @@ namespace sereno
         if(m_headsetAnchorClient == NULL)
         {
             m_mapMutex.lock();
+                //Reset anchoring
+                for(auto it : m_clientTable)
+                    if(it.second->isHeadset())
+                        it.second->getHeadsetData().anchoringSent = false;
+
+                m_anchorData.finalize(false);
                 for(auto it : m_clientTable)
                     if(it.second->isHeadset())
                     {
@@ -211,6 +221,7 @@ namespace sereno
                     INFO << "Tablet found!\n";
                     client->getHeadsetData().tablet     = clt.second;
                     clt.second->getTabletData().headset = client;
+
                     //Send the tablet the binding information
                     sendHeadsetBindingInfo(clt.second, client);
                     break;
@@ -233,7 +244,7 @@ namespace sereno
         writeUint16(data, type);
 
         INFO << "Sending EMPTY MESSAGE Event data. Type : " << type << std::endl;
-        std::shared_ptr<uint8_t> sharedData(data);
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, sizeof(int16_t));
         writeMessage(sm);
     }
@@ -316,7 +327,7 @@ namespace sereno
         uint8_t* ackData = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
         writeUint16(ackData, VFV_SEND_ACKNOWLEDGE_ADD_DATASET);
         writeUint16(ackData+sizeof(uint16_t), m_currentDataset-1);
-        std::shared_ptr<uint8_t> ackSharedData(ackData);
+        std::shared_ptr<uint8_t> ackSharedData(ackData, free);
         SocketMessage<int> ackSm(client->socket, ackSharedData, sizeof(uint16_t)+sizeof(uint32_t));
         writeMessage(ackSm);
 
@@ -421,7 +432,7 @@ namespace sereno
         }
 
         INFO << "Sending ADD VTK DATASET Event data\n";
-        std::shared_ptr<uint8_t> sharedData(data);
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
     }
@@ -448,7 +459,7 @@ namespace sereno
             writeFloat(data+offset, rotate.quaternion[i]);
 
         INFO << "Sending ROTATE DATASET Event data\n";
-        std::shared_ptr<uint8_t> sharedData(data);
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
     }
@@ -475,7 +486,7 @@ namespace sereno
             writeFloat(data+offset, position.position[i]);
 
         INFO << "Sending MOVE DATASET Event data\n";
-        std::shared_ptr<uint8_t> sharedData(data);
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
     }
@@ -577,10 +588,14 @@ namespace sereno
         data[offset] = 0;
         if(m_headsetAnchorClient == NULL)
         {
-            data[offset] = 1;
             for(auto& clt : m_clientTable)
             {
-                if(clt.second != client && clt.second->isHeadset())
+                if(clt.second == client)
+                {
+                    data[offset] = 1;
+                    break;
+                }
+                else if(clt.second != client && clt.second->isHeadset())
                 {
                     data[offset]=0;
                     break;
@@ -593,30 +608,30 @@ namespace sereno
         offset++;
         
         INFO << "Sending HEADSET BINDING INFO Event data\n";
-        std::shared_ptr<uint8_t> sharedData(data);
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
     }
 
     void VFVServer::sendAnchoring(VFVClientSocket* client)
     {
-        if(!client->isHeadset() || client->getHeadsetData().anchoringSent)
+        if(!m_anchorData.isCompleted() || !client->isHeadset() || client->getHeadsetData().anchoringSent)
             return;
 
         //Send segment by segment
         for(auto& itSegment : m_anchorData.getSegmentData())
         {
-            uint8_t* data = (uint8_t*)malloc(sizeof(uint8_t)*6);
+            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
             uint32_t offset = 0;
 
             writeUint16(data, VFV_SEND_HEADSET_ANCHOR_SEGMENT);
             offset += sizeof(uint16_t);
 
-            writeUint32(data, itSegment.dataSize);
+            writeUint32(data+offset, itSegment.dataSize);
             offset += sizeof(uint32_t);
 
             //Send header
-            std::shared_ptr<uint8_t> sharedData(data);
+            std::shared_ptr<uint8_t> sharedData(data, free);
             SocketMessage<int> sm(client->socket, sharedData, offset);
             writeMessage(sm);
 
@@ -628,9 +643,11 @@ namespace sereno
         //Send end of anchor
         uint8_t* data = (uint8_t*)malloc(sizeof(uint8_t)*2);
         writeUint16(data, VFV_SEND_HEADSET_ANCHOR_EOF);
-        std::shared_ptr<uint8_t> sharedData(data);
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, sizeof(uint16_t));
         writeMessage(sm);
+
+        INFO << "Finish sending anchor\n";
 
         client->getHeadsetData().anchoringSent = true;
     }
@@ -699,15 +716,31 @@ namespace sereno
 
                 case ANCHORING_DATA_SEGMENT:
                 {
+                    if(m_headsetAnchorClient != client)
+                    {
+                        VFVSERVER_NOT_CORRECT_HEADSET
+                        return;
+                    }
                     INFO << "Receiving anchor data segment sized : " << msg.defaultByteArray.dataSize << std::endl;
                     m_anchorData.pushDataSegment(msg.defaultByteArray);
                     break;
                 }
                 case ANCHORING_DATA_STATUS:
                 {
+                    if(m_headsetAnchorClient != client)
+                    {
+                        VFVSERVER_NOT_CORRECT_HEADSET
+                        return;
+                    }
                     INFO << "Receiving end of anchoring data : " << msg.anchoringDataStatus.succeed << std::endl;
                     m_anchorData.finalize(msg.anchoringDataStatus.succeed);
-                    sendAnchoring();
+                    if(msg.anchoringDataStatus.succeed == false)
+                        askNewAnchor();
+                    else
+                    {
+                        client->getHeadsetData().anchoringSent = true;
+                        sendAnchoring();
+                    }
                     break;
                 }
                 default:
@@ -734,6 +767,7 @@ namespace sereno
             {
                 //Send HEADSETS_STATUS
                 std::lock_guard<std::mutex> lock(m_mapMutex);
+                INFO << "Size m_clientTable : " << m_clientTable.size() << std::endl;
                 for(auto& it : m_clientTable)
                 {
                     if(it.second->isHeadset())
@@ -774,7 +808,7 @@ namespace sereno
                         //Write the number of headset to take account of
                         writeUint32(data+sizeof(uint16_t), nbHeadset);
 
-                        std::shared_ptr<uint8_t> sharedData(data);
+                        std::shared_ptr<uint8_t> sharedData(data, free);
                         SocketMessage<int> sm(it.first, sharedData, offset);
                         writeMessage(sm);
                     }

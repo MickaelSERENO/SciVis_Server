@@ -310,12 +310,12 @@ namespace sereno
                 VFVHeadsetData m_headset; /*!< The client is considered as a headset*/
             };
 
-            VFVBufferValue<uint32_t>    uint32Buffer; /*!< The current uint32 buffer*/
-            VFVBufferValue<uint16_t>    uint16Buffer; /*!< The current uint16_t buffer*/
-            VFVBufferValue<float>       floatBuffer;  /*!< The current float buffer*/
-            VFVBufferValue<std::string> stringBuffer; /*!< The current std::string buffer*/
-            uint8_t*                    arrBuffer;    /*!< The uint8_t array buffer*/
-            uint32_t                    arrBufferIdx; /*!< The current array buffer Idx*/
+            VFVBufferValue<uint32_t>    uint32Buffer;     /*!< The current uint32 buffer*/
+            VFVBufferValue<uint16_t>    uint16Buffer;     /*!< The current uint16_t buffer*/
+            VFVBufferValue<float>       floatBuffer;      /*!< The current float buffer*/
+            VFVBufferValue<std::string> stringBuffer;     /*!< The current std::string buffer*/
+            uint8_t*                    arrBuffer = NULL; /*!< The uint8_t array buffer*/
+            uint32_t                    arrBufferIdx;     /*!< The current array buffer Idx*/
     };
 }
 
