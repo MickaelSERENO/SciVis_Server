@@ -45,7 +45,19 @@ namespace sereno
         ANNOTATION_DATA    = 6,
         ANCHORING_DATA_SEGMENT = 7,
         ANCHORING_DATA_STATUS  = 8,
+        HEADSET_CURRENT_ACTION = 9,
+        HEADSET_CURRENT_SUB_DATASET = 10,
         END_MESSAGE_TYPE
+    };
+
+    /** \brief Enumeration of the client current action */
+    enum VFVHeadsetCurrentActionType
+    {
+        HEADSET_CURRENT_ACTION_NOTHING   = 0,
+        HEADSET_CURRENT_ACTION_MOVING    = 1,
+        HEADSET_CURRENT_ACTION_SCALING   = 2,
+        HEADSET_CURRENT_ACTION_ROTATING  = 3,
+        HEADSET_CURRENT_ACTION_SKETCHING = 4
     };
 
     template<typename T>
@@ -92,6 +104,8 @@ namespace sereno
             struct VFVAnnotation                annotation;    /*!< The annotation data information*/
             struct VFVDefaultByteArray          defaultByteArray;    /*!< Default byte array information*/
             struct VFVAnchoringDataStatus       anchoringDataStatus; /*!< Anchoring data status*/
+            struct VFVHeadsetCurrentAction      headsetCurrentAction;     /*!< The headset current action*/
+            struct VFVHeadsetCurrentSubDataset  headsetCurrentSubDataset; /*!< The headset current SubDataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -137,6 +151,12 @@ namespace sereno
                             break;
                         case ANCHORING_DATA_STATUS:
                             anchoringDataStatus = cpy.anchoringDataStatus;                            
+                            break;
+                        case HEADSET_CURRENT_ACTION:
+                            headsetCurrentAction = cpy.headsetCurrentAction;
+                            break;
+                        case HEADSET_CURRENT_SUB_DATASET:
+                            headsetCurrentSubDataset = cpy.headsetCurrentSubDataset;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -184,6 +204,12 @@ namespace sereno
                 case ANCHORING_DATA_STATUS:
                     new (&anchoringDataStatus) VFVAnchoringDataStatus;
                     break;
+                case HEADSET_CURRENT_ACTION:
+                    new (&headsetCurrentAction) VFVHeadsetCurrentAction;
+                    break;
+                case HEADSET_CURRENT_SUB_DATASET:
+                    new (&headsetCurrentSubDataset) VFVHeadsetCurrentSubDataset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -224,6 +250,12 @@ namespace sereno
                 case ANCHORING_DATA_STATUS:
                     anchoringDataStatus.~VFVAnchoringDataStatus();
                     break;
+                case HEADSET_CURRENT_ACTION:
+                    headsetCurrentAction.~VFVHeadsetCurrentAction();
+                    break;
+                case HEADSET_CURRENT_SUB_DATASET:
+                    headsetCurrentSubDataset.~VFVHeadsetCurrentSubDataset();
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -243,12 +275,13 @@ namespace sereno
     /** \brief  Headset data structure */
     struct VFVHeadsetData
     {
-        uint32_t         id;                     /*!< ID of the headset*/
-        VFVClientSocket* tablet = NULL;          /*!< The tablet bound to this Headset*/
-        uint32_t         color  = 0x000000;      /*!< The displayed color representing this headset*/
-        glm::vec3        position;               /*!< 3D position of the headset*/
-        Quaternionf      rotation;               /*!< 3D rotation of the headset*/
-        bool             anchoringSent  = false; /*!< Has the anchoring data been sent?*/
+        uint32_t                    id;                                             /*!< ID of the headset*/
+        VFVClientSocket*            tablet = NULL;                                  /*!< The tablet bound to this Headset*/
+        uint32_t                    color  = 0x000000;                              /*!< The displayed color representing this headset*/
+        glm::vec3                   position;                                       /*!< 3D position of the headset*/
+        Quaternionf                 rotation;                                       /*!< 3D rotation of the headset*/
+        bool                        anchoringSent = false;                          /*!< Has the anchoring data been sent?*/
+        VFVHeadsetCurrentActionType currentAction = HEADSET_CURRENT_ACTION_NOTHING; /*!< What is the tablet current action?*/
     };
 
     /* \brief VFVClientSocket class. Represent a Client for VFV Application */

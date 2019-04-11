@@ -158,6 +158,12 @@ namespace sereno
                     case ANCHORING_DATA_STATUS:
                         info = &m_curMsg.anchoringDataStatus;
                         break;
+                    case HEADSET_CURRENT_ACTION:
+                        info = &m_curMsg.headsetCurrentAction;
+                        break;
+                    case HEADSET_CURRENT_SUB_DATASET:
+                        info = &m_curMsg.headsetCurrentSubDataset;
+                        break;
                     case NOTHING:
                         break;
                     default:

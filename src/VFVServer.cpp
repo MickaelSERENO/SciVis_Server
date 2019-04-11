@@ -767,13 +767,12 @@ namespace sereno
             {
                 //Send HEADSETS_STATUS
                 std::lock_guard<std::mutex> lock(m_mapMutex);
-                INFO << "Size m_clientTable : " << m_clientTable.size() << std::endl;
-                for(auto& it : m_clientTable)
+                for(auto it : m_clientTable)
                 {
                     if(it.second->isHeadset())
                     {
                         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
-                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 2*sizeof(uint32_t)));
+                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t)));
                         uint32_t offset    = 0;
                         uint32_t nbHeadset = 0;
 
@@ -793,6 +792,10 @@ namespace sereno
                                 writeUint32(data+offset, it2.second->getHeadsetData().color);
                                 offset += sizeof(uint32_t);
 
+                                //Current action
+                                writeUint32(data+offset, it2.second->getHeadsetData().currentAction);
+                                offset += sizeof(uint32_t);
+
                                 //Position
                                 for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
                                     writeFloat(data+offset, it2.second->getHeadsetData().position[i]);
@@ -808,6 +811,7 @@ namespace sereno
                         //Write the number of headset to take account of
                         writeUint32(data+sizeof(uint16_t), nbHeadset);
 
+                        //Send the message to all
                         std::shared_ptr<uint8_t> sharedData(data, free);
                         SocketMessage<int> sm(it.first, sharedData, offset);
                         writeMessage(sm);

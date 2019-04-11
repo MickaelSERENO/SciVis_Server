@@ -56,6 +56,43 @@ namespace sereno
         virtual int32_t getMaxCursor() const {return -1;}
     };
 
+    struct VFVHeadsetCurrentSubDataset : public VFVDataInformation
+    {
+        int32_t datasetID    = 0;
+        int32_t subDatasetID = -1;
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const {return 'I';}
+        virtual int32_t getMaxCursor() const {return 1;}
+    };
+
+    struct VFVHeadsetCurrentAction : public VFVDataInformation
+    {
+        uint32_t action = 0;
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                action = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const {return 'I';}
+        virtual int32_t getMaxCursor() const {return 0;}
+    };
+
     /** \brief  The annotation existing type */
     enum VFVAnnotationType
     {
