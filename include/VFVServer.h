@@ -10,8 +10,9 @@
 #include "MetaData.h"
 #include "AnchorHeadsetData.h"
 
-#define UPDATE_THREAD_FRAMERATE 1
+#define UPDATE_THREAD_FRAMERATE 30
 #define MAX_NB_HEADSETS         10
+#define MAX_OWNER_TIME          1.e5
 
 namespace sereno
 {
@@ -38,6 +39,7 @@ namespace sereno
         VFV_SEND_HEADSETS_STATUS         = 5, //Send all the headsets status except the client receiving the message
         VFV_SEND_HEADSET_ANCHOR_SEGMENT  = 6, //Send anchor segment
         VFV_SEND_HEADSET_ANCHOR_EOF      = 7, //Send anchor end of stream
+        VFV_SEND_SUBDATASET_OWNER        = 8, //Send the new subdataset owner
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -124,6 +126,10 @@ namespace sereno
 
             /** \brief  Send the anchoring data to all the client connected */
             void sendAnchoring();
+
+            /* \brief Send the subdataset owner to all the clients (owner included)
+             * \param data SubDataset meta data containing the new owner */
+            void sendSubDatasetOwner(SubDatasetMetaData* data);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

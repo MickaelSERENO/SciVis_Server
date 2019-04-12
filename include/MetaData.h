@@ -3,14 +3,27 @@
 
 #include <string>
 #include "Datasets/VTKDataset.h"
+#include "VFVClientSocket.h"
 
 namespace sereno
 {
+    struct SubDatasetMetaData
+    {
+        VFVClientSocket* hmdClient;            /*!< The HMD client owning this subdataset. 
+                                                    NULL == no hmd client owning this subdataset*/
+        time_t           lastModification = 0; /*!< The last modification time is us this subdataset received. 
+                                                    This is used to automatically reset the owner*/
+        uint64_t         sdID      = 0;        /*!< SubDataset ID*/
+        uint64_t         datasetID = 0;        /*!< Dataset ID*/
+    };
+
     /*!< Structure representing MetaData associated with the opened Datasets*/
     struct MetaData
     {
         std::string name;      /*!< The MetaData's name*/
-        uint32_t    datasetID; /* < The MetaData's ID*/
+        uint32_t    datasetID; /*!< The MetaData's ID*/
+
+        std::vector<SubDatasetMetaData> sdMetaData; /*!< SubDataset meta data*/
     };
 
     /** \brief  The VTK MetaData structure, containing metadata of VTK Datasets */

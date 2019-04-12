@@ -314,10 +314,18 @@ namespace sereno
         metaData.ptFieldValueIndices   = dataset.ptFields;
         metaData.cellFieldValueIndices = dataset.cellFields;
 
+        for(size_t i = 0; i < dataset.ptFields.size() + dataset.cellFields.size(); i++)
+        {
+            SubDatasetMetaData md;
+            md.sdID = i;
+        }
+
         //Add it to the list
         {
             std::lock_guard<std::mutex> lock(m_datasetMutex);
             metaData.datasetID = m_currentDataset;
+            for(auto& it : metaData.sdMetaData)
+                it.datasetID = m_currentDataset;
             m_vtkDatasets.insert(std::pair<uint32_t, VTKMetaData>(m_currentDataset, metaData));
             m_datasets.insert(std::pair<uint32_t, VTKDataset*>(m_currentDataset, vtk));
             m_currentDataset++;
@@ -344,29 +352,66 @@ namespace sereno
 
     void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
     {
-        Dataset* dataset = NULL;
         {
-            auto it = m_datasets.find(rotate.datasetID);
-            if(it == m_datasets.end())
+            std::lock_guard<std::mutex> lock(m_datasetMutex);
+
+            //Update the subdataset
+            Dataset* dataset = NULL;
+            {
+                auto it = m_datasets.find(rotate.datasetID);
+                if(it == m_datasets.end())
+                {
+                    VFVSERVER_DATASET_NOT_FOUND(rotate.datasetID)
+                    return;
+                }
+
+                if(it->second->getNbSubDatasets() <= rotate.subDatasetID)
+                {
+                    VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
+                    return;
+                }
+
+                dataset = it->second;
+            }
+
+            dataset->getSubDataset(rotate.subDatasetID)->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
+                                                                                     rotate.quaternion[3], rotate.quaternion[0]));
+
+            //Find the subdataset meta data and update it
+            MetaData* mt = NULL;
+            auto it = m_vtkDatasets.find(rotate.datasetID);
+            if(it != m_vtkDatasets.end())
+            {
+                if(it->second.sdMetaData.size() <= rotate.subDatasetID)
+                {
+                    VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
+                    return;
+                }
+                mt = &it->second;
+            }
+            else
             {
                 VFVSERVER_DATASET_NOT_FOUND(rotate.datasetID)
                 return;
             }
 
-            if(it->second->getNbSubDatasets() <= rotate.subDatasetID)
+            struct timespec t;
+            clock_gettime(CLOCK_REALTIME, &t);
+            mt->sdMetaData[rotate.subDatasetID].lastModification = t.tv_nsec*1e-3 + t.tv_sec*1e6;
+
+            if(client->isTablet() && client->getTabletData().headset)
             {
-                VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
-                return;
+                rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
+                if(mt->sdMetaData[rotate.subDatasetID].hmdClient != client->getTabletData().headset)
+                {
+                    mt->sdMetaData[rotate.subDatasetID].hmdClient = client->getTabletData().headset;
+
+                    //Send owner to all the clients
+                    std::lock_guard<std::mutex> lock2(m_mapMutex);
+                    sendSubDatasetOwner(&mt->sdMetaData[rotate.subDatasetID]);
+                }
             }
-
-            dataset = it->second;
         }
-
-        dataset->getSubDataset(rotate.subDatasetID)->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
-                                                                                 rotate.quaternion[3], rotate.quaternion[0]));
-
-        if(client->isTablet() && client->getTabletData().headset)
-            rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
 
         std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto& clt : m_clientTable)
@@ -654,10 +699,39 @@ namespace sereno
 
     void VFVServer::sendAnchoring()
     {
-        std::lock_guard<std::mutex> lock(m_mapMutex);
-
         for(auto& it : m_clientTable)
             sendAnchoring(it.second);
+    }
+
+    void VFVServer::sendSubDatasetOwner(SubDatasetMetaData* metaData)
+    {
+        //Generate the data
+        uint8_t* data   = (uint8_t*)malloc(sizeof(uint8_t)*2+3*4);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_SUBDATASET_OWNER);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, metaData->datasetID);
+        offset+= sizeof(uint32_t);
+
+        writeUint32(data+offset, metaData->sdID);
+        offset+= sizeof(uint32_t);
+
+        if(metaData->hmdClient != NULL)
+            writeUint32(data+offset, metaData->hmdClient->getHeadsetData().id);
+        else
+            writeUint32(data+offset, -1);
+        offset+= sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        //Send the data
+        for(auto it : m_clientTable)
+        {
+            SocketMessage<int> sm(it.second->socket, sharedData, offset);
+            writeMessage(sm);
+        }
     }
 
     /*----------------------------------------------------------------------------*/
@@ -739,6 +813,7 @@ namespace sereno
                     else
                     {
                         client->getHeadsetData().anchoringSent = true;
+                        std::lock_guard<std::mutex> lock(m_mapMutex);
                         sendAnchoring();
                     }
                     break;
@@ -820,8 +895,27 @@ namespace sereno
             }
             clock_gettime(CLOCK_REALTIME, &end);
 
-            usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - (end.tv_nsec*1.e-3 + end.tv_sec*1.e6) +
-                                                                (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
+            time_t endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+
+            //Check owner ending time
+            {
+                std::lock_guard<std::mutex> lock(m_datasetMutex);
+                std::lock_guard<std::mutex> lock2(m_mapMutex);
+                for(auto& it : m_vtkDatasets)
+                {
+                    for(auto& it2 : it.second.sdMetaData)
+                    {
+                        if(it2.hmdClient != NULL && endTime - it2.lastModification >= MAX_OWNER_TIME)
+                        {
+                            it2.hmdClient = NULL;
+                            it2.lastModification = 0;
+                            sendSubDatasetOwner(&it2);
+                        }
+                    }
+                }
+            }
+
+            usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
         }
     }
 }
