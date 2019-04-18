@@ -127,6 +127,51 @@ namespace sereno
         INFO << "End of disconnection\n";
     }
 
+    Dataset* VFVServer::getDataset(uint32_t datasetID, uint32_t sdID)
+    {
+        auto it = m_datasets.find(datasetID);
+        if(it == m_datasets.end())
+            return NULL;
+
+        if(it->second->getNbSubDatasets() <= sdID)
+            return NULL;
+
+        return it->second;
+    }
+
+    MetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID)
+    {
+        MetaData* mt = NULL;
+        auto it = m_vtkDatasets.find(datasetID);
+        if(it != m_vtkDatasets.end())
+        {
+            if(it->second.sdMetaData.size() <= sdID)
+                return NULL;
+            mt = &it->second;
+        }
+        else
+            return NULL;
+
+        //Update time
+        struct timespec t;
+        clock_gettime(CLOCK_REALTIME, &t);
+        mt->sdMetaData[sdID].lastModification = t.tv_nsec*1e-3 + t.tv_sec*1e6;
+
+        //UPdate client
+        if(client->isTablet() && client->getTabletData().headset)
+        {
+            if(mt->sdMetaData[sdID].hmdClient != client->getTabletData().headset)
+            {
+                mt->sdMetaData[sdID].hmdClient = client->getTabletData().headset;
+
+                //Send owner to all the clients
+                std::lock_guard<std::mutex> lock2(m_mapMutex);
+                sendSubDatasetOwner(&mt->sdMetaData[sdID]);
+            }
+        }
+        return mt;
+    }
+
     void VFVServer::askNewAnchor()
     {
         //Re ask for a new anchor
@@ -318,6 +363,7 @@ namespace sereno
         {
             SubDatasetMetaData md;
             md.sdID = i;
+            metaData.sdMetaData.push_back(md);
         }
 
         //Add it to the list
@@ -343,10 +389,8 @@ namespace sereno
         for(auto clt : m_clientTable)
         {
             if(clt.second != client)
-            {
                 sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
-                sendDatasetStatus(clt.second, vtk, metaData.datasetID);
-            }
+            sendDatasetStatus(clt.second, vtk, metaData.datasetID);
         }
     }
 
@@ -355,68 +399,106 @@ namespace sereno
         {
             std::lock_guard<std::mutex> lock(m_datasetMutex);
 
-            //Update the subdataset
-            Dataset* dataset = NULL;
+            Dataset* dataset = getDataset(rotate.datasetID, rotate.subDatasetID);
+            if(dataset == NULL)
             {
-                auto it = m_datasets.find(rotate.datasetID);
-                if(it == m_datasets.end())
-                {
-                    VFVSERVER_DATASET_NOT_FOUND(rotate.datasetID)
-                    return;
-                }
-
-                if(it->second->getNbSubDatasets() <= rotate.subDatasetID)
-                {
-                    VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
-                    return;
-                }
-
-                dataset = it->second;
+                VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
+                return;
             }
 
             dataset->getSubDataset(rotate.subDatasetID)->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
                                                                                      rotate.quaternion[3], rotate.quaternion[0]));
 
             //Find the subdataset meta data and update it
-            MetaData* mt = NULL;
-            auto it = m_vtkDatasets.find(rotate.datasetID);
-            if(it != m_vtkDatasets.end())
+            MetaData* mt = updateMetaDataModification(client, rotate.datasetID, rotate.subDatasetID);
+            if(!mt)
             {
-                if(it->second.sdMetaData.size() <= rotate.subDatasetID)
-                {
-                    VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
-                    return;
-                }
-                mt = &it->second;
-            }
-            else
-            {
-                VFVSERVER_DATASET_NOT_FOUND(rotate.datasetID)
+                VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
                 return;
             }
-
-            struct timespec t;
-            clock_gettime(CLOCK_REALTIME, &t);
-            mt->sdMetaData[rotate.subDatasetID].lastModification = t.tv_nsec*1e-3 + t.tv_sec*1e6;
-
-            if(client->isTablet() && client->getTabletData().headset)
-            {
-                rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
-                if(mt->sdMetaData[rotate.subDatasetID].hmdClient != client->getTabletData().headset)
-                {
-                    mt->sdMetaData[rotate.subDatasetID].hmdClient = client->getTabletData().headset;
-
-                    //Send owner to all the clients
-                    std::lock_guard<std::mutex> lock2(m_mapMutex);
-                    sendSubDatasetOwner(&mt->sdMetaData[rotate.subDatasetID]);
-                }
-            }
         }
+
+        //Set the headsetID
+        if(client->isTablet() && client->getTabletData().headset)
+            rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
+        else if(client->isHeadset())
+            rotate.headsetID = client->getHeadsetData().id;
 
         std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto& clt : m_clientTable)
             if(clt.second != client)
                 sendRotateDatasetEvent(clt.second, rotate);
+    }
+
+    void VFVServer::translateSubDataset(VFVClientSocket* client, VFVMoveInformation& translate)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_datasetMutex);
+
+            Dataset* dataset = getDataset(translate.datasetID, translate.subDatasetID);
+            if(dataset == NULL)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(translate.datasetID, translate.subDatasetID)
+                return;
+            }
+
+            dataset->getSubDataset(translate.subDatasetID)->setPosition(glm::vec3(translate.position[0], translate.position[1], translate.position[2]));
+            INFO << "Translating about " << translate.position[0] << " " << translate.position[1] << " " << translate.position[2] << std::endl;
+
+            //Find the subdataset meta data and update it
+            MetaData* mt = updateMetaDataModification(client, translate.datasetID, translate.subDatasetID);
+            if(!mt)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(translate.datasetID, translate.subDatasetID)
+                return;
+            }
+        }
+
+        //Set the headsetID
+        if(client->isTablet() && client->getTabletData().headset)
+            translate.headsetID = client->getTabletData().headset->getHeadsetData().id;
+        else if(client->isHeadset())
+            translate.headsetID = client->getHeadsetData().id;
+
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        for(auto& clt : m_clientTable)
+            if(clt.second != client)
+                sendMoveDatasetEvent(clt.second, translate);
+    }
+
+    void VFVServer::scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_datasetMutex);
+
+            Dataset* dataset = getDataset(scale.datasetID, scale.subDatasetID);
+            if(dataset == NULL)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(scale.datasetID, scale.subDatasetID)
+                return;
+            }
+
+            dataset->getSubDataset(scale.subDatasetID)->setScale(glm::vec3(scale.scale[0], scale.scale[1], scale.scale[2]));
+
+            //Find the subdataset meta data and update it
+            MetaData* mt = updateMetaDataModification(client, scale.datasetID, scale.subDatasetID);
+            if(!mt)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(scale.datasetID, scale.subDatasetID)
+                return;
+            }
+        }
+
+        //Set the headsetID
+        if(client->isTablet() && client->getTabletData().headset)
+            scale.headsetID = client->getTabletData().headset->getHeadsetData().id;
+        else if(client->isHeadset())
+            scale.headsetID = client->getHeadsetData().id;
+
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        for(auto& clt : m_clientTable)
+            if(clt.second != client)
+                sendScaleDatasetEvent(clt.second, scale);
     }
 
     void VFVServer::updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset)
@@ -509,6 +591,33 @@ namespace sereno
         writeMessage(sm);
     }
 
+    void VFVServer::sendScaleDatasetEvent(VFVClientSocket* client, const VFVScaleInformation& scale)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 3*sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset=0;
+
+        writeUint16(data, VFV_SEND_SCALE_DATASET); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, scale.datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, scale.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        writeUint32(data+offset, scale.headsetID); //The headset ID
+        offset += sizeof(uint32_t); 
+
+        for(int i = 0; i < 3; i++, offset += sizeof(float)) //3D Scaling
+            writeFloat(data+offset, scale.scale[i]);
+
+        INFO << "Sending SCALE DATASET Event data " << scale.scale[0] << " " << scale.scale[1] << " " << scale.scale[2] << "\n";
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        writeMessage(sm);
+    }
+
     void VFVServer::sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position)
     {
         uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 3*sizeof(float);
@@ -530,7 +639,7 @@ namespace sereno
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //Vector3 position
             writeFloat(data+offset, position.position[i]);
 
-        INFO << "Sending MOVE DATASET Event data\n";
+        INFO << "Sending MOVE DATASET Event data " << position.position[0] << " " << position.position[1] << " " << position.position[2] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -590,6 +699,14 @@ namespace sereno
             for(uint32_t j = 0; j < 3; j++)
                 position.position[j] = sd->getPosition()[j];
             sendMoveDatasetEvent(client, position);
+
+            //Send scale
+            VFVScaleInformation scale;
+            scale.datasetID    = datasetID;
+            scale.subDatasetID = i;
+            for(uint32_t j = 0; j < 3; j++)
+                scale.scale[j] = sd->getScale()[j];
+            sendScaleDatasetEvent(client, scale);
         }
     }
 
@@ -818,6 +935,16 @@ namespace sereno
                     }
                     break;
                 }
+                case TRANSLATE_DATASET:
+                {
+                    translateSubDataset(client, msg.translate);
+                    break;
+                }
+                case SCALE_DATASET:
+                {
+                    scaleSubDataset(client, msg.scale);
+                    break;
+                }
                 default:
                     WARNING << "Type " << msg.type << " not handled yet\n";
                     break;
@@ -840,11 +967,11 @@ namespace sereno
 
             clock_gettime(CLOCK_REALTIME, &beg);
             {
-                //Send HEADSETS_STATUS
-                std::lock_guard<std::mutex> lock(m_mapMutex);
-                for(auto it : m_clientTable)
+                if(m_anchorData.isCompleted())
                 {
-                    if(it.second->isHeadset())
+                    //Send HEADSETS_STATUS
+                    std::lock_guard<std::mutex> lock(m_mapMutex);
+                    for(auto it : m_clientTable)
                     {
                         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
                                                          MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t)));

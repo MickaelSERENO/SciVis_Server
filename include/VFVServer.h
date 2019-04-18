@@ -10,7 +10,7 @@
 #include "MetaData.h"
 #include "AnchorHeadsetData.h"
 
-#define UPDATE_THREAD_FRAMERATE 30
+#define UPDATE_THREAD_FRAMERATE 5
 #define MAX_NB_HEADSETS         10
 #define MAX_OWNER_TIME          1.e5
 
@@ -31,15 +31,16 @@ namespace sereno
     /** \brief Enum describing what the server can push */
     enum VFVSendData
     {
-        VFV_SEND_ADD_VTK_DATASET         = 0, //Send an ADD VTK event
-        VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1, //Acknowledge an event "add vtk"
-        VFV_SEND_ROTATE_DATASET          = 2, //Send the rotation status of a dataset
-        VFV_SEND_MOVE_DATASET            = 3, //Send the position status of a dataset
-        VFV_SEND_HEADSET_BINDING_INFO    = 4, //Send the binding headset information
-        VFV_SEND_HEADSETS_STATUS         = 5, //Send all the headsets status except the client receiving the message
-        VFV_SEND_HEADSET_ANCHOR_SEGMENT  = 6, //Send anchor segment
-        VFV_SEND_HEADSET_ANCHOR_EOF      = 7, //Send anchor end of stream
-        VFV_SEND_SUBDATASET_OWNER        = 8, //Send the new subdataset owner
+        VFV_SEND_ADD_VTK_DATASET         = 0,  /*!< Send an ADD VTK event*/
+        VFV_SEND_ACKNOWLEDGE_ADD_DATASET = 1,  /*!< Acknowledge an event "add vtk"*/
+        VFV_SEND_ROTATE_DATASET          = 2,  /*!< Send the rotation status of a dataset*/
+        VFV_SEND_MOVE_DATASET            = 3,  /*!< Send the position status of a dataset*/
+        VFV_SEND_HEADSET_BINDING_INFO    = 4,  /*!< Send the binding headset information*/
+        VFV_SEND_HEADSETS_STATUS         = 5,  /*!< Send all the headsets status except the client receiving the message*/
+        VFV_SEND_HEADSET_ANCHOR_SEGMENT  = 6,  /*!< Send anchor segment*/
+        VFV_SEND_HEADSET_ANCHOR_EOF      = 7,  /*!< Send anchor end of stream*/
+        VFV_SEND_SUBDATASET_OWNER        = 8,  /*!< Send the new subdataset owner*/
+        VFV_SEND_SCALE_DATASET           = 9,  /*!< Send the scaling status of a dataset*/
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -59,6 +60,18 @@ namespace sereno
 
             void closeClient(SOCKET client);
 
+            /* \brief  Get the dataset via its ID
+             * \param datasetID the dataset ID
+             * \param sdID the subdataset ID to test the validity of the Dataset. can be 0.
+             * \return  NULL if not found, a pointer to the dataset if found*/
+            Dataset* getDataset(uint32_t datasetID, uint32_t sdID);
+
+            /* \brief  Update the subdataset meta data last modification component via its ID
+             * \param client the client modifying the metadata
+             * \param datasetID the dataset ID
+             * \param sdID the subdataset ID
+             * \return The MetaData being updated. NULL if not found*/
+            MetaData* updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID);
 
             /* \brief  Ask for a new anchor headset */
             void askNewAnchor();
@@ -77,6 +90,16 @@ namespace sereno
              * \param client the client asking for a rotation
              * \param rotate the rotation data. Not constant because the headset ID will change*/
             void rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate);
+
+            /* \brief Handle the translation
+             * \param client the client asking for a rotation
+             * \param position the position of the data. Not constant because the headset ID will change*/
+            void translateSubDataset(VFVClientSocket* client, VFVMoveInformation& position);
+
+            /* \brief Handle the scaling
+             * \param client the client asking for a rotation
+             * \param scale the scale values of the data. Not constant because the headset ID will change*/
+            void scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale);
 
             /* \brief  Add a VTKDataset to the visualized datasets
              * \param client the client adding the dataset
@@ -103,6 +126,11 @@ namespace sereno
              * \param client the client to send the information
              * \param rotate the rotate information*/
             void sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate);
+
+            /* \brief  Send a scaling event to client
+             * \param client the client to send the information
+             * \param scale the scale information*/
+            void sendScaleDatasetEvent(VFVClientSocket* client, const VFVScaleInformation& scale);
 
             /* \brief  Send a position event to client
              * \param client the client to send the information

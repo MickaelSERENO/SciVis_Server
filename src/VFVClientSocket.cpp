@@ -164,6 +164,12 @@ namespace sereno
                     case HEADSET_CURRENT_SUB_DATASET:
                         info = &m_curMsg.headsetCurrentSubDataset;
                         break;
+                    case TRANSLATE_DATASET:
+                        info = &m_curMsg.translate;
+                        break;
+                    case SCALE_DATASET:
+                        info = &m_curMsg.scale;
+                        break;
                     case NOTHING:
                         break;
                     default:

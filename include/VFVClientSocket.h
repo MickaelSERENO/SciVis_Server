@@ -47,6 +47,8 @@ namespace sereno
         ANCHORING_DATA_STATUS  = 8,
         HEADSET_CURRENT_ACTION = 9,
         HEADSET_CURRENT_SUB_DATASET = 10,
+        TRANSLATE_DATASET = 11,
+        SCALE_DATASET     = 12,
         END_MESSAGE_TYPE
     };
 
@@ -106,6 +108,8 @@ namespace sereno
             struct VFVAnchoringDataStatus       anchoringDataStatus; /*!< Anchoring data status*/
             struct VFVHeadsetCurrentAction      headsetCurrentAction;     /*!< The headset current action*/
             struct VFVHeadsetCurrentSubDataset  headsetCurrentSubDataset; /*!< The headset current SubDataset*/
+            struct VFVMoveInformation           translate; /*!< Translate information*/
+            struct VFVScaleInformation          scale;     /*!< Scale information*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -157,6 +161,12 @@ namespace sereno
                             break;
                         case HEADSET_CURRENT_SUB_DATASET:
                             headsetCurrentSubDataset = cpy.headsetCurrentSubDataset;
+                            break;
+                        case TRANSLATE_DATASET:
+                            translate = cpy.translate;
+                            break;
+                        case SCALE_DATASET:
+                            scale = cpy.scale;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -210,6 +220,12 @@ namespace sereno
                 case HEADSET_CURRENT_SUB_DATASET:
                     new (&headsetCurrentSubDataset) VFVHeadsetCurrentSubDataset;
                     break;
+                case TRANSLATE_DATASET:
+                    new (&translate) VFVMoveInformation;
+                    break;
+                case SCALE_DATASET:
+                    new (&scale) VFVScaleInformation;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -255,6 +271,12 @@ namespace sereno
                     break;
                 case HEADSET_CURRENT_SUB_DATASET:
                     headsetCurrentSubDataset.~VFVHeadsetCurrentSubDataset();
+                    break;
+                case TRANSLATE_DATASET:
+                    translate.~VFVMoveInformation();
+                    break;
+                case SCALE_DATASET:
+                    scale.~VFVScaleInformation();
                     break;
                 case NOTHING:
                     break;

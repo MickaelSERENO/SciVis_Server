@@ -38,6 +38,15 @@ Sending:
         f 'posY'
         f 'posZ'
 
+    VFV_SEND_SCALE_DATASET:
+        i 'type'
+        I 'datasetID'
+        I 'subDatasetID'
+        I 'headsetID'. -1 == no headset sent the message (server only)
+        f 'scaleX'
+        f 'scaleY'
+        f 'scaleZ'
+
     VFV_SEND_HEADSET_INIT:
         i 'type'
         I 'ID'
@@ -86,6 +95,15 @@ RECEIVING:
         f 'rotationX'
         f 'rotationY'
         f 'rotationZ'
+
+    SCALE_DATASET:
+        i 'type'
+        I 'datasetID'
+        I 'subDatasetID'
+        I 'headsetID'. -1 == no headset sent the message (server only)
+        f 'scaleX'
+        f 'scaleY'
+        f 'scaleZ'
 
     UPDATE_HEADSET:
         i 'type'
