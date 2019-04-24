@@ -229,6 +229,7 @@ namespace sereno
                     clt.second->getHeadsetData().tablet = client;
                     client->getTabletData().headset     = clt.second;
                     sendHeadsetBindingInfo(clt.second, clt.second); //Send the headset the binding information
+                    sendHeadsetBindingInfo(client, clt.second);     //Send the tablet  the binding information
                     return;
                 }
             }
