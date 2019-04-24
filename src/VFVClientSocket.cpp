@@ -279,6 +279,8 @@ namespace sereno
 
     bool VFVClientSocket::setAsTablet(const std::string& headsetIP)
     {
+        new (&m_tablet) VFVTabletData;
+
         m_identityType = TABLET;
         if(headsetIP.size())
         {
@@ -296,6 +298,7 @@ namespace sereno
 
     bool VFVClientSocket::setAsHeadset()
     {
+        new (&m_headset) VFVHeadsetData;
         m_identityType = HEADSET;
         m_headset.id   = nextHeadsetID++;
         return true;
