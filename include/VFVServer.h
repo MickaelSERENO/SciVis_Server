@@ -10,7 +10,7 @@
 #include "MetaData.h"
 #include "AnchorHeadsetData.h"
 
-#define UPDATE_THREAD_FRAMERATE 5
+#define UPDATE_THREAD_FRAMERATE 3
 #define MAX_NB_HEADSETS         10
 #define MAX_OWNER_TIME          1.e5
 

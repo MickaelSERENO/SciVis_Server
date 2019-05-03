@@ -85,6 +85,7 @@ namespace sereno
         m_mapMutex.lock();
             auto c = m_clientTable[client];
 
+            INFO << "Disconnecting a client...\n";
             //Handle headset disconnections
             if(c->isHeadset())
             {
@@ -92,17 +93,18 @@ namespace sereno
                 m_availableHeadsetColors.push(c->getHeadsetData().color);
                 m_nbConnectedHeadsets--;
 
-                //Disconnect with the tablet as well
-                for(auto it : m_clientTable)
-                    if(it.second->isTablet() && it.second->getTabletData().headset == c)
-                    {
-                        it.second->getTabletData().headset = NULL;
-                        sendHeadsetBindingInfo(it.second, NULL);
-                        break;
-                    }
+                VFVClientSocket* tablet = c->getHeadsetData().tablet;
+                if(tablet)
+                {
+                    tablet->getTabletData().headset = NULL;
+                    sendHeadsetBindingInfo(tablet, NULL);
+                }
 
                 if(m_headsetAnchorClient == c)
+                {
                     m_headsetAnchorClient = NULL;
+                    m_anchorData.finalize(false);
+                }
             }
 
             //Handle table disconnections
@@ -123,7 +125,9 @@ namespace sereno
 
         Server::closeClient(client);
 
-        askNewAnchor();
+        m_mapMutex.lock();
+            askNewAnchor();
+        m_mapMutex.unlock();
         INFO << "End of disconnection\n";
     }
 
@@ -177,20 +181,18 @@ namespace sereno
         //Re ask for a new anchor
         if(m_headsetAnchorClient == NULL)
         {
-            m_mapMutex.lock();
-                //Reset anchoring
-                for(auto it : m_clientTable)
-                    if(it.second->isHeadset())
-                        it.second->getHeadsetData().anchoringSent = false;
+            m_anchorData.finalize(false);
+            //Reset anchoring
+            for(auto it : m_clientTable)
+                if(it.second->isHeadset())
+                    it.second->getHeadsetData().anchoringSent = false;
 
-                m_anchorData.finalize(false);
-                for(auto it : m_clientTable)
-                    if(it.second->isHeadset())
-                    {
-                        sendHeadsetBindingInfo(it.second, it.second);
-                        break;
-                    }
-            m_mapMutex.unlock();
+            for(auto it : m_clientTable)
+                if(it.second->isHeadset())
+                {
+                    sendHeadsetBindingInfo(it.second, it.second);
+                    break;
+                }
         }
     }
 
@@ -201,6 +203,7 @@ namespace sereno
     void VFVServer::loginTablet(VFVClientSocket* client, const VFVIdentTabletInformation& identTablet)
     {
         INFO << "Tablet connected.\n";
+        std::lock_guard<std::mutex> lock(m_mapMutex);
         if(!client->setAsTablet(identTablet.headsetIP))
         {
             VFVSERVER_NOT_A_TABLET
@@ -210,7 +213,6 @@ namespace sereno
         //Tell the old bound headset the tablet disconnection
         if(client->getTabletData().headset)
         {
-            std::lock_guard<std::mutex> lock(m_mapMutex);
             sendHeadsetBindingInfo(client->getTabletData().headset, NULL);
             client->getTabletData().headset->getHeadsetData().tablet = NULL;
             client->getTabletData().headset = NULL;
@@ -220,7 +222,6 @@ namespace sereno
         else if(identTablet.headsetIP.size() > 0)
         { 
             //Go through all the tablet to look for an already connected headset
-            std::lock_guard<std::mutex> lock(m_mapMutex);
             for(auto& clt : m_clientTable)
             {
                 if(clt.second != client && clt.second->sockAddr.sin_addr.s_addr == client->getTabletData().headsetAddr.sin_addr.s_addr)
@@ -267,9 +268,6 @@ namespace sereno
                     INFO << "Tablet found!\n";
                     client->getHeadsetData().tablet     = clt.second;
                     clt.second->getTabletData().headset = client;
-
-                    //Send the tablet the binding information
-                    sendHeadsetBindingInfo(clt.second, client);
                     break;
                 }
             }
@@ -281,7 +279,21 @@ namespace sereno
 
         onLoginSendCurrentStatus(client);
 
-        INFO << std::endl;
+        //Add current opened datasets
+        {
+            std::lock_guard<std::mutex> lock2(m_datasetMutex);
+            for(auto& it : m_datasets)
+            {
+                for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
+                {
+                    SubDatasetHeadsetInformation info(it.second->getSubDataset(i));
+                    std::pair<SubDataset*, SubDatasetHeadsetInformation> p(it.second->getSubDataset(i), info);
+                    client->getHeadsetData().sdInfo.insert(p);
+                }
+            }
+        }
+
+        INFO << "End Connection" << std::endl;
     }
 
     void VFVServer::sendEmptyMessage(VFVClientSocket* client, uint16_t type)
@@ -368,8 +380,8 @@ namespace sereno
         }
 
         //Add it to the list
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
         {
-            std::lock_guard<std::mutex> lock(m_datasetMutex);
             metaData.datasetID = m_currentDataset;
             for(auto& it : metaData.sdMetaData)
                 it.datasetID = m_currentDataset;
@@ -381,17 +393,32 @@ namespace sereno
         //Acknowledge the current client
         uint8_t* ackData = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
         writeUint16(ackData, VFV_SEND_ACKNOWLEDGE_ADD_DATASET);
-        writeUint16(ackData+sizeof(uint16_t), m_currentDataset-1);
+        writeUint32(ackData+sizeof(uint16_t), m_currentDataset-1);
         std::shared_ptr<uint8_t> ackSharedData(ackData, free);
         SocketMessage<int> ackSm(client->socket, ackSharedData, sizeof(uint16_t)+sizeof(uint32_t));
         writeMessage(ackSm);
 
         //Send it to the other clients
-        for(auto clt : m_clientTable)
+        //and add it to the known subdataset per client
         {
-            if(clt.second != client)
-                sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
-            sendDatasetStatus(clt.second, vtk, metaData.datasetID);
+            std::lock_guard<std::mutex> lock2(m_mapMutex);
+            for(auto clt : m_clientTable)
+            {
+                if(clt.second->isHeadset())
+                {
+                    for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++)
+                    {
+                        SubDataset* sd = vtk->getSubDataset(i);
+                        SubDatasetHeadsetInformation info(sd);
+                        std::pair<SubDataset*, SubDatasetHeadsetInformation> p(sd, info);
+                        clt.second->getHeadsetData().sdInfo.insert(p);
+                    }
+                }
+
+                if(clt.second != client)
+                    sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
+                sendDatasetStatus(clt.second, vtk, metaData.datasetID);
+            }
         }
     }
 
@@ -613,7 +640,8 @@ namespace sereno
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //3D Scaling
             writeFloat(data+offset, scale.scale[i]);
 
-        INFO << "Sending SCALE DATASET Event data " << scale.scale[0] << " " << scale.scale[1] << " " << scale.scale[2] << "\n";
+        INFO << "Sending SCALE DATASET Event data DatasetID " <<  scale.datasetID << " SubDataset ID " << scale.subDatasetID <<
+            scale.scale[0] << " " << scale.scale[1] << " " << scale.scale[2] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -778,29 +806,31 @@ namespace sereno
 
     void VFVServer::sendAnchoring(VFVClientSocket* client)
     {
-        if(!m_anchorData.isCompleted() || !client->isHeadset() || client->getHeadsetData().anchoringSent)
+        if(!m_anchorData.isCompleted() || !client->isHeadset())
+            return;
+        if(client->getHeadsetData().anchoringSent)
             return;
 
         //Send segment by segment
         for(auto& itSegment : m_anchorData.getSegmentData())
         {
-            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
+            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t)+itSegment.dataSize);
             uint32_t offset = 0;
 
+            //Header
             writeUint16(data, VFV_SEND_HEADSET_ANCHOR_SEGMENT);
             offset += sizeof(uint16_t);
 
             writeUint32(data+offset, itSegment.dataSize);
             offset += sizeof(uint32_t);
 
-            //Send header
+            for(uint32_t i = 0; i < itSegment.dataSize; i++)
+                data[offset+i] = itSegment.data.get()[i];
+            offset += itSegment.dataSize;
+
             std::shared_ptr<uint8_t> sharedData(data, free);
             SocketMessage<int> sm(client->socket, sharedData, offset);
             writeMessage(sm);
-
-            //Send data stream
-            SocketMessage<int> smSegment(client->socket, itSegment.data, itSegment.dataSize);
-            writeMessage(smSegment);
         }
 
         //Send end of anchor
@@ -810,8 +840,6 @@ namespace sereno
         SocketMessage<int> sm(client->socket, sharedData, sizeof(uint16_t));
         writeMessage(sm);
 
-        INFO << "Finish sending anchor\n";
-
         client->getHeadsetData().anchoringSent = true;
     }
 
@@ -819,6 +847,7 @@ namespace sereno
     {
         for(auto& it : m_clientTable)
             sendAnchoring(it.second);
+        INFO << "Anchor sent to everyone" << std::endl;
     }
 
     void VFVServer::sendSubDatasetOwner(SubDatasetMetaData* metaData)
@@ -925,15 +954,17 @@ namespace sereno
                         return;
                     }
                     INFO << "Receiving end of anchoring data : " << msg.anchoringDataStatus.succeed << std::endl;
+                    std::lock_guard<std::mutex> lock(m_mapMutex);
                     m_anchorData.finalize(msg.anchoringDataStatus.succeed);
+
                     if(msg.anchoringDataStatus.succeed == false)
                         askNewAnchor();
                     else
                     {
                         client->getHeadsetData().anchoringSent = true;
-                        std::lock_guard<std::mutex> lock(m_mapMutex);
                         sendAnchoring();
                     }
+                    INFO << "End of anchoring data handling" << std::endl;
                     break;
                 }
                 case TRANSLATE_DATASET:
@@ -970,8 +1001,8 @@ namespace sereno
             {
                 if(m_anchorData.isCompleted())
                 {
-                    //Send HEADSETS_STATUS
                     std::lock_guard<std::mutex> lock(m_mapMutex);
+                    //Send HEADSETS_STATUS
                     for(auto it : m_clientTable)
                     {
                         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
@@ -985,7 +1016,7 @@ namespace sereno
 
                         for(auto& it2 : m_clientTable)
                         {
-                            if(it2.second->isHeadset() && it2.second != it.second)
+                            if(it2.second->isHeadset())
                             {
                                 //ID
                                 writeUint32(data+offset, it2.second->getHeadsetData().id);
@@ -1027,8 +1058,7 @@ namespace sereno
 
             //Check owner ending time
             {
-                std::lock_guard<std::mutex> lock(m_datasetMutex);
-                std::lock_guard<std::mutex> lock2(m_mapMutex);
+                std::lock_guard<std::mutex> lock2(m_datasetMutex);
                 for(auto& it : m_vtkDatasets)
                 {
                     for(auto& it2 : it.second.sdMetaData)

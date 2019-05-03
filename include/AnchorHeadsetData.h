@@ -21,7 +21,10 @@ namespace sereno
                 if(success)
                     m_isCompleted = true;
                 else
+                {
+                    m_isCompleted = false;
                     m_segmentData.clear();
+                }
             }
 
             /* \brief  Get all the segment values.

@@ -2,6 +2,7 @@
 #define  VFVDATAINFORMATION_INC
 
 #include "utils.h"
+#include "visibility.h"
 #include <string>
 #include <cstdint>
 #include <memory>
@@ -54,6 +55,29 @@ namespace sereno
     {
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return -1;}
+    };
+
+    struct VFVVisibilityDataset : public VFVDataInformation
+    {
+        int32_t datasetID    = 0;
+        int32_t subDatasetID = -1;
+        int32_t visibility   = VISIBILITY_PUBLIC;
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else if(cursor == 2)
+                visibility = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const {return 'I';}
+        virtual int32_t getMaxCursor() const {return 2;}
     };
 
     struct VFVHeadsetCurrentSubDataset : public VFVDataInformation

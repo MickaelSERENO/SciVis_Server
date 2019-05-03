@@ -96,6 +96,14 @@ namespace sereno
         return false;\
     }
 
+    VFVClientSocket::~VFVClientSocket()
+    {
+        if(isTablet())
+            m_tablet.~VFVTabletData();
+        else if(isHeadset())
+            m_headset.~VFVHeadsetData();
+    }
+
     bool VFVClientSocket::feedMessage(uint8_t* message, uint32_t size)
     {
 
@@ -169,6 +177,9 @@ namespace sereno
                         break;
                     case SCALE_DATASET:
                         info = &m_curMsg.scale;
+                        break;
+                    case VISIBILITY_DATASET:
+                        info = &m_curMsg.visibility;
                         break;
                     case NOTHING:
                         break;

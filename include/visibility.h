@@ -1,0 +1,7 @@
+#ifndef  VISIBILITY_INC
+#define  VISIBILITY_INC
+
+#define VISIBILITY_PUBLIC  1
+#define VISIBILITY_PRIVATE 2
+
+#endif

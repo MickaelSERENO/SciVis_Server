@@ -9,6 +9,9 @@
 #include <string>
 #include <tuple>
 #include <glm/glm.hpp>
+#include <map>
+#include "Datasets/SubDataset.h"
+#include "SubDatasetHeadsetInformation.h"
 #include "utils.h"
 #include "ClientSocket.h"
 #include "ColorMode.h"
@@ -35,20 +38,21 @@ namespace sereno
     /* \brief The type of message this application can receive */
     enum VFVMessageType
     {
-        NOTHING            = -1,
-        IDENT_HEADSET      = 0,
-        IDENT_TABLET       = 1,
-        ADD_BINARY_DATASET = 2,
-        ADD_VTK_DATASET    = 3,
-        ROTATE_DATASET     = 4,
-        UPDATE_HEADSET     = 5,
-        ANNOTATION_DATA    = 6,
-        ANCHORING_DATA_SEGMENT = 7,
-        ANCHORING_DATA_STATUS  = 8,
-        HEADSET_CURRENT_ACTION = 9,
+        NOTHING                     = -1,
+        IDENT_HEADSET               = 0,
+        IDENT_TABLET                = 1,
+        ADD_BINARY_DATASET          = 2,
+        ADD_VTK_DATASET             = 3,
+        ROTATE_DATASET              = 4,
+        UPDATE_HEADSET              = 5,
+        ANNOTATION_DATA             = 6,
+        ANCHORING_DATA_SEGMENT      = 7,
+        ANCHORING_DATA_STATUS       = 8,
+        HEADSET_CURRENT_ACTION      = 9,
         HEADSET_CURRENT_SUB_DATASET = 10,
-        TRANSLATE_DATASET = 11,
-        SCALE_DATASET     = 12,
+        TRANSLATE_DATASET           = 11,
+        SCALE_DATASET               = 12,
+        VISIBILITY_DATASET          = 13,
         END_MESSAGE_TYPE
     };
 
@@ -108,8 +112,9 @@ namespace sereno
             struct VFVAnchoringDataStatus       anchoringDataStatus; /*!< Anchoring data status*/
             struct VFVHeadsetCurrentAction      headsetCurrentAction;     /*!< The headset current action*/
             struct VFVHeadsetCurrentSubDataset  headsetCurrentSubDataset; /*!< The headset current SubDataset*/
-            struct VFVMoveInformation           translate; /*!< Translate information*/
-            struct VFVScaleInformation          scale;     /*!< Scale information*/
+            struct VFVMoveInformation           translate;  /*!< Translate information*/
+            struct VFVScaleInformation          scale;      /*!< Scale information*/
+            struct VFVVisibilityDataset         visibility; /*!< Visibility information*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -167,6 +172,9 @@ namespace sereno
                             break;
                         case SCALE_DATASET:
                             scale = cpy.scale;
+                            break;
+                        case VISIBILITY_DATASET:
+                            visibility = cpy.visibility;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -226,6 +234,9 @@ namespace sereno
                 case SCALE_DATASET:
                     new (&scale) VFVScaleInformation;
                     break;
+                case VISIBILITY_DATASET:
+                    new (&visibility) VFVVisibilityDataset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -278,6 +289,9 @@ namespace sereno
                 case SCALE_DATASET:
                     scale.~VFVScaleInformation();
                     break;
+                case VISIBILITY_DATASET:
+                    visibility.~VFVVisibilityDataset();
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -304,6 +318,7 @@ namespace sereno
         Quaternionf                 rotation;                                       /*!< 3D rotation of the headset*/
         bool                        anchoringSent = false;                          /*!< Has the anchoring data been sent?*/
         VFVHeadsetCurrentActionType currentAction = HEADSET_CURRENT_ACTION_NOTHING; /*!< What is the tablet current action?*/
+        std::map<SubDataset*, SubDatasetHeadsetInformation> sdInfo;                 /*!< Information per dataset regarding each headset*/
     };
 
     /* \brief VFVClientSocket class. Represent a Client for VFV Application */
@@ -312,6 +327,8 @@ namespace sereno
         public:
             /* \brief Constructor*/
             VFVClientSocket();
+
+            ~VFVClientSocket();
 
             bool feedMessage(uint8_t* message, uint32_t size);
 
