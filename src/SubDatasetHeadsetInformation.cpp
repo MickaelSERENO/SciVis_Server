@@ -2,7 +2,7 @@
 
 namespace sereno
 {
-    SubDatasetHeadsetInformation::SubDatasetHeadsetInformation(SubDataset* sd) : m_sd(sd)
+    SubDatasetHeadsetInformation::SubDatasetHeadsetInformation(SubDataset* publicSD) : m_public(publicSD), m_private(*publicSD)
     {}
 
     SubDatasetHeadsetInformation::~SubDatasetHeadsetInformation()

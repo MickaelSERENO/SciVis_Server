@@ -24,6 +24,7 @@ Sending:
         I 'datasetID'
         I 'subDatasetID'
         I 'headsetID'. -1 == no headset sent the message (server only)
+        b 'inPublic'.
         f 'rotationW'
         f 'rotationX'
         f 'rotationY'
@@ -34,6 +35,7 @@ Sending:
         I 'datasetID'
         I 'subDatasetID'
         I 'headsetID'. -1 == no headset sent the message (server only)
+        b 'inPublic'.
         f 'posX'
         f 'posY'
         f 'posZ'
@@ -43,6 +45,7 @@ Sending:
         I 'datasetID'
         I 'subDatasetID'
         I 'headsetID'. -1 == no headset sent the message (server only)
+        b 'inPublic'.
         f 'scaleX'
         f 'scaleY'
         f 'scaleZ'
@@ -135,3 +138,12 @@ RECEIVING:
             f 'posX'
             f 'posY'
             s 'text'
+
+    HEADSET_CURRENT_ACTION:
+        i 'type'
+        I 'action'. 
+            0 == NOTHING
+            1 == MOVING
+            2 == SCALING
+            3 == ROTATING
+            4 == SKETCHING

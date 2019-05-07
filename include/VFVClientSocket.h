@@ -96,7 +96,7 @@ namespace sereno
     /* \brief The message information */
     struct VFVMessage
     {
-        VFVMessageType type; /*!< The type of the message*/
+        VFVMessageType type = NOTHING; /*!< The type of the message*/
 
         union
         {
@@ -192,6 +192,7 @@ namespace sereno
                 WARNING << "Wrong type " << t << " sent\n";
                 return false;
             }
+            clear();
             type = t;
             switch(t)
             {
@@ -246,7 +247,7 @@ namespace sereno
             return true;
         }
 
-        ~VFVMessage()
+        void clear()
         {
             switch(type)
             {
@@ -298,6 +299,11 @@ namespace sereno
                     WARNING << "Type " << type << " not handled yet in the destructor " << std::endl;
                     break;
             }
+        }
+
+        ~VFVMessage()
+        {
+            clear();
         }
     };
 

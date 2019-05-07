@@ -491,105 +491,16 @@ namespace sereno
     {
         uint32_t datasetID;      /*!< The dataset ID*/
         uint32_t subDatasetID;   /*!< The SubDataset ID*/
+        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
+        uint8_t  inPublic  = 1;  /*!< The scaling is done in the public view?*/
         float    scale[3];       /*!< The scale information*/
-        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 
         char getTypeAt(uint32_t cursor) const
         {
             if(cursor < 2)
                 return 'I';
-            else if(cursor < 5)
-                return 'f';
-            return 0;
-        }
-
-        bool pushValue(uint32_t cursor, float value)
-        {
-            if(cursor < 5 && cursor >= 2)
-            {
-                scale[cursor-2] = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        bool pushValue(uint32_t cursor, uint32_t value)
-        {
-            if(cursor == 0)
-            {
-                datasetID = value;
-                return true;
-            }
-
-            if(cursor == 1)
-            {
-                subDatasetID = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        int32_t getMaxCursor() const {return 4;}
-    };
-
-    /** \brief  Structure containing information for dataset movement */
-    struct VFVMoveInformation : public VFVDataInformation
-    {
-        uint32_t datasetID;     /*!< The dataset ID*/
-        uint32_t subDatasetID;  /*!< The SubDataset ID*/
-        float    position[3];   /*!< The position information*/
-        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
-
-        char getTypeAt(uint32_t cursor) const
-        {
-            if(cursor < 2)
-                return 'I';
-            else if(cursor < 5)
-                return 'f';
-            return 0;
-        }
-
-        bool pushValue(uint32_t cursor, float value)
-        {
-            if(cursor < 5 && cursor >= 2)
-            {
-                position[cursor-2] = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        bool pushValue(uint32_t cursor, uint32_t value)
-        {
-            if(cursor == 0)
-            {
-                datasetID = value;
-                return true;
-            }
-
-            if(cursor == 1)
-            {
-                subDatasetID = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        int32_t getMaxCursor() const {return 4;}
-    };
-
-    /* \brief Structure containing information about the rotation of the tablet */
-    struct VFVRotationInformation : public VFVDataInformation
-    {
-        uint32_t datasetID;      /*!< The dataset ID*/
-        uint32_t subDatasetID;   /*!< The SubDataset ID*/
-        float    quaternion[4];  /*!< The quaternion information*/
-        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
-
-        char getTypeAt(uint32_t cursor) const
-        {
-            if(cursor < 2)
-                return 'I';
+            else if(cursor == 2)
+                return 'b';
             else if(cursor < 6)
                 return 'f';
             return 0;
@@ -597,9 +508,9 @@ namespace sereno
 
         bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor < 6 && cursor >= 2)
+            if(cursor < 6 && cursor >= 3)
             {
-                quaternion[cursor-2] = value;
+                scale[cursor-3] = value;
                 return true;
             }
             VFV_DATA_ERROR
@@ -621,7 +532,135 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 2)
+            {
+                inPublic = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
         int32_t getMaxCursor() const {return 5;}
+    };
+
+    /** \brief  Structure containing information for dataset movement */
+    struct VFVMoveInformation : public VFVDataInformation
+    {
+        uint32_t datasetID;     /*!< The dataset ID*/
+        uint32_t subDatasetID;  /*!< The SubDataset ID*/
+        uint8_t  inPublic  = 1; /*!< The movement is done in the public view?*/
+        float    position[3];   /*!< The position information*/
+        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 2)
+                return 'I';
+            else if(cursor == 2)
+                return 'b';
+            else if(cursor < 6)
+                return 'f';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor < 6 && cursor >= 3)
+            {
+                position[cursor-3] = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                datasetID = value;
+                return true;
+            }
+
+            if(cursor == 1)
+            {
+                subDatasetID = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 2)
+            {
+                inPublic = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 5;}
+    };
+
+    /* \brief Structure containing information about the rotation of the tablet */
+    struct VFVRotationInformation : public VFVDataInformation
+    {
+        uint32_t datasetID;      /*!< The dataset ID*/
+        uint32_t subDatasetID;   /*!< The SubDataset ID*/
+        uint8_t  inPublic  = 1;  /*!< Is the rotation done in the public view?*/
+        float    quaternion[4];  /*!< The quaternion information*/
+        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 2)
+                return 'I';
+            else if(cursor == 2)
+                return 'b';
+            else if(cursor < 7)
+                return 'f';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor < 7 && cursor >= 3)
+            {
+                quaternion[cursor-3] = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                datasetID = value;
+                return true;
+            }
+
+            if(cursor == 1)
+            {
+                subDatasetID = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 2)
+            {
+                inPublic = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 6;}
     };
 
     /* \brief Represents the information the tablet send when authentifying */
