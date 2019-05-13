@@ -233,6 +233,8 @@ namespace sereno
 
     void VFVServer::loginTablet(VFVClientSocket* client, const VFVIdentTabletInformation& identTablet)
     {
+        bool alreadyConnected = client->isTablet();
+
         INFO << "Tablet connected.\n";
         std::lock_guard<std::mutex> lock(m_mapMutex);
         if(!client->setAsTablet(identTablet.headsetIP))
@@ -240,6 +242,9 @@ namespace sereno
             VFVSERVER_NOT_A_TABLET
             return;
         }
+        //Send already known datasets
+        if(!alreadyConnected)
+            onLoginSendCurrentStatus(client);
 
         //Tell the old bound headset the tablet disconnection
         if(client->getTabletData().headset)
@@ -261,16 +266,14 @@ namespace sereno
                     clt.second->getHeadsetData().tablet = client;
                     client->getTabletData().headset     = clt.second;
                     sendHeadsetBindingInfo(clt.second, clt.second); //Send the headset the binding information
-                    sendHeadsetBindingInfo(client, clt.second);     //Send the tablet  the binding information
-                    return;
+                    sendHeadsetBindingInfo(client,     clt.second); //Send the tablet the binding information
+                    sendAllDatasetVisibility(client);
+                    break;
                 }
             }
         }
 
         INFO << std::endl;
-
-        //Send already known datasets
-        onLoginSendCurrentStatus(client);
     }
 
     void VFVServer::loginHeadset(VFVClientSocket* client)
@@ -630,6 +633,44 @@ namespace sereno
         }
     }
 
+    void VFVServer::setVisibility(VFVClientSocket* client, const VFVVisibilityDataset& visibility)
+    {
+        //Look for the counterPart to notify and the headset data
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        VFVClientSocket* counterPart = NULL;
+        VFVClientSocket* headset     = NULL;
+        if(client->isTablet())
+        {
+            headset     = client->getTabletData().headset;
+            counterPart = headset;
+        }
+        else if(client->isHeadset())
+        {
+            headset = client;
+            counterPart = client->getHeadsetData().tablet;
+        }
+        if(!headset)
+            return;
+
+        Dataset* dataset = getDataset(visibility.datasetID, visibility.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(visibility.datasetID, visibility.subDatasetID);
+            return;
+        }
+
+        //Search for the meta data
+        SubDataset* sd = dataset->getSubDataset(visibility.subDatasetID);
+        SubDatasetHeadsetInformation* sdMetaData = getSubDatasetMetaData(client, sd);
+
+        if(!sdMetaData)
+            return;
+
+        sdMetaData->setVisibility(visibility.visibility);
+        if(counterPart)
+            sendVisibilityEvent(counterPart, visibility);
+    }
+
     void VFVServer::updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset)
     {
         if(!client->isHeadset())
@@ -699,7 +740,7 @@ namespace sereno
             offset += sizeof(uint32_t);
         }
 
-        INFO << "Sending ADD VTK DATASET Event data\n";
+        INFO << "Sending ADD VTK DATASET Event data. File : " << dataset.name << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -728,7 +769,8 @@ namespace sereno
         for(int i = 0; i < 4; i++, offset += sizeof(float)) //Quaternion rotation
             writeFloat(data+offset, rotate.quaternion[i]);
 
-        INFO << "Sending ROTATE DATASET Event data\n";
+        INFO << "Sending ROTATE DATASET Event data. Data : " << rotate.datasetID << " sdID : " << rotate.subDatasetID
+             << "Q = " << rotate.quaternion[0] << " " << rotate.quaternion[1] << " " << rotate.quaternion[2] << " " << rotate.quaternion[3] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -757,7 +799,7 @@ namespace sereno
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //3D Scaling
             writeFloat(data+offset, scale.scale[i]);
 
-        INFO << "Sending SCALE DATASET Event data DatasetID " <<  scale.datasetID << " SubDataset ID " << scale.subDatasetID <<
+        INFO << "Sending SCALE DATASET Event data DatasetID " << scale.datasetID << " SubDataset ID " << scale.subDatasetID <<
             scale.scale[0] << " " << scale.scale[1] << " " << scale.scale[2] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
@@ -823,6 +865,36 @@ namespace sereno
         //Send anchoring data
         if(client->isHeadset())
             sendAnchoring(client);
+
+    }
+
+    void VFVServer::sendAllDatasetVisibility(VFVClientSocket* client)
+    {
+        //Send visibility if linked
+        if(client->isTablet() && client->getTabletData().headset)
+        {
+            VFVClientSocket* headset = client->getTabletData().headset;
+            for(auto it : headset->getHeadsetData().sdInfo)
+            {
+                for(auto it2 : m_datasets)
+                {
+                    for(uint32_t i = 0; i < it2.second->getNbSubDatasets(); i++)
+                    {
+                        if(it2.second->getSubDataset(i) == it.first)
+                        {
+                            VFVVisibilityDataset vis;
+                            vis.datasetID = it2.first;
+                            vis.subDatasetID = i;
+                            vis.visibility = it.second.getVisibility();
+                            sendVisibilityEvent(client, vis);
+                            goto endFor;
+                        }
+                    }
+                }
+endFor:
+                continue;
+            }
+        }
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
@@ -1002,6 +1074,30 @@ namespace sereno
         }
     }
 
+    void VFVServer::sendVisibilityEvent(VFVClientSocket* client, const VFVVisibilityDataset& visibility)
+    {
+        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 3*sizeof(uint32_t));
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_SET_VISIBILITY_DATASET);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, visibility.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, visibility.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, visibility.visibility);
+        offset += sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        
+        INFO << "Sending new visibility : " << visibility.visibility << std::endl;
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -1118,7 +1214,7 @@ namespace sereno
                 }
                 case VISIBILITY_DATASET:
                 {
-                    //TODO
+                    setVisibility(client, msg.visibility);
                     break;
                 }
                 default:
