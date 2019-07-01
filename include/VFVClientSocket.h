@@ -53,17 +53,21 @@ namespace sereno
         TRANSLATE_DATASET           = 11,
         SCALE_DATASET               = 12,
         VISIBILITY_DATASET          = 13,
+        START_ANNOTATION            = 14,
+        ANCHOR_ANNOTATION           = 15,
+        CLEAR_ANNOTATIONS           = 16,
         END_MESSAGE_TYPE
     };
 
     /** \brief Enumeration of the client current action */
     enum VFVHeadsetCurrentActionType
     {
-        HEADSET_CURRENT_ACTION_NOTHING   = 0,
-        HEADSET_CURRENT_ACTION_MOVING    = 1,
-        HEADSET_CURRENT_ACTION_SCALING   = 2,
-        HEADSET_CURRENT_ACTION_ROTATING  = 3,
-        HEADSET_CURRENT_ACTION_SKETCHING = 4
+        HEADSET_CURRENT_ACTION_NOTHING     = 0,
+        HEADSET_CURRENT_ACTION_MOVING      = 1,
+        HEADSET_CURRENT_ACTION_SCALING     = 2,
+        HEADSET_CURRENT_ACTION_ROTATING    = 3,
+        HEADSET_CURRENT_ACTION_SKETCHING   = 4,
+        HEADSET_CURRENT_ACTION_CREATEANNOT = 5
     };
 
     template<typename T>
@@ -115,6 +119,9 @@ namespace sereno
             struct VFVMoveInformation           translate;  /*!< Translate information*/
             struct VFVScaleInformation          scale;      /*!< Scale information*/
             struct VFVVisibilityDataset         visibility; /*!< Visibility information*/
+            struct VFVStartAnnotation           startAnnotation;  /*!< Start an annotation information*/
+            struct VFVAnchorAnnotation          anchorAnnotation; /*!< Anchor an annotation at a specific location*/
+            struct VFVClearAnnotations          clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -176,6 +183,15 @@ namespace sereno
                         case VISIBILITY_DATASET:
                             visibility = cpy.visibility;
                             break;
+                        case START_ANNOTATION:
+                            startAnnotation = cpy.startAnnotation;
+                            break;
+                        case ANCHOR_ANNOTATION:
+                            anchorAnnotation = cpy.anchorAnnotation;
+                            break;
+                        case CLEAR_ANNOTATIONS:
+                            clearAnnotations = cpy.clearAnnotations;
+                            break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
                             break;
@@ -185,6 +201,9 @@ namespace sereno
             return *this;
         }
 
+        /* \brief  Set the type of the message. Because the message is an union, this permits to set the correct union variable
+         * \param t the new message type
+         * \return   wheter the changement succeed or not */
         bool setType(VFVMessageType t)
         {
             if(t < NOTHING || t > END_MESSAGE_TYPE)
@@ -238,6 +257,15 @@ namespace sereno
                 case VISIBILITY_DATASET:
                     new (&visibility) VFVVisibilityDataset;
                     break;
+                case START_ANNOTATION:
+                    new (&startAnnotation) VFVStartAnnotation;
+                    break;
+                case ANCHOR_ANNOTATION:
+                    new(&anchorAnnotation) VFVAnchorAnnotation;
+                    break;
+                case CLEAR_ANNOTATIONS:
+                    new(&clearAnnotations) VFVClearAnnotations;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -247,6 +275,7 @@ namespace sereno
             return true;
         }
 
+        /** \brief  Clear the union variable based on the type */
         void clear()
         {
             switch(type)
@@ -292,6 +321,15 @@ namespace sereno
                     break;
                 case VISIBILITY_DATASET:
                     visibility.~VFVVisibilityDataset();
+                    break;
+                case START_ANNOTATION:
+                    startAnnotation.~VFVStartAnnotation();
+                    break;
+                case ANCHOR_ANNOTATION:
+                    anchorAnnotation.~VFVAnchorAnnotation();
+                    break;
+                case CLEAR_ANNOTATIONS:
+                    clearAnnotations.~VFVClearAnnotations();
                     break;
                 case NOTHING:
                     break;

@@ -7,10 +7,11 @@
 #include "Server.h"
 #include "VFVClientSocket.h"
 #include "Datasets/BinaryDataset.h"
+#include "Datasets/Annotation/Annotation.h"
 #include "MetaData.h"
 #include "AnchorHeadsetData.h"
 
-#define UPDATE_THREAD_FRAMERATE 3
+#define UPDATE_THREAD_FRAMERATE 10
 #define MAX_NB_HEADSETS         10
 #define MAX_OWNER_TIME          1.e6
 
@@ -42,6 +43,9 @@ namespace sereno
         VFV_SEND_SUBDATASET_OWNER        = 8,  /*!< Send the new subdataset owner*/
         VFV_SEND_SCALE_DATASET           = 9,  /*!< Send the scaling status of a dataset*/
         VFV_SEND_SET_VISIBILITY_DATASET  = 10, /*!< Send the new dataset visibility*/
+        VFV_SEND_START_ANNOTATION        = 11, /*!< Send the start annotation message (asking to start an annotation) */
+        VFV_SEND_ANCHOR_ANNOTATION       = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
+        VFV_SEND_CLEAR_ANNOTATION        = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -117,6 +121,21 @@ namespace sereno
              * \param headset the values to push */
             void updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset);
 
+            /* \brief  Tells the headset bound to a tablet to start an annotation
+             * \param client the tablet client
+             * \param startAnnot the start annotation message */
+            void onStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot);
+
+            /* \brief  Anchor an annotation in a specific subdataset
+             * \param client the client sending the message
+             * \param anchorAnnot the message parsed containing information to anchor a newly created annotation */
+            void onAnchorAnnotation(VFVClientSocket* client, VFVAnchorAnnotation& anchorAnnot);
+
+            /* \brief  Clear annotations in a specific subdataset
+             * \param client the client sending the message
+             * \param clearAnnots the message parsed containing information about the dataset to clear the annotations*/
+            void onClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnots);
+
             /* \brief  Send an empty message
              * \param client the client to send the message
              * \param type the type of the message*/
@@ -158,6 +177,11 @@ namespace sereno
              * \param datasetID the dataset ID */
             void sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID);
 
+            /* \brief  Send the annotation data
+             * \param client the client to send the data
+             * \param annot the annotation's data */
+            void sendAnnotationData(VFVClientSocket* client, Annotation* annot);
+
             /* \brief Send the binding information to the tablet and headset about the binding information
              * \param client the client to send the data (tablet or headset)
              * \param headset the headset bound to the client */
@@ -173,6 +197,21 @@ namespace sereno
             /* \brief Send the subdataset owner to all the clients (owner included)
              * \param data SubDataset meta data containing the new owner */
             void sendSubDatasetOwner(SubDatasetMetaData* data);
+
+            /* \brief  Send a start annotation message to a headset
+             * \param client the headset client to send the message
+             * \param startAnnot the start annotation message to send */
+            void sendStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot);
+
+            /* \brief  Send an anchor annotation message to a specific client
+             * \param client the client to send the message
+             * \param anchorAnnot the anchor annotation message data */
+            void sendAnchorAnnotation(VFVClientSocket* client, const VFVAnchorAnnotation& anchorAnnot);
+
+            /* \brief  Send the clear annotations command to a specific client
+             * \param client the client to send the message
+             * \param clearAnnot the clean annotations command */
+            void sendClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnot);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

@@ -387,6 +387,7 @@ namespace sereno
         {
             SubDataset* sd = vtk->getSubDataset(i);
             sd->setPosition(glm::vec3(m_currentSubDataset*2.0f, 0.0f, 0.0f));
+            sd->setScale(glm::vec3(0.5f, 0.5f, 0.5f));
         }
 
         VTKMetaData metaData;
@@ -686,6 +687,82 @@ namespace sereno
             internalData.rotation[i] = headset.rotation[i];
     }
 
+    void VFVServer::onStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)
+    {
+        if(!client->isTablet())
+        {
+            VFVSERVER_NOT_A_TABLET
+            return;
+        }
+
+        if(client->getTabletData().headset != NULL)
+            sendStartAnnotation(client->getTabletData().headset, startAnnot);
+    }
+
+    void VFVServer::onAnchorAnnotation(VFVClientSocket* client, VFVAnchorAnnotation& anchorAnnot)
+    {
+        uint32_t annotID = 0;
+        uint32_t headsetID = 0;
+        {
+            std::lock_guard<std::mutex> mapLock(m_mapMutex);
+            //Search for the headset ID
+            VFVHeadsetData* headsetData = NULL;
+            if(client->isTablet() && client->getTabletData().headset)
+                headsetData = &client->getTabletData().headset->getHeadsetData();
+            else if(client->isHeadset())
+                headsetData = &client->getHeadsetData();
+
+            headsetID = headsetData->id;
+
+            if(!headsetData)
+                return;
+        }
+
+        //Add the annotation first
+        SubDatasetHeadsetInformation* sdMetaData  = NULL;
+        {
+            std::lock_guard<std::mutex> datasetLock(m_datasetMutex);
+            Dataset* dataset = getDataset(anchorAnnot.datasetID, anchorAnnot.subDatasetID);
+            if(dataset == NULL)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(anchorAnnot.datasetID, anchorAnnot.subDatasetID)
+                return;
+            }
+
+            //Search for the meta data
+            SubDataset* sd = dataset->getSubDataset(anchorAnnot.subDatasetID);
+            sdMetaData = getSubDatasetMetaData(client, sd);
+
+            if(!sdMetaData)
+                return;
+
+            if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
+            {
+                annotID = sdMetaData->getPublicSubDataset()->getAnnotations().size();
+                sdMetaData->getPublicSubDataset()->emplaceAnnotation(anchorAnnot.localPos);
+            }
+            else
+            {
+                annotID = sdMetaData->getPrivateSubDataset().getAnnotations().size();
+                sdMetaData->getPrivateSubDataset().emplaceAnnotation(anchorAnnot.localPos);
+            }
+        }
+
+        std::lock_guard<std::mutex> mapLock(m_mapMutex);
+        anchorAnnot.headsetID    = headsetID;
+        anchorAnnot.annotationID = annotID;
+
+        for(auto& clt : m_clientTable)
+            sendAnchorAnnotation(clt.second, anchorAnnot);
+    }
+
+    void VFVServer::onClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnots)
+    {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        for(auto& clt : m_clientTable)
+            sendClearAnnotations(clt.second, clearAnnots);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
@@ -860,7 +937,27 @@ namespace sereno
         }
 
         for(auto& it : m_datasets)
+        {
             sendDatasetStatus(client, it.second, it.first);
+            for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
+            {
+                SubDataset* sd = it.second->getSubDataset(i);
+                for(uint32_t j = 0; j < sd->getAnnotations().size(); j++)
+                {
+                    VFVAnchorAnnotation anchorAnnot;
+                    anchorAnnot.datasetID    = it.first;
+                    anchorAnnot.subDatasetID = i;
+                    anchorAnnot.inPublic     = 1;
+                    anchorAnnot.annotationID = j;
+                    auto annotIT = sd->getAnnotations().begin();
+                    std::advance(annotIT, j);
+                    for(uint32_t k = 0; k < 3; k++)
+                        anchorAnnot.localPos[k] = (*annotIT)->getPosition()[k];
+                    
+                    sendAnchorAnnotation(client, anchorAnnot);
+                }
+            }
+        }
 
         //Send anchoring data
         if(client->isHeadset())
@@ -902,6 +999,7 @@ endFor:
         for(uint32_t i = 0; i < dataset->getNbSubDatasets(); i++)
         {
             SubDataset* sd = dataset->getSubDataset(i);
+            
             //Send rotate
             VFVRotationInformation rotate;
             rotate.datasetID    = datasetID;
@@ -928,6 +1026,11 @@ endFor:
                 scale.scale[j] = sd->getScale()[j];
             sendScaleDatasetEvent(client, scale);
         }
+    }
+
+    void VFVServer::sendAnnotationData(VFVClientSocket* client, Annotation* annot)
+    {
+
     }
 
     void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset)
@@ -1098,6 +1201,88 @@ endFor:
         writeMessage(sm);
     }
 
+    void VFVServer::sendStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)
+    {
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 3*sizeof(uint32_t) + 1);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_START_ANNOTATION);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, startAnnot.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, startAnnot.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, startAnnot.pointingID);
+        offset += sizeof(uint32_t);
+
+        data[offset++] = startAnnot.inPublic;
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        INFO << "Sending start annotation \n";
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+    }
+
+    void VFVServer::sendAnchorAnnotation(VFVClientSocket* client, const VFVAnchorAnnotation& anchorAnnot)
+    {
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 4*sizeof(uint32_t) + 3*sizeof(float) + 1);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_ANCHOR_ANNOTATION);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, anchorAnnot.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, anchorAnnot.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, anchorAnnot.annotationID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, anchorAnnot.headsetID);
+        offset += sizeof(uint32_t);
+
+        data[offset++] = anchorAnnot.inPublic;
+
+        for(uint8_t i = 0; i < 3; i++)
+        {
+            writeFloat(data+offset, anchorAnnot.localPos[i]);
+            offset += sizeof(float);
+        }
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        INFO << "Sending anchor annotation " << anchorAnnot.localPos[0] << "x" << anchorAnnot.localPos[1] << "x" << anchorAnnot.localPos[2] << "\n";
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+    }
+
+    void VFVServer::sendClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnot)
+    {
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint32_t));
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_CLEAR_ANNOTATION);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, clearAnnot.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, clearAnnot.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        INFO << "Sending clear annotation \n";
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -1217,6 +1402,24 @@ endFor:
                     setVisibility(client, msg.visibility);
                     break;
                 }
+
+                case START_ANNOTATION:
+                {
+                    onStartAnnotation(client, msg.startAnnotation);
+                    break;
+                }
+
+                case ANCHOR_ANNOTATION:
+                {
+                    onAnchorAnnotation(client, msg.anchorAnnotation);
+                    break;
+                }
+
+                case CLEAR_ANNOTATIONS:
+                {
+                    onClearAnnotations(client, msg.clearAnnotations);
+                    break;
+                }
                 default:
                     WARNING << "Type " << msg.type << " not handled yet\n";
                     break;
@@ -1236,81 +1439,94 @@ endFor:
         {
             struct timespec beg;
             struct timespec end;
+            time_t endTime;
 
             clock_gettime(CLOCK_REALTIME, &beg);
+
+            lockWriteThread();
+            if(getBytesInWriting() < (1<<16))
             {
-//                if(m_anchorData.isCompleted())
+                unlockWriteThread();
                 {
-                    std::lock_guard<std::mutex> lock(m_mapMutex);
-                    //Send HEADSETS_STATUS
-                    for(auto it : m_clientTable)
+                    if(m_anchorData.isCompleted())
                     {
-                        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
-                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t)));
-                        uint32_t offset    = 0;
-                        uint32_t nbHeadset = 0;
-
-                        //Type
-                        writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
-                        offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
-
-                        for(auto& it2 : m_clientTable)
+                        std::lock_guard<std::mutex> lock(m_mapMutex);
+                        //Send HEADSETS_STATUS
+                        for(auto it : m_clientTable)
                         {
-                            if(it2.second->isHeadset())
+                            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
+                                                             MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t)));
+                            uint32_t offset    = 0;
+                            uint32_t nbHeadset = 0;
+
+                            //Type
+                            writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
+                            offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
+
+                            for(auto& it2 : m_clientTable)
                             {
-                                //ID
-                                writeUint32(data+offset, it2.second->getHeadsetData().id);
-                                offset += sizeof(uint32_t);
+                                if(it2.second->isHeadset())
+                                {
+                                    //ID
+                                    writeUint32(data+offset, it2.second->getHeadsetData().id);
+                                    offset += sizeof(uint32_t);
 
-                                //Color
-                                writeUint32(data+offset, it2.second->getHeadsetData().color);
-                                offset += sizeof(uint32_t);
+                                    //Color
+                                    writeUint32(data+offset, it2.second->getHeadsetData().color);
+                                    offset += sizeof(uint32_t);
 
-                                //Current action
-                                writeUint32(data+offset, it2.second->getHeadsetData().currentAction);
-                                offset += sizeof(uint32_t);
+                                    //Current action
+                                    writeUint32(data+offset, it2.second->getHeadsetData().currentAction);
+                                    offset += sizeof(uint32_t);
 
-                                //Position
-                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, it2.second->getHeadsetData().position[i]);
+                                    //Position
+                                    for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                        writeFloat(data+offset, it2.second->getHeadsetData().position[i]);
 
-                                //Rotation
-                                for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, it2.second->getHeadsetData().rotation[i]);
+                                    //Rotation
+                                    for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
+                                        writeFloat(data+offset, it2.second->getHeadsetData().rotation[i]);
 
-                                nbHeadset++;
+                                    nbHeadset++;
+                                }
+                            }
+
+                            //Write the number of headset to take account of
+                            writeUint32(data+sizeof(uint16_t), nbHeadset);
+
+                            //Send the message to all
+                            std::shared_ptr<uint8_t> sharedData(data, free);
+                            SocketMessage<int> sm(it.first, sharedData, offset);
+                            writeMessage(sm);
+                        }
+                    }
+                }
+                clock_gettime(CLOCK_REALTIME, &end);
+
+                endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+
+                //Check owner ending time
+                {
+                    std::lock_guard<std::mutex> lock2(m_datasetMutex);
+                    for(auto& it : m_vtkDatasets)
+                    {
+                        for(auto& it2 : it.second.sdMetaData)
+                        {
+                            if(it2.hmdClient != NULL && endTime - it2.lastModification >= MAX_OWNER_TIME)
+                            {
+                                it2.hmdClient = NULL;
+                                it2.lastModification = 0;
+                                sendSubDatasetOwner(&it2);
                             }
                         }
-
-                        //Write the number of headset to take account of
-                        writeUint32(data+sizeof(uint16_t), nbHeadset);
-
-                        //Send the message to all
-                        std::shared_ptr<uint8_t> sharedData(data, free);
-                        SocketMessage<int> sm(it.first, sharedData, offset);
-                        writeMessage(sm);
                     }
                 }
             }
-            clock_gettime(CLOCK_REALTIME, &end);
-
-            time_t endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
-
-            //Check owner ending time
+            else
             {
-                std::lock_guard<std::mutex> lock2(m_datasetMutex);
-                for(auto& it : m_vtkDatasets)
-                {
-                    for(auto& it2 : it.second.sdMetaData)
-                    {
-                        if(it2.hmdClient != NULL && endTime - it2.lastModification >= MAX_OWNER_TIME)
-                        {
-                            it2.hmdClient = NULL;
-                            it2.lastModification = 0;
-                            sendSubDatasetOwner(&it2);
-                        }
-                    }
-                }
+                unlockWriteThread();
+                clock_gettime(CLOCK_REALTIME, &end);
+                endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
             }
 
             usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));

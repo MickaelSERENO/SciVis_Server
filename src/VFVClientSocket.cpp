@@ -181,6 +181,15 @@ namespace sereno
                     case VISIBILITY_DATASET:
                         info = &m_curMsg.visibility;
                         break;
+                    case START_ANNOTATION:
+                        info = &m_curMsg.startAnnotation;
+                        break;
+                    case ANCHOR_ANNOTATION:
+                        info = &m_curMsg.anchorAnnotation;
+                        break;
+                    case CLEAR_ANNOTATIONS:
+                        info = &m_curMsg.clearAnnotations;
+                        break;
                     case NOTHING:
                         break;
                     default:

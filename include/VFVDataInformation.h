@@ -57,11 +57,141 @@ namespace sereno
         virtual int32_t getMaxCursor() const {return -1;}
     };
 
-    struct VFVVisibilityDataset : public VFVDataInformation
+    struct VFVClearAnnotations : public VFVDataInformation
     {
         int32_t datasetID    = 0;
         int32_t subDatasetID = -1;
-        int32_t visibility   = VISIBILITY_PUBLIC;
+        uint8_t inPublic     = 1;
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 2)
+                inPublic = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const 
+        {
+            if(cursor <= 1)
+                return 'I';
+            else if(cursor == 2)
+                return 'b';
+            return 0;
+        }
+        virtual int32_t getMaxCursor() const {return 2;}
+    };
+
+    struct VFVAnchorAnnotation : public VFVDataInformation
+    {
+        int32_t datasetID    = 0;
+        int32_t subDatasetID = -1;
+        int32_t annotationID = -1; /*!< Only the server sets this information*/
+        int32_t headsetID    = -1; /*!< Only the server sets this information*/
+        uint8_t inPublic     = 1;
+        float   localPos[3];
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 2)
+                inPublic = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor <= 5 && cursor >= 3)
+                localPos[cursor-3] = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const 
+        {
+            if(cursor <= 1)
+                return 'I';
+            else if(cursor == 2)
+                return 'b';
+            else if(cursor <= 5)
+                return 'f';
+            return 0;
+        }
+        virtual int32_t getMaxCursor() const {return 5;}
+    };
+
+    /** \brief  Start to create an annotation usin the headset */
+    struct VFVStartAnnotation : public VFVDataInformation
+    {
+        int32_t datasetID    = 0;
+        int32_t subDatasetID = -1;
+        int32_t pointingID   = 0;
+        uint8_t inPublic     = 1;
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else if(cursor == 2)
+                pointingID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 3)
+                inPublic = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const 
+        {
+            if(cursor <= 2)
+                return 'I';
+            else if(cursor == 3)
+                return 'b';
+            return 0;
+        }
+        virtual int32_t getMaxCursor() const {return 3;}
+    };
+
+    /** \brief  Set the visibility of a dataset */
+    struct VFVVisibilityDataset : public VFVDataInformation
+    {
+        int32_t datasetID    = 0;  /*!< Dataset ID*/
+        int32_t subDatasetID = -1; /*!< SubDataset ID*/
+        int32_t visibility   = VISIBILITY_PUBLIC; /*!< Either VISIBILITY_PUBLIC or VISIBILITY_PRIVATE*/
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -80,10 +210,11 @@ namespace sereno
         virtual int32_t getMaxCursor() const {return 2;}
     };
 
+    /** \brief  Set the current subdataset of the headset */
     struct VFVHeadsetCurrentSubDataset : public VFVDataInformation
     {
-        int32_t datasetID    = 0;
-        int32_t subDatasetID = -1;
+        int32_t datasetID    = 0;  /*!< The dataset ID*/
+        int32_t subDatasetID = -1; /*!< The subdataset ID*/
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -100,9 +231,10 @@ namespace sereno
         virtual int32_t getMaxCursor() const {return 1;}
     };
 
+    /** \brief  Set the headset current action */
     struct VFVHeadsetCurrentAction : public VFVDataInformation
     {
-        uint32_t action = 0;
+        uint32_t action = 0; /*!< The type of the action (see VFVHeadsetCurrentActionType)*/
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
