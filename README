@@ -1,0 +1,11 @@
+Server communication between the android and the hololens device for scientific visualization. Runs only under linux.
+
+Needed library:
+    -github.com/MickaelSereno/VTKParser
+    -github.com/MickaelSereno/Math_Library
+    -github.com/MickaelSereno/SciVis_Library
+    -glm
+
+Runs with 
+    -github.com/MickaelSereno/SciVis_Android  (android  application - remote controller)
+    -github.com/MickaelSereno/SciVis_HoloLens (HoloLens application - 3D visualization)
