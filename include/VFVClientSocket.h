@@ -217,6 +217,7 @@ namespace sereno
             {
                 case IDENT_HEADSET:
                     new (&noData) VFVNoDataInformation;
+                    noData.type = IDENT_HEADSET;
                     break;
                 case IDENT_TABLET:
                     new (&identTablet) VFVIdentTabletInformation;
@@ -238,6 +239,7 @@ namespace sereno
                     break;
                 case ANCHORING_DATA_SEGMENT:
                     new (&defaultByteArray) VFVDefaultByteArray;
+                    noData.type = ANCHORING_DATA_STATUS;
                     break;
                 case ANCHORING_DATA_STATUS:
                     new (&anchoringDataStatus) VFVAnchoringDataStatus;

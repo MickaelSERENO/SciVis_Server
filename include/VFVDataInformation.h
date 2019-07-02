@@ -6,12 +6,33 @@
 #include <string>
 #include <cstdint>
 #include <memory>
+#include <sstream>
 
 #define VFV_DATA_ERROR \
 {\
     ERROR << "The parameter value as not the correct type for cursor = " << cursor << std::endl;\
     return false;\
 }
+
+#define VFV_BEGINING_TO_JSON(_oss, _sender, _headsetIP, _timeOffset, _type) \
+{\
+    (_oss) << "{\n" \
+           << "    \"type\" : \"" << (_type) << "\",\n"           \
+           << "    \"sender\" : \"" << (_sender) << "\",\n"       \
+           << "    \"headsetIP\" : \"" << (_headsetIP) << "\",\n" \
+           << "    \"timeOffset\" : " << (_timeOffset) << "\n";  \
+}
+
+#define VFV_END_TO_JSON(_oss)\
+{\
+    (_oss) << "}";\
+}
+
+#define VFV_SENDER_TABLET  "Tablet"
+#define VFV_SENDER_HEADSET "Headset"
+#define VFV_SENDER_SERVER  "Server"
+#define VFV_SENDER_UNKNOWN "Unknown"
+
 
 namespace sereno
 {
@@ -48,13 +69,36 @@ namespace sereno
 
         virtual bool pushValue(uint32_t cursor, std::shared_ptr<uint8_t> value, uint32_t size)
         {return false;}
+
+        /* \brief  Convert the message in a JSON format 
+         *
+         * \param sender who sent this message ? Server, Tablet or Headset
+         * \param headsetIP what is the associated headset IP address?*/
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "DataInformation");
+            VFV_END_TO_JSON(oss);
+            return oss.str();
+        }
     };
 
     /** \brief  No Data information to receive yet */
     struct VFVNoDataInformation : public VFVDataInformation
     {
+        uint32_t type;
+
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return -1;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "NoDataInformation");
+            oss << ",    \"type\" : " << type << "\n";
+            VFV_END_TO_JSON(oss);
+            return oss.str();
+        }
     };
 
     struct VFVClearAnnotations : public VFVDataInformation
@@ -92,6 +136,19 @@ namespace sereno
             return 0;
         }
         virtual int32_t getMaxCursor() const {return 2;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ClearAnnotations");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
+                << "    \"inPublic\" : " << inPublic << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     struct VFVAnchorAnnotation : public VFVDataInformation
@@ -143,6 +200,21 @@ namespace sereno
             return 0;
         }
         virtual int32_t getMaxCursor() const {return 5;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AnchorAnnotation");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
+                << "    \"annotationID\" : " << annotationID << ",\n"
+                << "    \"inPublic\" : " << inPublic << ",\n"
+                << "    \"localPos\" : [" << localPos[0] << "," << localPos[1] << "," << localPos[2] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Start to create an annotation usin the headset */
@@ -184,6 +256,20 @@ namespace sereno
             return 0;
         }
         virtual int32_t getMaxCursor() const {return 3;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "StartAnnotation");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
+                << "    \"inPublic\" : " << inPublic << ",\n"
+                << "    \"pointingID\" : " << pointingID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Set the visibility of a dataset */
@@ -208,6 +294,19 @@ namespace sereno
 
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return 2;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "VisibilityDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
+                << "    \"visibility\" : " << visibility << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Set the current subdataset of the headset */
@@ -229,6 +328,18 @@ namespace sereno
 
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return 1;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "HeadsetCurrentSubDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << "\n"; 
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Set the headset current action */
@@ -247,6 +358,17 @@ namespace sereno
 
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "HeadsetCurrentAction");
+            oss << ",    \"action\" : " << action << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  The annotation existing type */
@@ -279,11 +401,24 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AnchoringDataStatus");
+            oss << ",    \"succeed\" : " << succeed << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  default ByteArray message */
     struct VFVDefaultByteArray : public VFVDataInformation
     {
+        uint32_t type = -1;
+
         std::shared_ptr<uint8_t> data;         /*!< Raw data*/
         uint32_t                 dataSize = 0; /*!< Data size*/
 
@@ -306,6 +441,18 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "DefaultByteArray");
+            oss << ",    \"type\" : " << type << ",\n"
+                << "    \"dataSize\" : " << dataSize << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Annotation stroke message */
@@ -616,6 +763,18 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 6;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "UpdateHeadset");
+            oss << ",    position : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
+                << "    rotation : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Structure containing information for dataset scaling */
@@ -675,6 +834,20 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 5;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ScaleDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"inPublic\" : " << inPublic << ",\n"
+                << "    \"scale\" : [" << scale[0] << "," << scale[1] << "," << scale[2] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /** \brief  Structure containing information for dataset movement */
@@ -734,6 +907,20 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 5;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "MoveDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"inPublic\" : " << inPublic << ",\n"
+                << "    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /* \brief Structure containing information about the rotation of the tablet */
@@ -793,12 +980,27 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 6;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "RotateDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"inPublic\" : " << inPublic << ",\n"
+                << "    \"quaternion\" : [" << quaternion[0] << "," << quaternion[1] << "," << quaternion[2] << "," << quaternion[3] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /* \brief Represents the information the tablet send when authentifying */
     struct VFVIdentTabletInformation : public VFVDataInformation
     {
         std::string headsetIP; /*!< The headset IP adresse it is bound to*/
+        bool paired = false; /* !< To set: is the tablet paired after this message was handled? */
 
         char getTypeAt(uint32_t cursor) const
         {
@@ -818,6 +1020,18 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& pairedHeadsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, pairedHeadsetIP, timeOffset, "TabletIdent");
+            oss << ",    \"targetedHeadsetIP\" : \"" << headsetIP << "\",\n"
+                << "    \"paired\" : " << paired << "\n"; 
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /* \brief Represents the information about binary dataset addition*/
@@ -893,6 +1107,42 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 2+nbPtFields+nbCellFields;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "VTKDataset");
+            oss << ",    \"name\" : \"" << name << "\",\n";
+
+            if(ptFields.size() == 0)
+                oss << "    \"ptFields\" : [],\n";
+            else if(ptFields.size() == 1)
+                oss << "    \"ptFields\" : [" << ptFields[0] << "],\n";
+            else if(ptFields.size() > 1)
+            {
+                oss << "    \"ptFields\" : [";
+                for(uint32_t i = 0; i < ptFields.size()-1; i++)
+                    oss << ptFields[i] << ",";
+                oss << ptFields[ptFields.size()-1] << "],\n";
+            }
+
+            if(cellFields.size() == 0)
+                oss << "    \"cellFields\" : []\n";
+            else if(cellFields.size() == 1)
+                oss << "    \"cellFields\" : [" << cellFields[0] << "]\n";
+            else if(cellFields.size() > 1)
+            {
+                oss << "    \"cellFields\" : [";
+                for(uint32_t i = 0; i < cellFields.size()-1; i++)
+                    oss << cellFields[i] << ",";
+                oss << cellFields[cellFields.size()-1] << "]\n";
+            }
+
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /* \brief Represents the information about the change of color of a dataset represented */

@@ -7,14 +7,24 @@
 
 using namespace sereno;
 
+static VFVServer server(NB_READ_THREAD, CLIENT_PORT);
+
+void inSigInt(int sig)
+{
+    INFO << "Closing with SIGINT\n";
+    server.cancel();
+}
+
 int main()
 {
-    signal(SIGPIPE, SIG_IGN);
     InternalData::initSingleton();
-
-    VFVServer server(NB_READ_THREAD, CLIENT_PORT);
     server.launch();
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGINT,  inSigInt);
+
     server.wait();
+    server.closeServer();
 
     return 0;
 }

@@ -4,6 +4,10 @@
 #include <map>
 #include <string>
 #include <stack>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <sys/time.h>
 #include "Server.h"
 #include "VFVClientSocket.h"
 #include "Datasets/BinaryDataset.h"
@@ -14,6 +18,8 @@
 #define UPDATE_THREAD_FRAMERATE 10
 #define MAX_NB_HEADSETS         10
 #define MAX_OWNER_TIME          1.e6
+
+#define VFV_LOG_DATA
 
 namespace sereno
 {
@@ -242,6 +248,10 @@ namespace sereno
 
             VFVClientSocket*  m_headsetAnchorClient = NULL;      /*!< The client sending the anchor. If the client is NULL, m_anchorData has to be redone*/
             AnchorHeadsetData m_anchorData;                      /*!< The anchor data registered*/
+
+#ifdef VFV_LOG_DATA
+            std::ofstream m_log;
+#endif
     };
 }
 
