@@ -101,6 +101,7 @@ namespace sereno
     struct VFVMessage
     {
         VFVMessageType type = NOTHING; /*!< The type of the message*/
+        struct VFVDataInformation* curMsg = NULL; //Pointer to the current message
 
         union
         {
@@ -143,54 +144,71 @@ namespace sereno
                     {
                         case IDENT_HEADSET:
                             noData = cpy.noData;
+                            curMsg = &noData;
                             break;
                         case IDENT_TABLET:
                             identTablet = cpy.identTablet;
+                            curMsg = &identTablet;
                             break;
                         case ADD_BINARY_DATASET:
                             binaryDataset = cpy.binaryDataset;
+                            curMsg = &binaryDataset;
                             break;
                         case ADD_VTK_DATASET:
                             vtkDataset = cpy.vtkDataset;
+                            curMsg = &vtkDataset;
                             break;
                         case ROTATE_DATASET:
                             rotate = cpy.rotate;
+                            curMsg = &rotate;
                             break;
                         case UPDATE_HEADSET:
                             headset = cpy.headset;
+                            curMsg = &headset;
                             break;
                         case ANNOTATION_DATA:
                             annotation = cpy.annotation;
+                            curMsg = &annotation;
                             break;
                         case ANCHORING_DATA_SEGMENT:
                             defaultByteArray = cpy.defaultByteArray;
+                            curMsg = &defaultByteArray;
                             break;
                         case ANCHORING_DATA_STATUS:
                             anchoringDataStatus = cpy.anchoringDataStatus;                            
+                            curMsg = &anchoringDataStatus;
                             break;
                         case HEADSET_CURRENT_ACTION:
                             headsetCurrentAction = cpy.headsetCurrentAction;
+                            curMsg = &headsetCurrentAction;
                             break;
                         case HEADSET_CURRENT_SUB_DATASET:
                             headsetCurrentSubDataset = cpy.headsetCurrentSubDataset;
+                            curMsg = &headsetCurrentSubDataset;
                             break;
                         case TRANSLATE_DATASET:
                             translate = cpy.translate;
+                            curMsg = &translate;
                             break;
                         case SCALE_DATASET:
                             scale = cpy.scale;
+                            curMsg = &scale;
                             break;
                         case VISIBILITY_DATASET:
                             visibility = cpy.visibility;
+                            curMsg = &visibility;
                             break;
                         case START_ANNOTATION:
                             startAnnotation = cpy.startAnnotation;
+                            curMsg = &startAnnotation;
                             break;
                         case ANCHOR_ANNOTATION:
                             anchorAnnotation = cpy.anchorAnnotation;
+                            curMsg = &anchorAnnotation;
                             break;
                         case CLEAR_ANNOTATIONS:
                             clearAnnotations = cpy.clearAnnotations;
+                            curMsg = &clearAnnotations;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -217,56 +235,73 @@ namespace sereno
             {
                 case IDENT_HEADSET:
                     new (&noData) VFVNoDataInformation;
+                    curMsg = &noData;
                     noData.type = IDENT_HEADSET;
                     break;
                 case IDENT_TABLET:
                     new (&identTablet) VFVIdentTabletInformation;
+                    curMsg = &identTablet;
                     break;
                 case ADD_BINARY_DATASET:
                     new (&binaryDataset) VFVBinaryDatasetInformation;
+                    curMsg = &binaryDataset;
                     break;
                 case ADD_VTK_DATASET:
                     new (&vtkDataset) VFVVTKDatasetInformation;
+                    curMsg = &vtkDataset;
                     break;
                 case ROTATE_DATASET:
                     new (&rotate) VFVRotationInformation;
+                    curMsg = &rotate;
                     break;
                 case UPDATE_HEADSET:
                     new (&headset) VFVUpdateHeadset;
+                    curMsg = &headset;
                     break;
                 case ANNOTATION_DATA:
                     new (&annotation) VFVAnnotation;
+                    curMsg = &annotation;
                     break;
                 case ANCHORING_DATA_SEGMENT:
                     new (&defaultByteArray) VFVDefaultByteArray;
+                    curMsg = &defaultByteArray;
                     noData.type = ANCHORING_DATA_STATUS;
                     break;
                 case ANCHORING_DATA_STATUS:
                     new (&anchoringDataStatus) VFVAnchoringDataStatus;
+                    curMsg = &anchoringDataStatus;
                     break;
                 case HEADSET_CURRENT_ACTION:
                     new (&headsetCurrentAction) VFVHeadsetCurrentAction;
+                    curMsg = &headsetCurrentAction;
                     break;
                 case HEADSET_CURRENT_SUB_DATASET:
                     new (&headsetCurrentSubDataset) VFVHeadsetCurrentSubDataset;
+                    curMsg = &headsetCurrentSubDataset;
                     break;
                 case TRANSLATE_DATASET:
                     new (&translate) VFVMoveInformation;
+                    curMsg = &translate;
                     break;
                 case SCALE_DATASET:
                     new (&scale) VFVScaleInformation;
+                    curMsg = &scale;
                     break;
                 case VISIBILITY_DATASET:
                     new (&visibility) VFVVisibilityDataset;
+                    curMsg = &visibility;
                     break;
                 case START_ANNOTATION:
                     new (&startAnnotation) VFVStartAnnotation;
+                    curMsg = &startAnnotation;
                     break;
                 case ANCHOR_ANNOTATION:
                     new(&anchorAnnotation) VFVAnchorAnnotation;
+                    curMsg = &anchorAnnotation;
                     break;
                 case CLEAR_ANNOTATIONS:
                     new(&clearAnnotations) VFVClearAnnotations;
+                    curMsg = &clearAnnotations;
                     break;
                 case NOTHING:
                     break;
@@ -280,6 +315,7 @@ namespace sereno
         /** \brief  Clear the union variable based on the type */
         void clear()
         {
+            curMsg = NULL;
             switch(type)
             {
                 case IDENT_HEADSET:

@@ -50,6 +50,34 @@ namespace sereno
         return 1e6 * t.tv_sec + t.tv_usec;
     }
 
+    static std::string getHeadsetIPAddr(VFVClientSocket* client)
+    {
+        bool isHeadset = false;
+        bool isTablet = false;
+
+        if(client)
+        {
+            isHeadset = client->isHeadset();
+            isTablet = client->isTablet();
+        }
+
+        //Get headset IP address
+        char headsetIP[1024];
+        SOCKADDR_IN* headsetAddr = NULL;
+
+        if(isHeadset)
+            headsetAddr = &client->sockAddr;
+        else if(isTablet && client->getTabletData().headset)
+            headsetAddr = &client->getTabletData().headset->sockAddr;
+
+        if(headsetAddr)
+            inet_ntop(AF_INET, &headsetAddr->sin_addr, headsetIP, sizeof(headsetIP));
+        else
+            strcpy(headsetIP, "NONE");
+
+        return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
+    }
+
     static SubDatasetHeadsetInformation* getSubDatasetMetaData(VFVClientSocket* client, SubDataset* sd)
     {
         SubDatasetHeadsetInformation* metaData = NULL;
@@ -81,13 +109,10 @@ namespace sereno
         m_log.open("log.json", std::ios::out | std::ios::trunc);
 
         m_log << "{\n"
-              << "    [\n"
-              << "        {\n" //Open server object
-              << "            \"type\" : \"OpenTheServer\",\n" 
-              << "            \"sender\" : \"" << VFV_SENDER_SERVER << "\",\n" 
-              << "            \"headsetIP\" : \"NONE\",\n" 
-              << "            \"timeOffset\" : " << getTimeOffset() << "\n"
-              << "        },\n";
+              << "    [\n";
+
+        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
+        m_log << "},\n";
 #endif
     }
 
@@ -103,15 +128,10 @@ namespace sereno
         for(auto& d : m_datasets)
             delete d.second;
 #ifdef VFV_LOG_DATA
-        m_log << "        {\n" //Closing server object
-              << "            \"type\" : \"ClosingTheServer\",\n" 
-              << "            \"sender\" : \"" << VFV_SENDER_SERVER << "\",\n" 
-              << "            \"headsetIP\" : \"NONE\",\n" 
-              << "            \"timeOffset\" : " << getTimeOffset() << "\n"
-              << "        }\n"
-              << "    ]\n" 
+        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CloseTheServer");
+        m_log << "        }\n"
+              << "    ]\n"
               << "}";
-        m_log.close();
 #endif
     }
 
@@ -152,6 +172,14 @@ namespace sereno
                 return;
             } 
             auto c = itClient->second;
+
+#ifdef VFV_LOG_DATA
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
+            m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\",\n"
+                  << "  \"timeOffset\" : " << getTimeOffset() << "\n"
+                  << "},\n";
+#endif
+
 
             INFO << "Disconnecting a client...\n";
             //Handle headset disconnections
@@ -458,6 +486,12 @@ namespace sereno
         std::shared_ptr<uint8_t> ackSharedData(ackData, free);
         SocketMessage<int> ackSm(client->socket, ackSharedData, sizeof(uint16_t)+sizeof(uint32_t));
         writeMessage(ackSm);
+
+#ifdef VFV_LOG_DATA
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AcknowledgeAddDataset");
+            m_log << ",            \"datasetID\"  : " << m_currentDataset-1 << "\n"
+                  << "        },\n";
+#endif
 
         //Send it to the other clients
         //and add it to the known subdataset per client
@@ -813,6 +847,12 @@ namespace sereno
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, sizeof(int16_t));
         writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        VFVNoDataInformation noData;
+        noData.type = type;
+        m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset())<< ",\n";
+#endif
     }
 
     void VFVServer::sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID)
@@ -858,6 +898,10 @@ namespace sereno
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
     }
 
     void VFVServer::sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate)
@@ -888,6 +932,10 @@ namespace sereno
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
     }
 
     void VFVServer::sendScaleDatasetEvent(VFVClientSocket* client, const VFVScaleInformation& scale)
@@ -918,6 +966,10 @@ namespace sereno
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        m_log << scale.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
     }
 
     void VFVServer::sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position)
@@ -947,6 +999,10 @@ namespace sereno
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        m_log << position.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
     }
 
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
@@ -1079,60 +1135,65 @@ endFor:
         writeUint16(data+offset, VFV_SEND_HEADSET_BINDING_INFO);
         offset+=sizeof(uint16_t);
 
+        uint32_t id    = -1;
+        uint32_t color = 0x000000;
+        bool tabletConnected = false;
+        uint8_t firstConnected = 0;
+
         if(headset)
         {
-            //Headset ID
-            writeUint32(data+offset, headset->getHeadsetData().id);
-            offset+=sizeof(uint32_t);
-
-            //Headset color
-            writeUint32(data+offset, headset->getHeadsetData().color);
-            offset+=sizeof(uint32_t);
-
-            //Tablet connected
-            data[offset++] = headset->getHeadsetData().tablet != NULL;
-        }
-        else
-        {
-            //Headset ID
-            writeUint32(data+offset, -1);
-            offset += sizeof(uint32_t);
-
-            //Headset Color
-            writeUint32(data+offset, 0x000000);
-            offset+=sizeof(uint32_t);
-
-            //Tablet connected
-            data[offset++] = 0;
+            id = headset->getHeadsetData().id;
+            color = headset->getHeadsetData().color;
+            tabletConnected = headset->getHeadsetData().tablet != NULL;
         }
 
-        //First headset
-        data[offset] = 0;
+        //Headset ID
+        writeUint32(data+offset, id);
+        offset += sizeof(uint32_t);
+
+        //Headset Color
+        writeUint32(data+offset, color);
+        offset+=sizeof(uint32_t);
+
+        //Tablet connected
+        data[offset++] = tabletConnected;
+
         if(m_headsetAnchorClient == NULL)
         {
             for(auto& clt : m_clientTable)
             {
                 if(clt.second == client)
                 {
-                    data[offset] = 1;
+                    firstConnected = 1;
                     break;
                 }
                 else if(clt.second != client && clt.second->isHeadset())
                 {
-                    data[offset]=0;
+                    firstConnected = 0;
                     break;
                 }
             }
 
-            if(data[offset] && client == headset) //Send only if we are discussing with the headset and not the tablet
+            if(firstConnected && client == headset) //Send only if we are discussing with the headset and not the tablet
                 m_headsetAnchorClient = headset;
         }
+        data[offset] = firstConnected;
         offset++;
         
         INFO << "Sending HEADSET BINDING INFO Event data\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
+
+
+#ifdef VFV_LOG_DATA
+        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "HeadsetBindingInfo");
+        m_log << ",    \"headsetID\" : " << id << ",\n"
+              << "    \"color\" : " << color << ",\n"
+              << "    \"tabletConnected\" : " << tabletConnected << ",\n"
+              << "    \"firstConnected\" : " << firstConnected << "\n"
+              << "},\n";
+#endif
     }
 
     void VFVServer::sendAnchoring(VFVClientSocket* client)
@@ -1162,6 +1223,13 @@ endFor:
             std::shared_ptr<uint8_t> sharedData(data, free);
             SocketMessage<int> sm(client->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            VFVDefaultByteArray byteArr;
+            byteArr.type = VFV_SEND_HEADSET_ANCHOR_SEGMENT;
+            byteArr.dataSize = itSegment.dataSize;
+            m_log << byteArr.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
         }
 
         //Send end of anchor
@@ -1172,6 +1240,13 @@ endFor:
         writeMessage(sm);
 
         client->getHeadsetData().anchoringSent = true;
+
+#ifdef VFV_LOG_DATA
+        VFVNoDataInformation noData;
+        noData.type = VFV_SEND_HEADSET_ANCHOR_SEGMENT;
+        m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
+
     }
 
     void VFVServer::sendAnchoring()
@@ -1211,6 +1286,14 @@ endFor:
         {
             SocketMessage<int> sm(it.second->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "SubDatasetOwner");
+            m_log << ",    \"datasetID\"  : " << metaData->datasetID << ",\n"
+                  << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
+                  << "    \"headsetID\" : " << id << "\n"
+                  << "},\n";
+#endif
         }
     }
 
@@ -1327,10 +1410,6 @@ endFor:
     void VFVServer::onMessage(uint32_t bufID, VFVClientSocket* client, uint8_t* data, uint32_t size)
     {
         VFVMessage msg;
-        VFVDataInformation* curMsg = NULL;
-
-        bool handled = true;
-
         if(!client->feedMessage(data, size))
         {
             ERROR << "Error at feeding message to the client. Disconnecting" << std::endl;
@@ -1341,40 +1420,46 @@ endFor:
         //Handles the message received and reconstructed
         while(client->pullMessage(&msg))
         {
+
+            if(msg.curMsg)
+            {
+#ifdef VFV_LOG_DATA
+                bool isTablet  = client->isTablet();
+                bool isHeadset = client->isHeadset();
+
+                m_log << msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
+            }
+
             switch(msg.type)
             {
                 case IDENT_TABLET:
                 {
                     loginTablet(client, msg.identTablet);
-                    curMsg = &msg.identTablet;
                     break;
                 }
 
                 case IDENT_HEADSET:
                 {
                     loginHeadset(client);
-                    curMsg = &msg.noData;
                     break;
                 }
 
                 case ADD_VTK_DATASET:
                 {
                     addVTKDataset(client, msg.vtkDataset);
-                    curMsg = &msg.vtkDataset;
                     break;
                 }
 
                 case ROTATE_DATASET:
                 {
                     rotateSubDataset(client, msg.rotate);
-                    curMsg = &msg.rotate;
                     break;
                 }
 
                 case UPDATE_HEADSET:
                 {
                     updateHeadset(client, msg.headset);
-                    curMsg = &msg.headset;
                     break;
                 }
                 case ANNOTATION_DATA:
@@ -1392,7 +1477,6 @@ endFor:
                     }
                     INFO << "Receiving anchor data segment sized : " << msg.defaultByteArray.dataSize << std::endl;
                     m_anchorData.pushDataSegment(msg.defaultByteArray);
-                    curMsg = &msg.defaultByteArray;
                     break;
                 }
                 case ANCHORING_DATA_STATUS:
@@ -1414,19 +1498,16 @@ endFor:
                         sendAnchoring();
                     }
                     INFO << "End of anchoring data handling" << std::endl;
-                    curMsg = &msg.anchoringDataStatus;
                     break;
                 }
                 case TRANSLATE_DATASET:
                 {
                     translateSubDataset(client, msg.translate);
-                    curMsg = &msg.translate;
                     break;
                 }
                 case SCALE_DATASET:
                 {
                     scaleSubDataset(client, msg.scale);
-                    curMsg = &msg.scale;
                     break;
                 }
 
@@ -1445,70 +1526,38 @@ endFor:
                     std::lock_guard<std::mutex> lock(m_mapMutex);
                     headset->getHeadsetData().currentAction = (VFVHeadsetCurrentActionType)msg.headsetCurrentAction.action;
                     INFO << "Current action : " << msg.headsetCurrentAction.action << std::endl;
-                    curMsg = &msg.headsetCurrentAction;
                     break;
                 }
                 case VISIBILITY_DATASET:
                 {
                     setVisibility(client, msg.visibility);
-                    curMsg = &msg.visibility;
                     break;
                 }
 
                 case START_ANNOTATION:
                 {
                     onStartAnnotation(client, msg.startAnnotation);
-                    curMsg = &msg.startAnnotation;
                     break;
                 }
 
                 case ANCHOR_ANNOTATION:
                 {
                     onAnchorAnnotation(client, msg.anchorAnnotation);
-                    curMsg = &msg.anchorAnnotation;
                     break;
                 }
 
                 case CLEAR_ANNOTATIONS:
                 {
                     onClearAnnotations(client, msg.clearAnnotations);
-                    curMsg = &msg.clearAnnotations;
                     break;
                 }
                 default:
-                    handled = false;
                     break;
             }
 
             continue;
         }
 
-        if(handled)
-        {
-#ifdef VFV_LOG_DATA
-            if(curMsg)
-            {
-                bool isTablet = client->isTablet();
-                bool isHeadset = client->isHeadset();
-
-                //Get headset IP address
-                char headsetIP[1024];
-                SOCKADDR_IN* headsetAddr = NULL;
-
-                if(isHeadset)
-                    headsetAddr = &client->sockAddr;
-                else if(isTablet && client->getTabletData().headset)
-                    headsetAddr = &client->getTabletData().headset->sockAddr;
-
-                if(headsetAddr)
-                    inet_ntop(AF_INET, &headsetAddr->sin_addr, headsetIP, sizeof(headsetIP));
-                else
-                    strcpy(headsetIP, "NONE");
-
-                m_log << curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), headsetIP, getTimeOffset()) << ",\n";
-            }
-#endif
-        }
 
         return;
     clientError:

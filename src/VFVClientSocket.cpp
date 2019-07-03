@@ -136,66 +136,7 @@ namespace sereno
             if(m_cursor != -1)
             {
                 //Determine to whom we have to send the message
-                VFVDataInformation* info = NULL;
-                switch(m_curMsg.type)
-                {
-                    case IDENT_HEADSET:
-                        info = &m_curMsg.noData;
-                        break;
-                    case IDENT_TABLET:
-                        info = &m_curMsg.identTablet;
-                        break;
-                    case ADD_VTK_DATASET:
-                        info = &m_curMsg.vtkDataset;
-                        break;
-                    case ADD_BINARY_DATASET:
-                        info = &m_curMsg.binaryDataset;
-                        break;
-                    case ROTATE_DATASET:
-                        info = &m_curMsg.rotate;
-                        break;
-                    case UPDATE_HEADSET:
-                        info = &m_curMsg.headset;
-                        break;
-                    case ANNOTATION_DATA:
-                        info = &m_curMsg.annotation;
-                        break;
-                    case ANCHORING_DATA_SEGMENT:
-                        info = &m_curMsg.defaultByteArray;
-                        break;
-                    case ANCHORING_DATA_STATUS:
-                        info = &m_curMsg.anchoringDataStatus;
-                        break;
-                    case HEADSET_CURRENT_ACTION:
-                        info = &m_curMsg.headsetCurrentAction;
-                        break;
-                    case HEADSET_CURRENT_SUB_DATASET:
-                        info = &m_curMsg.headsetCurrentSubDataset;
-                        break;
-                    case TRANSLATE_DATASET:
-                        info = &m_curMsg.translate;
-                        break;
-                    case SCALE_DATASET:
-                        info = &m_curMsg.scale;
-                        break;
-                    case VISIBILITY_DATASET:
-                        info = &m_curMsg.visibility;
-                        break;
-                    case START_ANNOTATION:
-                        info = &m_curMsg.startAnnotation;
-                        break;
-                    case ANCHOR_ANNOTATION:
-                        info = &m_curMsg.anchorAnnotation;
-                        break;
-                    case CLEAR_ANNOTATIONS:
-                        info = &m_curMsg.clearAnnotations;
-                        break;
-                    case NOTHING:
-                        break;
-                    default:
-                        WARNING << "Type " << m_curMsg.type << " is not handled yet\n";
-                        break;
-                }
+                VFVDataInformation* info = m_curMsg.curMsg;
 
                 //Push the buffers
                 if(info != NULL)

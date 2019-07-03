@@ -74,7 +74,7 @@ namespace sereno
          *
          * \param sender who sent this message ? Server, Tablet or Headset
          * \param headsetIP what is the associated headset IP address?*/
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "DataInformation");
@@ -91,7 +91,7 @@ namespace sereno
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return -1;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "NoDataInformation");
@@ -105,7 +105,7 @@ namespace sereno
     {
         int32_t datasetID    = 0;
         int32_t subDatasetID = -1;
-        uint8_t inPublic     = 1;
+        bool inPublic     = 1;
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -137,7 +137,7 @@ namespace sereno
         }
         virtual int32_t getMaxCursor() const {return 2;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -157,7 +157,7 @@ namespace sereno
         int32_t subDatasetID = -1;
         int32_t annotationID = -1; /*!< Only the server sets this information*/
         int32_t headsetID    = -1; /*!< Only the server sets this information*/
-        uint8_t inPublic     = 1;
+        bool inPublic     = 1;
         float   localPos[3];
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
@@ -201,7 +201,7 @@ namespace sereno
         }
         virtual int32_t getMaxCursor() const {return 5;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -223,7 +223,7 @@ namespace sereno
         int32_t datasetID    = 0;
         int32_t subDatasetID = -1;
         int32_t pointingID   = 0;
-        uint8_t inPublic     = 1;
+        bool inPublic     = 1;
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -257,7 +257,7 @@ namespace sereno
         }
         virtual int32_t getMaxCursor() const {return 3;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -295,7 +295,7 @@ namespace sereno
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return 2;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -329,7 +329,7 @@ namespace sereno
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return 1;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -359,7 +359,7 @@ namespace sereno
         virtual char getTypeAt(uint32_t cursor) const {return 'I';}
         virtual int32_t getMaxCursor() const {return 0;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -402,7 +402,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 0;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -442,7 +442,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 0;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -764,13 +764,13 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 6;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "UpdateHeadset");
-            oss << ",    position : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
-                << "    rotation : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "]\n";
+            oss << ",    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
+                << "    \"rotation\" : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "]\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
@@ -783,7 +783,7 @@ namespace sereno
         uint32_t datasetID;      /*!< The dataset ID*/
         uint32_t subDatasetID;   /*!< The SubDataset ID*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
-        uint8_t  inPublic  = 1;  /*!< The scaling is done in the public view?*/
+        bool     inPublic  = true;  /*!< The scaling is done in the public view?*/
         float    scale[3];       /*!< The scale information*/
 
         char getTypeAt(uint32_t cursor) const
@@ -835,7 +835,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 5;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -908,7 +908,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 5;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -981,7 +981,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 6;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -1021,7 +1021,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 0;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& pairedHeadsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& pairedHeadsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
@@ -1108,7 +1108,7 @@ namespace sereno
 
         int32_t getMaxCursor() const {return 2+nbPtFields+nbCellFields;}
 
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset)
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
