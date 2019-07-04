@@ -106,13 +106,16 @@ namespace sereno
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
 #ifdef VFV_LOG_DATA
-        m_log.open("log.json", std::ios::out | std::ios::trunc);
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log.open("log.json", std::ios::out | std::ios::trunc);
 
-        m_log << "{\n"
-              << "    [\n";
+            m_log << "{\n"
+                  << "    [\n";
 
-        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
-        m_log << "},\n";
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
+            m_log << "},\n";
+        }
 #endif
     }
 
@@ -128,10 +131,13 @@ namespace sereno
         for(auto& d : m_datasets)
             delete d.second;
 #ifdef VFV_LOG_DATA
-        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CloseTheServer");
-        m_log << "        }\n"
-              << "    ]\n"
-              << "}";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CloseTheServer");
+            m_log << "        }\n"
+                  << "    ]\n"
+                  << "}";
+        }
 #endif
     }
 
@@ -174,10 +180,13 @@ namespace sereno
             auto c = itClient->second;
 
 #ifdef VFV_LOG_DATA
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
-            m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\",\n"
-                  << "  \"timeOffset\" : " << getTimeOffset() << "\n"
-                  << "},\n";
+            {
+                std::lock_guard<std::mutex> logLock(m_logMutex);
+                VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
+                m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\",\n"
+                      << "  \"timeOffset\" : " << getTimeOffset() << "\n"
+                      << "},\n";
+            }
 #endif
 
 
@@ -301,6 +310,7 @@ namespace sereno
         bool alreadyConnected = client->isTablet();
 
         INFO << "Tablet connected.\n";
+        std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
         if(!client->setAsTablet(identTablet.headsetIP))
         {
@@ -343,6 +353,7 @@ namespace sereno
 
     void VFVServer::loginHeadset(VFVClientSocket* client)
     {
+        std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
 
         if(m_nbConnectedHeadsets >= MAX_NB_HEADSETS)
@@ -380,7 +391,6 @@ namespace sereno
 
         //Add current opened datasets
         {
-            std::lock_guard<std::mutex> lock2(m_datasetMutex);
             for(auto& it : m_datasets)
             {
                 for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
@@ -479,22 +489,7 @@ namespace sereno
             m_currentDataset++;
         }
 
-        //Acknowledge the current client
-        uint8_t* ackData = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
-        writeUint16(ackData, VFV_SEND_ACKNOWLEDGE_ADD_DATASET);
-        writeUint32(ackData+sizeof(uint16_t), m_currentDataset-1);
-        std::shared_ptr<uint8_t> ackSharedData(ackData, free);
-        SocketMessage<int> ackSm(client->socket, ackSharedData, sizeof(uint16_t)+sizeof(uint32_t));
-        writeMessage(ackSm);
-
-#ifdef VFV_LOG_DATA
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AcknowledgeAddDataset");
-            m_log << ",            \"datasetID\"  : " << m_currentDataset-1 << "\n"
-                  << "        },\n";
-#endif
-
         //Send it to the other clients
-        //and add it to the known subdataset per client
         {
             std::lock_guard<std::mutex> lock2(m_mapMutex);
             for(auto clt : m_clientTable)
@@ -510,8 +505,7 @@ namespace sereno
                     }
                 }
 
-                if(clt.second != client)
-                    sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
+                sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
                 sendDatasetStatus(clt.second, vtk, metaData.datasetID);
             }
         }
@@ -810,12 +804,12 @@ namespace sereno
             if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
             {
                 annotID = sdMetaData->getPublicSubDataset()->getAnnotations().size();
-                sdMetaData->getPublicSubDataset()->emplaceAnnotation(anchorAnnot.localPos);
+                sdMetaData->getPublicSubDataset()->emplaceAnnotation(640, 640, anchorAnnot.localPos);
             }
             else
             {
                 annotID = sdMetaData->getPrivateSubDataset().getAnnotations().size();
-                sdMetaData->getPrivateSubDataset().emplaceAnnotation(anchorAnnot.localPos);
+                sdMetaData->getPrivateSubDataset().emplaceAnnotation(640, 640, anchorAnnot.localPos);
             }
         }
 
@@ -829,7 +823,8 @@ namespace sereno
 
     void VFVServer::onClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnots)
     {
-        std::lock_guard<std::mutex> lock(m_mapMutex);
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+        std::lock_guard<std::mutex> lock2(m_mapMutex);     //Ensute that no one is modifying the list of clients (and relevant information)
         for(auto& clt : m_clientTable)
             sendClearAnnotations(clt.second, clearAnnots);
     }
@@ -851,7 +846,10 @@ namespace sereno
 #ifdef VFV_LOG_DATA
         VFVNoDataInformation noData;
         noData.type = type;
-        m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset())<< ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset())<< ",\n";
+        }
 #endif
     }
 
@@ -900,7 +898,10 @@ namespace sereno
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-        m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
     }
 
@@ -934,7 +935,10 @@ namespace sereno
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-        m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
     }
 
@@ -968,7 +972,10 @@ namespace sereno
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-        m_log << scale.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << scale.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
     }
 
@@ -1001,7 +1008,10 @@ namespace sereno
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-        m_log << position.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << position.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
     }
 
@@ -1014,7 +1024,6 @@ namespace sereno
             sendHeadsetBindingInfo(client, client->getTabletData().headset);
 
         //Send common data
-        std::lock_guard<std::mutex> lock(m_datasetMutex);
         for(auto& it : m_vtkDatasets)
         {
             VFVVTKDatasetInformation dataset;
@@ -1187,12 +1196,15 @@ endFor:
 
 
 #ifdef VFV_LOG_DATA
-        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "HeadsetBindingInfo");
-        m_log << ",    \"headsetID\" : " << id << ",\n"
-              << "    \"color\" : " << color << ",\n"
-              << "    \"tabletConnected\" : " << tabletConnected << ",\n"
-              << "    \"firstConnected\" : " << firstConnected << "\n"
-              << "},\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "HeadsetBindingInfo");
+            m_log << ",    \"headsetID\" : " << id << ",\n"
+                  << "    \"color\" : " << color << ",\n"
+                  << "    \"tabletConnected\" : " << tabletConnected << ",\n"
+                  << "    \"firstConnected\" : " << firstConnected << "\n"
+                  << "},\n";
+        }
 #endif
     }
 
@@ -1228,7 +1240,10 @@ endFor:
             VFVDefaultByteArray byteArr;
             byteArr.type = VFV_SEND_HEADSET_ANCHOR_SEGMENT;
             byteArr.dataSize = itSegment.dataSize;
-            m_log << byteArr.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            {
+                std::lock_guard<std::mutex> logLock(m_logMutex);
+                m_log << byteArr.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            }
 #endif
         }
 
@@ -1244,7 +1259,10 @@ endFor:
 #ifdef VFV_LOG_DATA
         VFVNoDataInformation noData;
         noData.type = VFV_SEND_HEADSET_ANCHOR_SEGMENT;
-        m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
 
     }
@@ -1288,11 +1306,14 @@ endFor:
             writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "SubDatasetOwner");
-            m_log << ",    \"datasetID\"  : " << metaData->datasetID << ",\n"
-                  << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
-                  << "    \"headsetID\" : " << id << "\n"
-                  << "},\n";
+            {
+                std::lock_guard<std::mutex> logLock(m_logMutex);
+                VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "SubDatasetOwner");
+                m_log << ",    \"datasetID\"  : " << metaData->datasetID << ",\n"
+                      << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
+                      << "    \"headsetID\" : " << id << "\n"
+                      << "},\n";
+            }
 #endif
         }
     }
@@ -1427,7 +1448,10 @@ endFor:
                 bool isTablet  = client->isTablet();
                 bool isHeadset = client->isHeadset();
 
-                m_log << msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+                {
+                    std::lock_guard<std::mutex> logLock(m_logMutex);
+                    m_log << msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+                }
 #endif
             }
 
@@ -1595,6 +1619,12 @@ endFor:
                             writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
                             offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
 
+#ifdef VFV_LOG_DATA
+                            std::lock_guard<std::mutex> logLock(m_logMutex);
+                            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
+                            m_log << ",    \"status\" : [";
+                            bool logAdded = false;
+#endif
                             for(auto& it2 : m_clientTable)
                             {
                                 if(it2.second->isHeadset())
@@ -1619,9 +1649,25 @@ endFor:
                                     for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
                                         writeFloat(data+offset, it2.second->getHeadsetData().rotation[i]);
 
+#ifdef VFV_LOG_DATA
+                                    if(logAdded)
+                                        m_log << ", ";
+                                    m_log << "{\n"
+                                          << "    \"id\" : " << it2.second->getHeadsetData().id << ",\n"
+                                          << "    \"color\" : " << it2.second->getHeadsetData().color << ",\n"
+                                          << "    \"currentAction\" : " << it2.second->getHeadsetData().currentAction << ",\n"
+                                          << "    \"position\" : [" << it2.second->getHeadsetData().position[0] << ", " << it2.second->getHeadsetData().position[1] << ", " << it2.second->getHeadsetData().position[2] << "],\n"
+                                          << "    \"rotation\" : [" << it2.second->getHeadsetData().rotation[0] << ", " << it2.second->getHeadsetData().rotation[1] << ", " << it2.second->getHeadsetData().rotation[2] << ", " << it2.second->getHeadsetData().rotation[3] << "]\n"
+                                          << "}\n";
+#endif
+
                                     nbHeadset++;
                                 }
                             }
+
+#ifdef VFV_LOG_DATA
+                            m_log << "]},\n";
+#endif
 
                             //Write the number of headset to take account of
                             writeUint32(data+sizeof(uint16_t), nbHeadset);
@@ -1664,4 +1710,43 @@ endFor:
             usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
         }
     }
+
+#ifdef CHI2020
+    void VFVServer::nextTrialThread()
+    {
+        while(!m_closeThread)
+        {
+            m_datasetMutex.lock();
+
+            //Should we send the next trial?
+            if(m_waitSendNextTrial == true)
+            {
+                //Sleep for that much time
+                time_t targetSleep = m_msWaitNextTrialTime;
+                m_datasetMutex.unlock();
+                usleep(getTimeOffset() - targetSleep);
+
+                m_datasetMutex.lock();
+                {
+                    std::lock_guard<std::mutex> lock(m_mapMutex);
+                    //Search for the next "tablet" and "headset" to be able to visualize the anchor
+
+                    m_nextTabletTrial = (m_nextTabletTrial+1)%2;
+
+                    //Send the message to everyone
+                    {
+//                        for(auto it : m_clientTable)
+//                        {
+//
+//                        }
+                    }
+
+                    //No more trial to send for now
+                    m_waitSendNextTrial = false;
+                }
+                m_datasetMutex.unlock();
+            }
+        }
+    }
+#endif
 }

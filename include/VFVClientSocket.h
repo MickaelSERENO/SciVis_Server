@@ -388,6 +388,7 @@ namespace sereno
     {
         SOCKADDR_IN      headsetAddr;    /*!< What is the address of the headset bound to this tablet?*/
         VFVClientSocket* headset = NULL; /*!< WHat is the headset bound to this tablet?*/
+        int              number = 0;     /*!< The device number. This is defined by the device itself*/
     };
 
     /** \brief  Headset data structure */

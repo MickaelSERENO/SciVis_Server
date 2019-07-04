@@ -1000,12 +1000,15 @@ namespace sereno
     struct VFVIdentTabletInformation : public VFVDataInformation
     {
         std::string headsetIP; /*!< The headset IP adresse it is bound to*/
+        uint32_t tabletID;     /*!< The tablet ID, permits to define for instance roles per tablet */
         bool paired = false; /* !< To set: is the tablet paired after this message was handled? */
 
         char getTypeAt(uint32_t cursor) const
         {
             if(cursor == 0)
                 return 's';
+            else if(cursor == 1)
+                return 'I';
             return 0;
         }
 
@@ -1019,7 +1022,17 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        int32_t getMaxCursor() const {return 0;}
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 1)
+            {
+                tabletID = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 1;}
 
         virtual std::string toJson(const std::string& sender, const std::string& pairedHeadsetIP, time_t timeOffset) const
         {
@@ -1027,7 +1040,8 @@ namespace sereno
 
             VFV_BEGINING_TO_JSON(oss, sender, pairedHeadsetIP, timeOffset, "TabletIdent");
             oss << ",    \"targetedHeadsetIP\" : \"" << headsetIP << "\",\n"
-                << "    \"paired\" : " << paired << "\n"; 
+                << "    \"paired\" : " << paired << ",\n"
+                << "    \"tabletID\" : " << tabletID << "\n"; 
             VFV_END_TO_JSON(oss);
 
             return oss.str();

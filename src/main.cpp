@@ -2,29 +2,49 @@
 #include "VFVClientSocket.h"
 #include "InternalData.h"
 #include <signal.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 #define NB_READ_THREAD 4
 
 using namespace sereno;
 
-static VFVServer server(NB_READ_THREAD, CLIENT_PORT);
+static VFVServer* serverPtr = NULL;
 
 void inSigInt(int sig)
 {
-    INFO << "Closing with SIGINT\n";
-    server.cancel();
+    if(serverPtr)
+    {
+        INFO << "Closing with SIGINT\n";
+        serverPtr->cancel();
+    }
 }
 
 int main()
 {
-    InternalData::initSingleton();
-    server.launch();
+    //Copy the log file in case of "issue" from the investigators (always ;) )
+    pid_t pid;
+    pid = fork();
 
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGINT,  inSigInt);
+    if(pid == 0)
+        execl("/bin/cp", "/bin/cp", "log.json", "log.json.old", NULL);
+    else
+    {
+        int childExitStatus;
+        waitpid(pid, &childExitStatus, 0);
 
-    server.wait();
-    server.closeServer();
+        VFVServer server(NB_READ_THREAD, CLIENT_PORT);
+        serverPtr = &server;
+
+        InternalData::initSingleton();
+        server.launch();
+
+        signal(SIGPIPE, SIG_IGN);
+        signal(SIGINT,  inSigInt);
+
+        server.wait();
+        server.closeServer();
+    }
 
     return 0;
 }

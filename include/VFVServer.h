@@ -19,7 +19,21 @@
 #define MAX_NB_HEADSETS         10
 #define MAX_OWNER_TIME          1.e6
 
+//Should we log every messages?
 #define VFV_LOG_DATA
+
+//This defines the CHI' 20 version of this server
+#define CHI2020
+
+enum { COUNTER_BASE = __COUNTER__ };
+
+#ifdef CHI2020
+    #define CHI2020_COUNTER __COUNTER__
+#endif
+
+#if __COUNTER__ - COUNTER_BASE > 1
+#error "Too many setups have been proposed (e.g., CHI2020)."
+#endif
 
 namespace sereno
 {
@@ -228,6 +242,11 @@ namespace sereno
             /** \brief Main thread running for updating other devices*/
             void updateThread();
 
+#ifdef CHI2020
+            /** \brief The next trial thread which notify persons when the next trial is necessary */
+            void nextTrialThread();
+#endif
+
             /*----------------------------------------------------------------------------*/
             /*---------------------------------ATTRIBUTES---------------------------------*/
             /*----------------------------------------------------------------------------*/
@@ -239,7 +258,6 @@ namespace sereno
             std::map<uint32_t, Dataset*>       m_datasets;       /*!< The datasets opened*/
 
             std::mutex   m_datasetMutex;                         /*!< The mutex handling the datasets*/
-            std::mutex   m_updateMutex;                          /*!< The update thread mutex*/
             std::thread* m_updateThread  = NULL;                 /*!< The update thread*/
 
             uint64_t m_currentDataset    = 0;                    /*!< The current Dataset id to push */
@@ -250,8 +268,20 @@ namespace sereno
             AnchorHeadsetData m_anchorData;                      /*!< The anchor data registered*/
 
 #ifdef VFV_LOG_DATA
-            std::ofstream m_log;
+            std::mutex    m_logMutex; /*!< The log file mutex */
+            std::ofstream m_log;      /*!< The output log file recording every messages received and sent*/
 #endif
+
+#ifdef CHI2020
+            std::thread* m_nextTrialThread = NULL; /*!< Thread handling the next trial message (sending next trial). The mutex: datasetMutex*/
+            bool m_waitSendNextTrial = false;      /*!< Should we send the next trial command?*/ 
+            time_t m_msWaitNextTrialTime;          /*!< At what time should the next trial be launched ? (based on getTimeOffset()) */
+            uint8_t m_nextTabletTrial = 0;         /*!< Who is the next tablet to be able to do the trial?*/
+            uint32_t m_currentTrialID = -1;        /*!< The current trial ID*/
+#endif
+
+            //Mutex load order:
+            //datasetMutex, mapMutex, logMutex
     };
 }
 
