@@ -37,6 +37,17 @@ namespace sereno
     const uint32_t VFVServer::SCIVIS_DISTINGUISHABLE_COLORS[10] = {0xffe119, 0x4363d8, 0xf58231, 0xfabebe, 0xe6beff, 
                                                                    0x800000, 0x000075, 0xa9a9a9, 0xffffff, 0x000000};
 
+    /* \brief  Computed factorial of n
+     * \param n the parameter
+     * \return   n!  */
+    uint32_t factorial(uint32_t n)
+    {
+        int res = 1;
+        for(; n > 1; n--)
+            res *= n;
+        return res;
+    }
+
     /**
      * \brief  Get the time offset (time of the day)
      *
@@ -116,6 +127,68 @@ namespace sereno
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
             m_log << "},\n";
         }
+#endif
+
+#ifdef CHI2020
+        //Get the current pair ID (go from 0 to MAX_INTERACTION_TECHNIQUE_NUMBER! - 1)
+        INFO << "Please, enter the pair ID for the CHI 2020 user study\n";
+        std::cin >> m_pairID;
+        INFO << "The pair ID is: " << m_pairID << std::endl;
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "SetPairID");
+            m_log << ", \"pairID\": " << m_pairID << "\n"
+                  << "},\n";
+        }
+#endif
+
+        m_trialTabletData[0].tabletID = 0;
+        m_trialTabletData[1].tabletID = 1;
+
+        //Create the ordering based on the user's ID
+        for(uint32_t i = 0; i < 2; i++) //Per tablet
+        {
+            std::vector<uint32_t> orderAvailable;
+            for(uint32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER; j++)
+                orderAvailable.push_back(j);
+
+            uint32_t curID = std::min(m_pairID*2+i, factorial(MAX_INTERACTION_TECHNIQUE_NUMBER)-1);
+
+            for(int32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER-1; j++) 
+            {
+                uint32_t div    = factorial(MAX_INTERACTION_TECHNIQUE_NUMBER-1-j);
+                uint32_t target = curID / div;
+                curID %= div;
+
+                m_trialTabletData[i].techniqueOrder[j] = orderAvailable[target];
+                auto it = orderAvailable.begin();
+                std::advance(it, target);
+                orderAvailable.erase(it);
+            }
+
+            m_trialTabletData[i].techniqueOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] = orderAvailable[0];
+
+            //Print the order
+            INFO << "Technique Order : [";
+            for(uint32_t j = 0; j < 3; j++)
+                std::cout << m_trialTabletData[i].techniqueOrder[j] << ",";
+            std::cout << m_trialTabletData[i].techniqueOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] << "]\n";
+        }
+
+        //Add the dataset the users will play with
+        VFVVTKDatasetInformation vtkInfo;
+        vtkInfo.name = "Agulhas_10_resampled.vtk";
+        vtkInfo.nbPtFields = 1;
+        vtkInfo.ptFields.push_back(1);
+
+#ifdef VFV_LOG_DATA
+        m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
+        m_log << ",\n";
+#endif
+
+        addVTKDataset(NULL, vtkInfo);
 #endif
     }
 
@@ -407,7 +480,7 @@ namespace sereno
 
     void VFVServer::addVTKDataset(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset)
     {
-        if(!client->isTablet())
+        if(client != NULL && !client->isTablet())
         {
             VFVSERVER_NOT_A_TABLET
             return;
@@ -746,10 +819,23 @@ namespace sereno
         }
 
         auto& internalData = client->getHeadsetData();
+
+        //Position and rotation
         for(uint32_t i = 0; i < 3; i++)
             internalData.position[i] = headset.position[i];
         for(uint32_t i = 0; i < 4; i++)
             internalData.rotation[i] = headset.rotation[i];
+
+        //Pointing Data
+        internalData.pointingData.pointingIT       = (VFVPointingIT)headset.pointingIT;
+        internalData.pointingData.datasetID        = headset.pointingDatasetID;
+        internalData.pointingData.subDatasetID     = headset.pointingSubDatasetID;
+        internalData.pointingData.pointingInPublic = headset.pointingInPublic;
+        for(uint32_t i = 0; i < 3; i++)
+        {
+            internalData.pointingData.localSDPosition[i]      = headset.pointingLocalSDPosition[i];
+            internalData.pointingData.headsetStartPosition[i] = headset.pointingHeadsetStartPosition[i];
+        }
     }
 
     void VFVServer::onStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)
@@ -828,6 +914,64 @@ namespace sereno
         for(auto& clt : m_clientTable)
             sendClearAnnotations(clt.second, clearAnnots);
     }
+
+#ifdef CHI2020
+    void VFVServer::onNextTrial(VFVClientSocket* client)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+
+        //Check alreay in next state
+        if(m_waitSendNextTrial)
+            return;
+
+        //Check the client. Is it a tablet?
+        if(!client->isTablet())
+        {
+            VFVSERVER_NOT_A_TABLET
+        }
+
+        uint32_t id = client->getTabletData().number;
+
+        if(id >= 2)
+        {
+            WARNING << "The maximum role ID should be 1 (included)\n";
+            return;
+        }
+
+        if(m_trialTabletData[id].finishTraining)
+        {
+            if(id != m_currentTabletTrial)
+            {
+                WARNING << "Expected the tablet ID %d to send the next trial...\n";
+                return;
+            }
+
+            else if(client->getTabletData().headset == NULL)
+            {
+                WARNING << "Excepted the tablet to be connected to a headset...\n";
+                return;
+            }
+
+            //Send the next trial only if all the tablet finished the training
+            if(m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining)
+            {
+                INFO << "Received the next trial command by tablet ID " << id << std::endl;
+                m_waitSendNextTrial = true;
+
+                double normalized = rand() / std::nextafter(double(RAND_MAX), DBL_MAX);
+                int rnd = SLEEP_NEXTTRIAL_MIN_TIME + int(normalized * (SLEEP_NEXTTRIAL_MAX_TIME-SLEEP_NEXTTRIAL_MIN_TIME+1));
+
+                m_msWaitNextTrialTime = getTimeOffset() + rnd;
+            }
+        }
+        else
+        {
+            INFO << "Tablet ID " << id << " has finished the training\n";
+            m_trialTabletData[id].finishTraining = true;
+            sendEmptyMessage(client, VFV_SEND_ACK_END_TRAINING);
+        }
+    }
+#endif
 
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
@@ -929,7 +1073,7 @@ namespace sereno
             writeFloat(data+offset, rotate.quaternion[i]);
 
         INFO << "Sending ROTATE DATASET Event data. Data : " << rotate.datasetID << " sdID : " << rotate.subDatasetID
-             << "Q = " << rotate.quaternion[0] << " " << rotate.quaternion[1] << " " << rotate.quaternion[2] << " " << rotate.quaternion[3] << "\n";
+             << " Q = " << rotate.quaternion[0] << " " << rotate.quaternion[1] << " " << rotate.quaternion[2] << " " << rotate.quaternion[3] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -965,8 +1109,8 @@ namespace sereno
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //3D Scaling
             writeFloat(data+offset, scale.scale[i]);
 
-        INFO << "Sending SCALE DATASET Event data DatasetID " << scale.datasetID << " SubDataset ID " << scale.subDatasetID <<
-            scale.scale[0] << " " << scale.scale[1] << " " << scale.scale[2] << "\n";
+        INFO << "Sending SCALE DATASET Event data DatasetID " << scale.datasetID << " SubDataset ID " << scale.subDatasetID << " ["
+             << scale.scale[0] << ", " << scale.scale[1] << ", " << scale.scale[2] << "]\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -1002,7 +1146,7 @@ namespace sereno
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //Vector3 position
             writeFloat(data+offset, position.position[i]);
 
-        INFO << "Sending MOVE DATASET Event data " << position.position[0] << " " << position.position[1] << " " << position.position[2] << "\n";
+        INFO << "Sending MOVE DATASET Event data Dataset ID " << position.datasetID << " sdID : " << position.subDatasetID << " position : [" << position.position[0] << ", " << position.position[1] << ", " << position.position[2] << "]\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, dataSize);
         writeMessage(sm);
@@ -1202,7 +1346,7 @@ endFor:
             m_log << ",    \"headsetID\" : " << id << ",\n"
                   << "    \"color\" : " << color << ",\n"
                   << "    \"tabletConnected\" : " << tabletConnected << ",\n"
-                  << "    \"firstConnected\" : " << firstConnected << "\n"
+                  << "    \"firstConnected\" : " << (bool)firstConnected << "\n"
                   << "},\n";
         }
 #endif
@@ -1408,12 +1552,15 @@ endFor:
         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint32_t));
         uint32_t offset = 0;
 
+        //ID
         writeUint16(data, VFV_SEND_CLEAR_ANNOTATION);
         offset += sizeof(uint16_t);
 
+        //datasetID
         writeUint32(data+offset, clearAnnot.datasetID);
         offset += sizeof(uint32_t);
 
+        //subdatasetID
         writeUint32(data+offset, clearAnnot.subDatasetID);
         offset += sizeof(uint32_t);
 
@@ -1422,7 +1569,47 @@ endFor:
         INFO << "Sending clear annotation \n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
+
+        m_log << clearAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
     }
+
+#ifdef CHI2020
+    void VFVServer::sendNextTrialDataCHI2020(VFVClientSocket* client)
+    {
+        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint32_t) + 3*sizeof(float));
+        uint32_t offset = 0;
+
+        //ID
+        writeUint16(data, VFV_SEND_NEXT_TRIAL_DATA_CHI2020);
+        offset += sizeof(uint16_t);
+
+        //Which tablet should anchor the annotation
+        writeUint32(data+offset, m_currentTabletTrial);
+        offset += sizeof(uint32_t);
+
+        //The trial ID
+        writeUint32(data+offset, m_currentTrialID);
+        offset += sizeof(uint32_t);
+
+        //The annotation's position
+        for(uint32_t i = 0; i < 3; i++, offset += sizeof(float))
+            writeFloat(data+offset, m_trialAnnotationPos[i]);
+
+
+        INFO << "Sending a next trial message data\n";
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendNextTrial");
+        m_log << ",    \"currentTabletID\" : " << m_currentTabletTrial << ",\n"
+              << "    \"currentTrialID\" : " << m_currentTrialID << ",\n"
+              << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "\n"
+              << "},\n";
+#endif
+    }
+#endif
 
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
@@ -1575,6 +1762,13 @@ endFor:
                     onClearAnnotations(client, msg.clearAnnotations);
                     break;
                 }
+#ifdef CHI2020
+                case NEXT_TRIAL:
+                {
+                    onNextTrial(client);
+                    break;
+                }
+#endif
                 default:
                     break;
             }
@@ -1611,7 +1805,7 @@ endFor:
                         for(auto it : m_clientTable)
                         {
                             uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
-                                                             MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t)));
+                                                             MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 6*sizeof(float)));
                             uint32_t offset    = 0;
                             uint32_t nbHeadset = 0;
 
@@ -1629,36 +1823,68 @@ endFor:
                             {
                                 if(it2.second->isHeadset())
                                 {
+                                    VFVHeadsetData& headsetData = it2.second->getHeadsetData();
+
                                     //ID
-                                    writeUint32(data+offset, it2.second->getHeadsetData().id);
+                                    writeUint32(data+offset, headsetData.id);
                                     offset += sizeof(uint32_t);
 
                                     //Color
-                                    writeUint32(data+offset, it2.second->getHeadsetData().color);
+                                    writeUint32(data+offset, headsetData.color);
                                     offset += sizeof(uint32_t);
 
                                     //Current action
-                                    writeUint32(data+offset, it2.second->getHeadsetData().currentAction);
+                                    writeUint32(data+offset, headsetData.currentAction);
                                     offset += sizeof(uint32_t);
 
                                     //Position
                                     for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                        writeFloat(data+offset, it2.second->getHeadsetData().position[i]);
+                                        writeFloat(data+offset, headsetData.position[i]);
 
                                     //Rotation
                                     for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
-                                        writeFloat(data+offset, it2.second->getHeadsetData().rotation[i]);
+                                        writeFloat(data+offset, headsetData.rotation[i]);
+
+                                    //Pointing IT
+                                    writeUint32(data+offset, headsetData.pointingData.pointingIT);
+                                    offset += sizeof(uint32_t);
+
+                                    //Pointing Dataset ID
+                                    writeUint32(data+offset, headsetData.pointingData.datasetID);
+                                    offset += sizeof(uint32_t);
+
+                                    //Pointing SubDataset ID
+                                    writeUint32(data+offset, headsetData.pointingData.subDatasetID);
+                                    offset += sizeof(uint32_t);
+
+                                    //Pointing done in public space?
+                                    data[offset++] = headsetData.pointingData.pointingInPublic ? 1 : 0;
+
+                                    //Pointing local SD position
+                                    for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                        writeFloat(data+offset, headsetData.pointingData.localSDPosition[i]);
+
+                                    //Pointing headset starting position
+                                    for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                        writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
 
 #ifdef VFV_LOG_DATA
                                     if(logAdded)
                                         m_log << ", ";
                                     m_log << "{\n"
-                                          << "    \"id\" : " << it2.second->getHeadsetData().id << ",\n"
-                                          << "    \"color\" : " << it2.second->getHeadsetData().color << ",\n"
-                                          << "    \"currentAction\" : " << it2.second->getHeadsetData().currentAction << ",\n"
-                                          << "    \"position\" : [" << it2.second->getHeadsetData().position[0] << ", " << it2.second->getHeadsetData().position[1] << ", " << it2.second->getHeadsetData().position[2] << "],\n"
-                                          << "    \"rotation\" : [" << it2.second->getHeadsetData().rotation[0] << ", " << it2.second->getHeadsetData().rotation[1] << ", " << it2.second->getHeadsetData().rotation[2] << ", " << it2.second->getHeadsetData().rotation[3] << "]\n"
+                                          << "    \"id\" : " << headsetData.id << ",\n"
+                                          << "    \"color\" : " << headsetData.color << ",\n"
+                                          << "    \"currentAction\" : " << headsetData.currentAction << ",\n"
+                                          << "    \"position\" : [" << headsetData.position[0] << ", " << headsetData.position[1] << ", " << headsetData.position[2] << "],\n"
+                                          << "    \"rotation\" : [" << headsetData.rotation[0] << ", " << headsetData.rotation[1] << ", " << headsetData.rotation[2] << ", " << headsetData.rotation[3] << "],\n"
+                                          << "    \"pointingIT\" : " << headsetData.pointingData.pointingIT << ",\n"
+                                          << "    \"pointingDatasetID\" : " << headsetData.pointingData.datasetID << ",\n"
+                                          << "    \"pointingSubDatasetID\" : " << headsetData.pointingData.subDatasetID << ",\n"
+                                          << "    \"pointingInPublic\" : " << headsetData.pointingData.pointingInPublic << ",\n"
+                                          << "    \"pointingLocalSDPosition\" : [" << headsetData.pointingData.localSDPosition[0] << "," << headsetData.pointingData.localSDPosition[1] << "," << headsetData.pointingData.localSDPosition[2] << "],\n"
+                                          << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "]\n"
                                           << "}\n";
+                                    logAdded = true;
 #endif
 
                                     nbHeadset++;
@@ -1728,17 +1954,24 @@ endFor:
 
                 m_datasetMutex.lock();
                 {
-                    std::lock_guard<std::mutex> lock(m_mapMutex);
-                    //Search for the next "tablet" and "headset" to be able to visualize the anchor
+                    m_currentTrialID++;
 
-                    m_nextTabletTrial = (m_nextTabletTrial+1)%2;
+                    //Search for the next "tablet" and "headset" to be able to visualize the anchor
+                    m_currentTabletTrial = (m_currentTabletTrial+1)%2;
+
+                    //Search what will be the next annotation's position
+                    for(int i = 0; i < 3; i++)
+                    {
+                        double pos = rand() / std::nextafter(double(RAND_MAX), DBL_MAX) - 0.5;
+                        m_trialAnnotationPos[i] = pos;
+                    }
 
                     //Send the message to everyone
                     {
-//                        for(auto it : m_clientTable)
-//                        {
-//
-//                        }
+                        std::lock_guard<std::mutex> lock(m_mapMutex);
+                        for(auto it : m_clientTable)
+                            if(it.second->isTablet() || it.second->isHeadset())
+                                sendNextTrialDataCHI2020(it.second);                                
                     }
 
                     //No more trial to send for now

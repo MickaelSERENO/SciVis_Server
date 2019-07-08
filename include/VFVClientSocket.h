@@ -56,6 +56,7 @@ namespace sereno
         START_ANNOTATION            = 14,
         ANCHOR_ANNOTATION           = 15,
         CLEAR_ANNOTATIONS           = 16,
+        NEXT_TRIAL                  = 17,
         END_MESSAGE_TYPE
     };
 
@@ -68,6 +69,16 @@ namespace sereno
         HEADSET_CURRENT_ACTION_ROTATING    = 3,
         HEADSET_CURRENT_ACTION_SKETCHING   = 4,
         HEADSET_CURRENT_ACTION_CREATEANNOT = 5
+    };
+
+    /** \brief  The different pointing interaction technique supported by this application */
+    enum VFVPointingIT
+    {
+        POINTING_NONE    = -1,
+        POINTING_GOGO    = 0,
+        POINTING_WIM     = 1,
+        POINTING_WIM_RAY = 2,
+        POINTING_MANUAL  = 3,
     };
 
     template<typename T>
@@ -143,6 +154,7 @@ namespace sereno
                     switch(type)
                     {
                         case IDENT_HEADSET:
+                        case NEXT_TRIAL:
                             noData = cpy.noData;
                             curMsg = &noData;
                             break;
@@ -234,9 +246,10 @@ namespace sereno
             switch(t)
             {
                 case IDENT_HEADSET:
+                case NEXT_TRIAL:
                     new (&noData) VFVNoDataInformation;
                     curMsg = &noData;
-                    noData.type = IDENT_HEADSET;
+                    noData.type = t;
                     break;
                 case IDENT_TABLET:
                     new (&identTablet) VFVIdentTabletInformation;
@@ -319,6 +332,7 @@ namespace sereno
             switch(type)
             {
                 case IDENT_HEADSET:
+                case NEXT_TRIAL:
                     noData.~VFVNoDataInformation();
                     break;
                 case IDENT_TABLET:
@@ -391,6 +405,17 @@ namespace sereno
         int              number = 0;     /*!< The device number. This is defined by the device itself*/
     };
 
+    /** \brief  The Pointing data of a headset (what pointing action and relative data is the user doing?) */
+    struct VFVHeadsetPointingData
+    {
+        VFVPointingIT pointingIT       = POINTING_NONE; /*!< The pointing interaction technique in use*/
+        int32_t       datasetID        = -1;            /*!< The dataset the user is manipulating*/
+        int32_t       subDatasetID     = -1;            /*!< The subdataset the user is manipulating*/
+        bool          pointingInPublic = true;          /*!< Is the user manipulating the dataset in the public space?*/
+        glm::vec3     localSDPosition;                  /*!< The pointing position in the local subdataset space*/
+        glm::vec3     headsetStartPosition;             /*!< The headset starting position when the pointing interaction technique started*/
+    };
+
     /** \brief  Headset data structure */
     struct VFVHeadsetData
     {
@@ -402,6 +427,8 @@ namespace sereno
         bool                        anchoringSent = false;                          /*!< Has the anchoring data been sent?*/
         VFVHeadsetCurrentActionType currentAction = HEADSET_CURRENT_ACTION_NOTHING; /*!< What is the tablet current action?*/
         std::map<SubDataset*, SubDatasetHeadsetInformation> sdInfo;                 /*!< Information per dataset regarding each headset*/
+
+        VFVHeadsetPointingData      pointingData; /*!< The pointing data of the headset*/
     };
 
     /* \brief VFVClientSocket class. Represent a Client for VFV Application */

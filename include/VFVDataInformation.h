@@ -157,7 +157,7 @@ namespace sereno
         int32_t subDatasetID = -1;
         int32_t annotationID = -1; /*!< Only the server sets this information*/
         int32_t headsetID    = -1; /*!< Only the server sets this information*/
-        bool inPublic     = 1;
+        bool    inPublic     = 1;
         float   localPos[3];
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
@@ -737,12 +737,27 @@ namespace sereno
     /** \brief  Structure containing continuous stream of headset status */
     struct VFVUpdateHeadset : public VFVDataInformation
     {
-        float position[3]; /*!< 3D headset position*/
-        float rotation[4]; /*!< 3D quaternion headset rotation*/
+        float   position[3]; /*!< 3D headset position*/
+        float   rotation[4]; /*!< 3D quaternion headset rotation*/
+
+        int32_t pointingIT           = -1;       /*!< The pointing interaction technique in use (enum)*/
+        int32_t pointingDatasetID    = -1;       /*!< The dataset currently manipulated (ID) with the pointing*/
+        int32_t pointingSubDatasetID = -1;       /*!< The SubDataset currently manipulated (ID) with the pointing*/
+        bool    pointingInPublic     = true;     /*!< Is the pointing action in the user's public space?*/
+        float   pointingLocalSDPosition[3];      /*!< The position targeted by the pointing IT in the local Subdataset's space*/
+        float   pointingHeadsetStartPosition[3]; /*!< The position of the headset once the pointing interaction started*/
 
         char getTypeAt(uint32_t cursor) const
         {
             if(cursor < 7)
+                return 'f';
+            else if(cursor < 10)
+                return 'I';
+            else if(cursor == 10)
+                return 'b';
+            else if(cursor < 14)
+                return 'f';
+            else if(cursor < 17)
                 return 'f';
             return 0;
         }
@@ -759,10 +774,51 @@ namespace sereno
                 rotation[cursor-3] = value;
                 return true;
             }
+            else if(cursor < 14 && cursor > 10)
+            {
+                pointingLocalSDPosition[cursor-11] = value;
+                return true;
+            }
+            else if(cursor < 17)
+            {
+                pointingHeadsetStartPosition[cursor-14] = value;
+                return true;
+            }
             VFV_DATA_ERROR
         }
 
-        int32_t getMaxCursor() const {return 6;}
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 7)
+            {
+                pointingIT = value;
+                return true;
+            }
+            else if(cursor == 8)
+            {
+                pointingDatasetID = value;
+                return true;
+            }
+
+            else if(cursor == 9)
+            {
+                pointingSubDatasetID = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 10)
+            {
+                pointingInPublic = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 16;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -770,7 +826,13 @@ namespace sereno
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "UpdateHeadset");
             oss << ",    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
-                << "    \"rotation\" : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "]\n";
+                << "    \"rotation\" : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "],\n" 
+                << "    \"pointingIT\" : " << pointingIT << ",\n"
+                << "    \"pointingDatasetID\" : " << pointingDatasetID << ",\n"
+                << "    \"pointingSubDatasetID\" : " << pointingSubDatasetID << ",\n"
+                << "    \"pointingInPublic\" : " << pointingInPublic << ",\n"
+                << "    \"pointingLocalSDPosition\" : [" << pointingLocalSDPosition[0] << "," << pointingLocalSDPosition[1] << "," << pointingLocalSDPosition[2] << "],\n"
+                << "    \"pointingHeadsetStartPosition\" : [" << pointingHeadsetStartPosition[0] << "," << pointingHeadsetStartPosition[1] << "," << pointingHeadsetStartPosition[2] << "]\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
@@ -855,7 +917,7 @@ namespace sereno
     {
         uint32_t datasetID;     /*!< The dataset ID*/
         uint32_t subDatasetID;  /*!< The SubDataset ID*/
-        uint8_t  inPublic  = 1; /*!< The movement is done in the public view?*/
+        bool     inPublic  = true; /*!< The movement is done in the public view?*/
         float    position[3];   /*!< The position information*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 
@@ -928,7 +990,7 @@ namespace sereno
     {
         uint32_t datasetID;      /*!< The dataset ID*/
         uint32_t subDatasetID;   /*!< The SubDataset ID*/
-        uint8_t  inPublic  = 1;  /*!< Is the rotation done in the public view?*/
+        bool     inPublic  = 1;  /*!< Is the rotation done in the public view?*/
         float    quaternion[4];  /*!< The quaternion information*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 

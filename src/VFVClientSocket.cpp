@@ -92,7 +92,7 @@ namespace sereno
 
 #define ERROR_VALUE \
     {\
-        ERROR << "Could not push a value... type: m_curMsg.type" << std::endl;\
+        ERROR << "Could not push a value... type: " << m_curMsg.type << std::endl;\
         return false;\
     }
 
