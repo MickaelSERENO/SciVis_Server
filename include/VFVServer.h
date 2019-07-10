@@ -62,6 +62,8 @@ namespace sereno
             ~VFVServer();
 
             bool launch();
+            void cancel();
+            void wait();
             void closeServer();
 
 #ifdef CHI2020
@@ -282,11 +284,13 @@ namespace sereno
             bool     m_waitSendNextTrial = false;  /*!< Should we send the next trial command?*/ 
             time_t   m_msWaitNextTrialTime;        /*!< At what time should the next trial be launched ? (based on getTimeOffset()) */
 
-            uint8_t  m_currentTabletTrial = 0; /*!< Who is the current tablet to be able to do the trial?*/
-            uint32_t m_currentTrialID = -1;    /*!< The current trial ID*/
-            bool     m_inTraining = true;      /*!< Are we still in the training phase?*/
+            uint8_t  m_currentTabletTrial = 1;  /*!< Who is the current tablet to be able to do the trial?*/
+            uint32_t m_currentTrialID = 0;      /*!< The current trial ID*/
+            uint32_t m_currentStudyID = 0;      /*!< The current study ID*/
+            uint32_t m_currentTechniqueIdx = 0; /* !< The current technique index to use to determine which technique to use in the current trial.*/
 
             float    m_trialAnnotationPos[3];  /*!< The annotation position in the current trial*/
+            float*   m_trialPositions = NULL;  /*!< The position of all the possible targeted annotations*/ 
 #endif
             //Mutex load order:
             //datasetMutex, mapMutex, logMutex

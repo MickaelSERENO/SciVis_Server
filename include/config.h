@@ -4,6 +4,8 @@
 //Should we log every messages?
 #define VFV_LOG_DATA
 
+//#define LOG_UPDATE_HEAD
+
 //This defines the CHI' 20 version of this server
 #define CHI2020
 
@@ -23,14 +25,15 @@ enum { COUNTER_BASE = __COUNTER__ };
     #endif
 #endif
 
-#define UPDATE_THREAD_FRAMERATE   10
+#define UPDATE_THREAD_FRAMERATE   20
 #define MAX_NB_HEADSETS           10
 #define MAX_OWNER_TIME            1.e6
 
 #ifdef CHI2020
-    #define SLEEP_NEXTTRIAL_MIN_TIME (3*1.e6)
-    #define SLEEP_NEXTTRIAL_MAX_TIME (1*1.e6)
+    #define TRIAL_WAITING_TIME               (2*1e6)
     #define MAX_INTERACTION_TECHNIQUE_NUMBER 4
+    #define TRIAL_NUMBER_STUDY_1             (2*8) //Two person, 8 trial per person
+    #define TRIAL_NUMBER_STUDY_2             (2*8)
 #endif
 
 #endif

@@ -34,8 +34,13 @@ namespace sereno
         close(client->socket);\
     }
 
+    /** \brief  All the colors that each headset are represented with */
     const uint32_t VFVServer::SCIVIS_DISTINGUISHABLE_COLORS[10] = {0xffe119, 0x4363d8, 0xf58231, 0xfabebe, 0xe6beff, 
                                                                    0x800000, 0x000075, 0xa9a9a9, 0xffffff, 0x000000};
+
+    /* \brief  A free that does nothing
+     * \param data the data to "not" free */
+    void emptyFree(void* data){}
 
     /* \brief  Computed factorial of n
      * \param n the parameter
@@ -61,6 +66,10 @@ namespace sereno
         return 1e6 * t.tv_sec + t.tv_usec;
     }
 
+    /** \brief  Get the string IP address of the headset. This function is used to save the targeted headset in json log functions
+     * \param client the client to evaluate. Can either represent a tablet or a headset.
+     *
+     * \return   <ip>:Headset, <ip>:Tablet, None:Unknown or None:Tablet */
     static std::string getHeadsetIPAddr(VFVClientSocket* client)
     {
         bool isHeadset = false;
@@ -89,8 +98,20 @@ namespace sereno
         return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
     }
 
+    /** \brief  Get the MetaData of a SubDataset per headset. A MetaData permits to know meta information per headset (e.g., the private state of a subdataset)
+     *
+     * \param client the client owning the meta data
+     * \param sd the SubDataset to search the meta data
+     *
+     * \return   the SubDatasetHeadsetInformation pointer. Do not delete it.  */
     static SubDatasetHeadsetInformation* getSubDatasetMetaData(VFVClientSocket* client, SubDataset* sd)
     {
+        if(sd == NULL)
+        {
+            WARNING << "SubDataset 'sd' is NULL\n";
+            return NULL;
+        }
+
         SubDatasetHeadsetInformation* metaData = NULL;
         VFVHeadsetData* headset = NULL;
 
@@ -114,6 +135,53 @@ namespace sereno
         return metaData;
     }
 
+    /**
+     * \brief  Generate all the possible order based on the maximum number of techniques
+     *
+     * \param curID the current ID to generate the order for
+     * \param printOrder should we print this order into the console?
+     *
+     * \return   the generated order
+     */
+    /*
+    static std::vector<uint32_t> generateFactorialOrder(uint32_t curID, bool printOrder=false)
+    {
+        curID %= MAX_INTERACTION_TECHNIQUE_NUMBER;
+
+        std::vector<uint32_t> orderAvailable(MAX_INTERACTION_TECHNIQUE_NUMBER);
+        std::vector<uint32_t> trialOrder(MAX_INTERACTION_TECHNIQUE_NUMBER);
+
+        //Fill all the distinguished value into an array
+        for(uint32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER; j++)
+            orderAvailable[j] = j;
+
+        for(int32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER-1; j++) 
+        {
+            uint32_t div    = factorial(MAX_INTERACTION_TECHNIQUE_NUMBER-1-j);
+            uint32_t target = curID / div;
+            curID %= div;
+
+            trialOrder[j] = orderAvailable[target];
+            auto it = orderAvailable.begin();
+            std::advance(it, target);
+            orderAvailable.erase(it);
+        }
+
+        trialOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] = orderAvailable[0];
+
+        //Print the order
+        if(printOrder)
+        {
+            INFO << "Technique Order : [";
+            for(uint32_t j = 0; j < 3; j++)
+                std::cout << trialOrder[j] << ",";
+            std::cout << trialOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] << "]\n";
+        }
+
+        return trialOrder;
+    }
+    */
+
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
 #ifdef VFV_LOG_DATA
@@ -122,7 +190,7 @@ namespace sereno
             m_log.open("log.json", std::ios::out | std::ios::trunc);
 
             m_log << "{\n"
-                  << "    [\n";
+                  << "    \"data\" : [\n";
 
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
             m_log << "},\n";
@@ -134,6 +202,47 @@ namespace sereno
         INFO << "Please, enter the pair ID for the CHI 2020 user study\n";
         std::cin >> m_pairID;
         INFO << "The pair ID is: " << m_pairID << std::endl;
+
+        //Read the csv's position file
+        std::ifstream csvPositionFile;
+        csvPositionFile.open("position.csv", std::ios::in);
+
+        csvPositionFile.seekg(0, std::ios_base::end);
+        uint64_t csvFileSize = csvPositionFile.tellg();
+        char* csvFileContent = (char*)malloc(sizeof(char)*csvFileSize+1);
+        csvPositionFile.seekg(0, std::ios_base::beg);
+
+        csvPositionFile.read(csvFileContent, csvFileSize);
+        csvFileContent[csvFileSize-1] = '\0';
+
+        //Get how many tokens the csv file contains
+        std::stringstream convertor(csvFileContent);
+        std::string token;
+
+        uint64_t numTokens = 0;
+        while(std::getline(convertor, token, ','))
+            numTokens++;
+
+        //Read all the tokens
+        uint64_t trialPositionIdx=0;
+        m_trialPositions = (float*)malloc(sizeof(float)*numTokens);
+        convertor.clear();
+        convertor.str(csvFileContent);
+        while(std::getline(convertor, token, ','))
+            m_trialPositions[trialPositionIdx++] = std::atof(token.c_str());
+
+        //Free and close the file's content
+        free(csvFileContent);
+        csvPositionFile.close();
+
+        //Set the pool of targets' positions
+        for(uint32_t i = 0; i < TRIAL_TABLET_DATA_MAX_POOL_SIZE; i++)
+        {
+            uint64_t pos = rand()%(numTokens/3);
+
+            for(uint8_t j = 0; j < 2; j++)
+                m_trialTabletData[j].poolTargetPositionIdxStudy1[i] = m_trialTabletData[j].poolTargetPositionIdxStudy2[i] = pos;
+        }
 
 #ifdef VFV_LOG_DATA
         {
@@ -147,34 +256,11 @@ namespace sereno
         m_trialTabletData[0].tabletID = 0;
         m_trialTabletData[1].tabletID = 1;
 
-        //Create the ordering based on the user's ID
-        for(uint32_t i = 0; i < 2; i++) //Per tablet
+        //Set the technique IDs
+        for(uint32_t i = 0; i < 2; i++)
         {
-            std::vector<uint32_t> orderAvailable;
             for(uint32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER; j++)
-                orderAvailable.push_back(j);
-
-            uint32_t curID = std::min(m_pairID*2+i, factorial(MAX_INTERACTION_TECHNIQUE_NUMBER)-1);
-
-            for(int32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER-1; j++) 
-            {
-                uint32_t div    = factorial(MAX_INTERACTION_TECHNIQUE_NUMBER-1-j);
-                uint32_t target = curID / div;
-                curID %= div;
-
-                m_trialTabletData[i].techniqueOrder[j] = orderAvailable[target];
-                auto it = orderAvailable.begin();
-                std::advance(it, target);
-                orderAvailable.erase(it);
-            }
-
-            m_trialTabletData[i].techniqueOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] = orderAvailable[0];
-
-            //Print the order
-            INFO << "Technique Order : [";
-            for(uint32_t j = 0; j < 3; j++)
-                std::cout << m_trialTabletData[i].techniqueOrder[j] << ",";
-            std::cout << m_trialTabletData[i].techniqueOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] << "]\n";
+                m_trialTabletData[i].techniqueOrder[j] = (j+m_pairID)%MAX_INTERACTION_TECHNIQUE_NUMBER;
         }
 
         //Add the dataset the users will play with
@@ -203,6 +289,10 @@ namespace sereno
         INFO << "Closing" << std::endl;
         for(auto& d : m_datasets)
             delete d.second;
+#ifdef CHI2020
+        if(m_trialPositions)
+            free(m_trialPositions);
+#endif
 #ifdef VFV_LOG_DATA
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
@@ -222,22 +312,42 @@ namespace sereno
 
         bool ret = Server::launch();
         m_updateThread = new std::thread(&VFVServer::updateThread, this);
+        m_nextTrialThread = new std::thread(&VFVServer::nextTrialThread, this);
 
         return ret;
+    }
+
+    void VFVServer::cancel()
+    {
+        Server::cancel();
+        if(m_updateThread && m_updateThread->joinable())
+            pthread_cancel(m_updateThread->native_handle());
+        if(m_nextTrialThread && m_nextTrialThread->joinable())
+            pthread_cancel(m_nextTrialThread->native_handle());
+    }
+
+    void VFVServer::wait()
+    {
+        Server::wait();
+        if(m_updateThread && m_updateThread->joinable())
+            m_updateThread->join();
+        if(m_nextTrialThread && m_nextTrialThread->joinable())
+            m_nextTrialThread->join();
     }
 
     void VFVServer::closeServer()
     {
         Server::closeServer();
-        if(m_updateThread)
+        if(m_updateThread != NULL)
         {
-            if(m_updateThread->native_handle() != 0)
-            {
-                pthread_cancel(m_updateThread->native_handle());
-                m_updateThread->join();
-            }
             delete m_updateThread;
             m_updateThread = 0;
+        }
+
+        if(m_nextTrialThread != NULL)
+        {
+            delete m_nextTrialThread;
+            m_nextTrialThread = 0;
         }
     }
 
@@ -256,8 +366,7 @@ namespace sereno
             {
                 std::lock_guard<std::mutex> logLock(m_logMutex);
                 VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
-                m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\",\n"
-                      << "  \"timeOffset\" : " << getTimeOffset() << "\n"
+                m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\"\n"
                       << "},\n";
             }
 #endif
@@ -313,10 +422,16 @@ namespace sereno
     {
         auto it = m_datasets.find(datasetID);
         if(it == m_datasets.end())
+        {
+            WARNING << "The dataset id 'datasetID' is not found\n";
             return NULL;
+        }
 
         if(it->second->getNbSubDatasets() <= sdID)
+        {
+            WARNING << "The subdataset ID 'sdID' in dataset ID 'datasetID' is not found\n";
             return NULL;
+        }
 
         return it->second;
     }
@@ -390,6 +505,9 @@ namespace sereno
             VFVSERVER_NOT_A_TABLET
             return;
         }
+
+        client->getTabletData().number = identTablet.tabletID;
+
         //Send already known datasets
         if(!alreadyConnected)
             onLoginSendCurrentStatus(client);
@@ -586,51 +704,53 @@ namespace sereno
 
     void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
     {
-        SubDatasetHeadsetInformation* sdMetaData  = NULL;
-        {
-            std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
 
-            Dataset* dataset = getDataset(rotate.datasetID, rotate.subDatasetID);
-            if(dataset == NULL)
+        Dataset* dataset = getDataset(rotate.datasetID, rotate.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
+            return;
+        }
+
+        SubDataset* sd = dataset->getSubDataset(rotate.subDatasetID);
+
+        if(!rotate.inPublic)
+        {
+            SubDatasetHeadsetInformation* sdMetaData = getSubDatasetMetaData(client, sd);
+            if(!sdMetaData)
+                return;
+
+            sd = &sdMetaData->getPrivateSubDataset();
+        }
+
+        else if(client)
+        {
+            //Find the subdataset meta data and update it
+            MetaData* mt = updateMetaDataModification(client, rotate.datasetID, rotate.subDatasetID);
+            if(!mt)
             {
                 VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
                 return;
             }
-
-            SubDataset* sd = dataset->getSubDataset(rotate.subDatasetID);
-            sdMetaData = getSubDatasetMetaData(client, sd);
-
-            if(!sdMetaData)
-                return;
-
-            if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
-            {
-                sdMetaData->getPublicSubDataset()->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
-                                                                               rotate.quaternion[3], rotate.quaternion[0]));
-
-                //Find the subdataset meta data and update it
-                MetaData* mt = updateMetaDataModification(client, rotate.datasetID, rotate.subDatasetID);
-                if(!mt)
-                {
-                    VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
-                    return;
-                }
-            }
-            else
-                sdMetaData->getPrivateSubDataset().setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
-                                                                               rotate.quaternion[3], rotate.quaternion[0]));
         }
 
-        //Set the headsetID
-        if(client->isTablet() && client->getTabletData().headset)
-            rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
-        else if(client->isHeadset())
-            rotate.headsetID = client->getHeadsetData().id;
+        sd->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
+                                        rotate.quaternion[3], rotate.quaternion[0]));
 
-        std::lock_guard<std::mutex> lock(m_mapMutex);
+        //Set the headsetID
+        if(client)
+        {
+            if(client->isTablet() && client->getTabletData().headset)
+                rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
+            else if(client->isHeadset())
+                rotate.headsetID = client->getHeadsetData().id;
+        }
+
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
 
         //Send to all if public
-        if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
+        if(rotate.inPublic)
         {
             for(auto& clt : m_clientTable)
                 if(clt.second != client)
@@ -638,7 +758,7 @@ namespace sereno
         }
 
         //Send just to the connected device counterpart if private
-        else
+        else if(client)
         {
             if(client->isTablet() && client->getTabletData().headset)
                 sendRotateDatasetEvent(client->getTabletData().headset, rotate);
@@ -649,52 +769,52 @@ namespace sereno
 
     void VFVServer::translateSubDataset(VFVClientSocket* client, VFVMoveInformation& translate)
     {
-        SubDatasetHeadsetInformation* sdMetaData  = NULL;
-        {
-            std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
 
-            Dataset* dataset = getDataset(translate.datasetID, translate.subDatasetID);
-            if(dataset == NULL)
+        Dataset* dataset = getDataset(translate.datasetID, translate.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(translate.datasetID, translate.subDatasetID)
+            return;
+        }
+
+        //Search for the meta data
+        SubDataset* sd = dataset->getSubDataset(translate.subDatasetID);
+
+        if(!translate.inPublic)
+        {
+            SubDatasetHeadsetInformation* sdMetaData = getSubDatasetMetaData(client, sd);
+            if(!sdMetaData)
+                return;
+
+            sd = &sdMetaData->getPrivateSubDataset();
+        }
+
+        else if(client)
+        {
+            //Find the subdataset meta data and update it
+            MetaData* mt = updateMetaDataModification(client, translate.datasetID, translate.subDatasetID);
+            if(!mt)
             {
                 VFVSERVER_SUB_DATASET_NOT_FOUND(translate.datasetID, translate.subDatasetID)
                 return;
             }
-
-            //Search for the meta data
-            SubDataset* sd = dataset->getSubDataset(translate.subDatasetID);
-            sdMetaData = getSubDatasetMetaData(client, sd);
-
-            if(!sdMetaData)
-                return;
-
-            if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
-            {
-                sdMetaData->getPublicSubDataset()->setPosition(glm::vec3(translate.position[0], translate.position[1], translate.position[2]));
-                //Find the subdataset global meta data and update it
-                MetaData* mt = updateMetaDataModification(client, translate.datasetID, translate.subDatasetID);
-                if(!mt)
-                {
-                    VFVSERVER_SUB_DATASET_NOT_FOUND(translate.datasetID, translate.subDatasetID)
-                    return;
-                }
-            }
-            else
-                sdMetaData->getPrivateSubDataset().setPosition(glm::vec3(translate.position[0], translate.position[1], translate.position[2]));
-
-            INFO << "Translating about " << translate.position[0] << " " << translate.position[1] << " " << translate.position[2] << std::endl;
-
         }
+        sd->setPosition(glm::vec3(translate.position[0], translate.position[1], translate.position[2]));
 
         //Set the headsetID
-        if(client->isTablet() && client->getTabletData().headset)
-            translate.headsetID = client->getTabletData().headset->getHeadsetData().id;
-        else if(client->isHeadset())
-            translate.headsetID = client->getHeadsetData().id;
+        if(client)
+        {
+            if(client->isTablet() && client->getTabletData().headset)
+                translate.headsetID = client->getTabletData().headset->getHeadsetData().id;
+            else if(client->isHeadset())
+                translate.headsetID = client->getHeadsetData().id;
+        }
 
-        std::lock_guard<std::mutex> lock(m_mapMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
 
         //Send to all if public
-        if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
+        if(translate.inPublic)
         {
             for(auto& clt : m_clientTable)
                 if(clt.second != client)
@@ -702,7 +822,7 @@ namespace sereno
         }
 
         //Send just to the connected device counterpart if private
-        else
+        else if(client)
         {
             if(client->isTablet() && client->getTabletData().headset)
                 sendMoveDatasetEvent(client->getTabletData().headset, translate);
@@ -713,49 +833,51 @@ namespace sereno
 
     void VFVServer::scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale)
     {
-        SubDatasetHeadsetInformation* sdMetaData  = NULL;
-        {
-            std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
 
-            Dataset* dataset = getDataset(scale.datasetID, scale.subDatasetID);
-            if(dataset == NULL)
+        Dataset* dataset = getDataset(scale.datasetID, scale.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(scale.datasetID, scale.subDatasetID)
+            return;
+        }
+
+        //Search for the meta data
+        SubDataset* sd = dataset->getSubDataset(scale.subDatasetID);
+
+        if(!scale.inPublic)
+        {
+            SubDatasetHeadsetInformation* sdMetaData = getSubDatasetMetaData(client, sd);
+            if(!sdMetaData)
+                return;
+
+            sd = &sdMetaData->getPrivateSubDataset();
+        }
+
+        else if(client)
+        {
+            //Find the subdataset meta data and update it
+            MetaData* mt = updateMetaDataModification(client, scale.datasetID, scale.subDatasetID);
+            if(!mt)
             {
                 VFVSERVER_SUB_DATASET_NOT_FOUND(scale.datasetID, scale.subDatasetID)
                 return;
             }
-
-            //Search for the meta data
-            SubDataset* sd = dataset->getSubDataset(scale.subDatasetID);
-            sdMetaData = getSubDatasetMetaData(client, sd);
-
-            if(!sdMetaData)
-                return;
-
-            if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
-            {
-                sdMetaData->getPublicSubDataset()->setScale(glm::vec3(scale.scale[0], scale.scale[1], scale.scale[2]));
-
-                //Find the subdataset meta data and update it
-                MetaData* mt = updateMetaDataModification(client, scale.datasetID, scale.subDatasetID);
-                if(!mt)
-                {
-                    VFVSERVER_SUB_DATASET_NOT_FOUND(scale.datasetID, scale.subDatasetID)
-                    return;
-                }
-            }
-            else
-                sdMetaData->getPrivateSubDataset().setScale(glm::vec3(scale.scale[0], scale.scale[1], scale.scale[2]));
         }
+        sd->setScale(glm::vec3(scale.scale[0], scale.scale[1], scale.scale[2]));
 
         //Set the headsetID
-        if(client->isTablet() && client->getTabletData().headset)
-            scale.headsetID = client->getTabletData().headset->getHeadsetData().id;
-        else if(client->isHeadset())
-            scale.headsetID = client->getHeadsetData().id;
+        if(client)
+        {
+            if(client->isTablet() && client->getTabletData().headset)
+                scale.headsetID = client->getTabletData().headset->getHeadsetData().id;
+            else if(client->isHeadset())
+                scale.headsetID = client->getHeadsetData().id;
+        }
 
         //Send to all if public
-        std::lock_guard<std::mutex> lock(m_mapMutex);
-        if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+        if(scale.inPublic)
         {
             for(auto& clt : m_clientTable)
                 if(clt.second != client)
@@ -763,7 +885,7 @@ namespace sereno
         }
 
         //Send just to the connected device counterpart if private
-        else
+        else if(client)
         {
             if(client->isTablet() && client->getTabletData().headset)
                 sendScaleDatasetEvent(client->getTabletData().headset, scale);
@@ -882,37 +1004,95 @@ namespace sereno
 
             //Search for the meta data
             SubDataset* sd = dataset->getSubDataset(anchorAnnot.subDatasetID);
-            sdMetaData = getSubDatasetMetaData(client, sd);
 
-            if(!sdMetaData)
-                return;
+            if(!anchorAnnot.inPublic)
+            {
+                sdMetaData = getSubDatasetMetaData(client, sd);
+                if(!sdMetaData)
+                    return;
 
-            if(sdMetaData->getVisibility() == VISIBILITY_PUBLIC)
-            {
-                annotID = sdMetaData->getPublicSubDataset()->getAnnotations().size();
-                sdMetaData->getPublicSubDataset()->emplaceAnnotation(640, 640, anchorAnnot.localPos);
+                sd = &sdMetaData->getPrivateSubDataset();
             }
-            else
-            {
-                annotID = sdMetaData->getPrivateSubDataset().getAnnotations().size();
-                sdMetaData->getPrivateSubDataset().emplaceAnnotation(640, 640, anchorAnnot.localPos);
-            }
+            annotID = sd->getAnnotations().size();
+            sd->emplaceAnnotation(640, 640, anchorAnnot.localPos);
         }
 
         std::lock_guard<std::mutex> mapLock(m_mapMutex);
         anchorAnnot.headsetID    = headsetID;
         anchorAnnot.annotationID = annotID;
 
-        for(auto& clt : m_clientTable)
-            sendAnchorAnnotation(clt.second, anchorAnnot);
+        if(anchorAnnot.inPublic)
+        {
+            for(auto& clt : m_clientTable)
+                sendAnchorAnnotation(clt.second, anchorAnnot);
+        }
+        else
+        {
+            if(client->isTablet() && client->getTabletData().headset)
+                sendAnchorAnnotation(client->getTabletData().headset, anchorAnnot);
+            else if(client->isHeadset() && client->getHeadsetData().tablet)
+                sendAnchorAnnotation(client->getHeadsetData().tablet, anchorAnnot);
+        }
     }
 
     void VFVServer::onClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnots)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
-        std::lock_guard<std::mutex> lock2(m_mapMutex);     //Ensute that no one is modifying the list of clients (and relevant information)
-        for(auto& clt : m_clientTable)
-            sendClearAnnotations(clt.second, clearAnnots);
+
+        Dataset* dataset = getDataset(clearAnnots.datasetID, clearAnnots.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(clearAnnots.datasetID, clearAnnots.subDatasetID)
+            return;
+        }
+
+        //Search for the meta data
+        SubDataset* sd = dataset->getSubDataset(clearAnnots.subDatasetID);
+        if(sd == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(clearAnnots.datasetID, clearAnnots.subDatasetID)
+            return;
+        }
+
+        //Delete the annotations in the particular dataset
+        if(clearAnnots.inPublic) //Message in the public space (no matter if server or client)
+        {
+            while(sd->getAnnotations().size())
+                sd->removeAnnotation(sd->getAnnotations().begin());
+        }
+
+        else if(client != NULL) //If not the server (then the client)
+        {
+            SubDatasetHeadsetInformation* sdMetaData = getSubDatasetMetaData(client, sd);
+
+            if(!sdMetaData)
+                return;
+            sd = &sdMetaData->getPrivateSubDataset();
+            while(sd->getAnnotations().size())
+                sd->removeAnnotation(sd->getAnnotations().begin());
+        }
+
+        else
+        {
+            WARNING << "Could not clear annotations in a non public space with client == NULL\n";
+            return;
+        }
+
+
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
+        if(clearAnnots.inPublic)
+        {
+            for(auto& clt : m_clientTable)
+                sendClearAnnotations(clt.second, clearAnnots);
+        }
+
+        else if(client)
+        {
+            if(client->isTablet() && client->getTabletData().headset)
+                sendClearAnnotations(client->getTabletData().headset, clearAnnots);
+            else if(client->isHeadset() && client->getHeadsetData().tablet)
+                sendClearAnnotations(client->getHeadsetData().tablet, clearAnnots);
+        }
     }
 
 #ifdef CHI2020
@@ -922,7 +1102,10 @@ namespace sereno
 
         //Check alreay in next state
         if(m_waitSendNextTrial)
+        {
+            INFO << "Already waiting for the next trial to come. Discard.\n";
             return;
+        }
 
         //Check the client. Is it a tablet?
         if(!client->isTablet())
@@ -942,26 +1125,8 @@ namespace sereno
         {
             if(id != m_currentTabletTrial)
             {
-                WARNING << "Expected the tablet ID %d to send the next trial...\n";
+                WARNING << "Expected the tablet ID " << id << " to send the next trial...\n";
                 return;
-            }
-
-            else if(client->getTabletData().headset == NULL)
-            {
-                WARNING << "Excepted the tablet to be connected to a headset...\n";
-                return;
-            }
-
-            //Send the next trial only if all the tablet finished the training
-            if(m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining)
-            {
-                INFO << "Received the next trial command by tablet ID " << id << std::endl;
-                m_waitSendNextTrial = true;
-
-                double normalized = rand() / std::nextafter(double(RAND_MAX), DBL_MAX);
-                int rnd = SLEEP_NEXTTRIAL_MIN_TIME + int(normalized * (SLEEP_NEXTTRIAL_MAX_TIME-SLEEP_NEXTTRIAL_MIN_TIME+1));
-
-                m_msWaitNextTrialTime = getTimeOffset() + rnd;
             }
         }
         else
@@ -969,6 +1134,14 @@ namespace sereno
             INFO << "Tablet ID " << id << " has finished the training\n";
             m_trialTabletData[id].finishTraining = true;
             sendEmptyMessage(client, VFV_SEND_ACK_END_TRAINING);
+        }
+
+        //Send the next trial only if all the tablet finished the training
+        if(m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining && id == m_currentTabletTrial)
+        {
+            INFO << "Received the next trial command by tablet ID " << id << std::endl;
+            m_msWaitNextTrialTime = getTimeOffset() + TRIAL_WAITING_TIME;
+            m_waitSendNextTrial = true;
         }
     }
 #endif
@@ -1209,6 +1382,10 @@ namespace sereno
         if(client->isHeadset())
             sendAnchoring(client);
 
+        //Send next trial data
+#ifdef CHI2020
+        sendNextTrialDataCHI2020(client);
+#endif
     }
 
     void VFVServer::sendAllDatasetVisibility(VFVClientSocket* client)
@@ -1281,7 +1458,7 @@ endFor:
 
     void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset)
     {
-        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint8_t) + 2*sizeof(uint32_t));
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint8_t) + 3*sizeof(uint32_t));
         uint32_t offset = 0;
 
         //Type
@@ -1292,12 +1469,15 @@ endFor:
         uint32_t color = 0x000000;
         bool tabletConnected = false;
         uint8_t firstConnected = 0;
+        uint32_t tabletID = -1;
 
         if(headset)
         {
             id = headset->getHeadsetData().id;
             color = headset->getHeadsetData().color;
             tabletConnected = headset->getHeadsetData().tablet != NULL;
+            if(tabletConnected)
+                tabletID = headset->getHeadsetData().tablet->getTabletData().number;
         }
 
         //Headset ID
@@ -1310,6 +1490,10 @@ endFor:
 
         //Tablet connected
         data[offset++] = tabletConnected;
+
+        //Tablet ID
+        writeUint32(data+offset, tabletID);
+        offset += sizeof(uint32_t);
 
         if(m_headsetAnchorClient == NULL)
         {
@@ -1330,8 +1514,7 @@ endFor:
             if(firstConnected && client == headset) //Send only if we are discussing with the headset and not the tablet
                 m_headsetAnchorClient = headset;
         }
-        data[offset] = firstConnected;
-        offset++;
+        data[offset++] = firstConnected;
         
         INFO << "Sending HEADSET BINDING INFO Event data\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
@@ -1346,6 +1529,7 @@ endFor:
             m_log << ",    \"headsetID\" : " << id << ",\n"
                   << "    \"color\" : " << color << ",\n"
                   << "    \"tabletConnected\" : " << tabletConnected << ",\n"
+                  << "    \"tabletID\" : " << tabletID << ",\n"
                   << "    \"firstConnected\" : " << (bool)firstConnected << "\n"
                   << "},\n";
         }
@@ -1362,7 +1546,7 @@ endFor:
         //Send segment by segment
         for(auto& itSegment : m_anchorData.getSegmentData())
         {
-            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t)+itSegment.dataSize);
+            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t)+sizeof(uint32_t));
             uint32_t offset = 0;
 
             //Header
@@ -1372,13 +1556,15 @@ endFor:
             writeUint32(data+offset, itSegment.dataSize);
             offset += sizeof(uint32_t);
 
-            for(uint32_t i = 0; i < itSegment.dataSize; i++)
-                data[offset+i] = itSegment.data.get()[i];
-            offset += itSegment.dataSize;
-
+            //Header message
             std::shared_ptr<uint8_t> sharedData(data, free);
             SocketMessage<int> sm(client->socket, sharedData, offset);
             writeMessage(sm);
+
+            //Segment message
+            std::shared_ptr<uint8_t> sharedDataSegment(itSegment.data.get(), emptyFree);
+            SocketMessage<int> smSegment(client->socket, sharedDataSegment, itSegment.dataSize);
+            writeMessage(smSegment);
 
 #ifdef VFV_LOG_DATA
             VFVDefaultByteArray byteArr;
@@ -1391,24 +1577,8 @@ endFor:
 #endif
         }
 
-        //Send end of anchor
-        uint8_t* data = (uint8_t*)malloc(sizeof(uint8_t)*2);
-        writeUint16(data, VFV_SEND_HEADSET_ANCHOR_EOF);
-        std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, sizeof(uint16_t));
-        writeMessage(sm);
-
+        sendEmptyMessage(client, VFV_SEND_HEADSET_ANCHOR_EOF);
         client->getHeadsetData().anchoringSent = true;
-
-#ifdef VFV_LOG_DATA
-        VFVNoDataInformation noData;
-        noData.type = VFV_SEND_HEADSET_ANCHOR_SEGMENT;
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-        }
-#endif
-
     }
 
     void VFVServer::sendAnchoring()
@@ -1480,6 +1650,10 @@ endFor:
         offset += sizeof(uint32_t);
 
         std::shared_ptr<uint8_t> sharedData(data, free);
+
+#ifdef VFV_LOG_DATA
+        m_log << visibility.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
         
         INFO << "Sending new visibility : " << visibility.visibility << std::endl;
         SocketMessage<int> sm(client->socket, sharedData, offset);
@@ -1506,6 +1680,10 @@ endFor:
         data[offset++] = startAnnot.inPublic;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
+
+#ifdef VFV_LOG_DATA
+        m_log << startAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
 
         INFO << "Sending start annotation \n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
@@ -1542,6 +1720,10 @@ endFor:
 
         std::shared_ptr<uint8_t> sharedData(data, free);
 
+#ifdef VFV_LOG_DATA
+        m_log << anchorAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
+
         INFO << "Sending anchor annotation " << anchorAnnot.localPos[0] << "x" << anchorAnnot.localPos[1] << "x" << anchorAnnot.localPos[2] << "\n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
@@ -1549,7 +1731,7 @@ endFor:
 
     void VFVServer::sendClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnot)
     {
-        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint32_t));
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint32_t) + sizeof(uint8_t));
         uint32_t offset = 0;
 
         //ID
@@ -1564,20 +1746,25 @@ endFor:
         writeUint32(data+offset, clearAnnot.subDatasetID);
         offset += sizeof(uint32_t);
 
+        data[offset++] = clearAnnot.inPublic;
+
         std::shared_ptr<uint8_t> sharedData(data, free);
 
         INFO << "Sending clear annotation \n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
+#ifdef VFV_LOG_DATA
         m_log << clearAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+#endif
     }
 
 #ifdef CHI2020
     void VFVServer::sendNextTrialDataCHI2020(VFVClientSocket* client)
     {
-        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint32_t) + 3*sizeof(float));
+        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 4*sizeof(uint32_t) + 3*sizeof(float));
         uint32_t offset = 0;
+        uint32_t currentTechnique = m_trialTabletData[m_currentTabletTrial].techniqueOrder[m_currentTechniqueIdx];
 
         //ID
         writeUint16(data, VFV_SEND_NEXT_TRIAL_DATA_CHI2020);
@@ -1591,10 +1778,17 @@ endFor:
         writeUint32(data+offset, m_currentTrialID);
         offset += sizeof(uint32_t);
 
+        //The current study (1 or 2)
+        writeUint32(data+offset, m_currentStudyID);
+        offset += sizeof(uint32_t);
+
+        //The current interaction technique to use
+        writeUint32(data+offset, currentTechnique);
+        offset += sizeof(uint32_t);
+
         //The annotation's position
         for(uint32_t i = 0; i < 3; i++, offset += sizeof(float))
             writeFloat(data+offset, m_trialAnnotationPos[i]);
-
 
         INFO << "Sending a next trial message data\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
@@ -1603,9 +1797,11 @@ endFor:
 
 #ifdef VFV_LOG_DATA
         VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendNextTrial");
-        m_log << ",    \"currentTabletID\" : " << m_currentTabletTrial << ",\n"
+        m_log << ",    \"currentTabletID\" : " << (int)m_currentTabletTrial << ",\n"
               << "    \"currentTrialID\" : " << m_currentTrialID << ",\n"
-              << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "\n"
+              << "    \"currentStudyID\" : " << m_currentStudyID << ",\n"
+              << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "],\n"
+              << "    \"currentTechnique\" : " << currentTechnique << "\n"
               << "},\n";
 #endif
     }
@@ -1637,7 +1833,10 @@ endFor:
 
                 {
                     std::lock_guard<std::mutex> logLock(m_logMutex);
-                    m_log << msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+                    std::string str = msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset());
+
+                    if(str.size())
+                        m_log << str << ",\n";
                 }
 #endif
             }
@@ -1698,7 +1897,9 @@ endFor:
                         return;
                     }
                     INFO << "Receiving end of anchoring data : " << msg.anchoringDataStatus.succeed << std::endl;
-                    std::lock_guard<std::mutex> lock(m_mapMutex);
+                    std::lock_guard<std::mutex> lock(m_datasetMutex); //No dataset must be touched while we transmit anchor data
+                    std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
                     m_anchorData.finalize(msg.anchoringDataStatus.succeed);
 
                     if(msg.anchoringDataStatus.succeed == false)
@@ -1800,6 +2001,7 @@ endFor:
                 {
                     if(m_anchorData.isCompleted())
                     {
+                        std::lock_guard<std::mutex> lock2(m_datasetMutex);
                         std::lock_guard<std::mutex> lock(m_mapMutex);
                         //Send HEADSETS_STATUS
                         for(auto it : m_clientTable)
@@ -1812,12 +2014,13 @@ endFor:
                             //Type
                             writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
                             offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
-
+#ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
                             std::lock_guard<std::mutex> logLock(m_logMutex);
                             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
                             m_log << ",    \"status\" : [";
                             bool logAdded = false;
+#endif
 #endif
                             for(auto& it2 : m_clientTable)
                             {
@@ -1868,9 +2071,11 @@ endFor:
                                     for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
                                         writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
 
+#ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
                                     if(logAdded)
                                         m_log << ", ";
+
                                     m_log << "{\n"
                                           << "    \"id\" : " << headsetData.id << ",\n"
                                           << "    \"color\" : " << headsetData.color << ",\n"
@@ -1886,13 +2091,16 @@ endFor:
                                           << "}\n";
                                     logAdded = true;
 #endif
+#endif
 
                                     nbHeadset++;
                                 }
                             }
 
+#ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
                             m_log << "]},\n";
+#endif
 #endif
 
                             //Write the number of headset to take account of
@@ -1911,7 +2119,6 @@ endFor:
 
                 //Check owner ending time
                 {
-                    std::lock_guard<std::mutex> lock2(m_datasetMutex);
                     for(auto& it : m_vtkDatasets)
                     {
                         for(auto& it2 : it.second.sdMetaData)
@@ -1950,7 +2157,16 @@ endFor:
                 //Sleep for that much time
                 time_t targetSleep = m_msWaitNextTrialTime;
                 m_datasetMutex.unlock();
-                usleep(getTimeOffset() - targetSleep);
+
+                if(getTimeOffset() > targetSleep)
+                    usleep(getTimeOffset() - targetSleep);
+
+                VFVClearAnnotations clrAnnot;
+                clrAnnot.datasetID    = 0;
+                clrAnnot.subDatasetID = 0;
+                clrAnnot.inPublic     = -1;
+
+                onClearAnnotations(NULL, clrAnnot);
 
                 m_datasetMutex.lock();
                 {
@@ -1959,12 +2175,42 @@ endFor:
                     //Search for the next "tablet" and "headset" to be able to visualize the anchor
                     m_currentTabletTrial = (m_currentTabletTrial+1)%2;
 
-                    //Search what will be the next annotation's position
-                    for(int i = 0; i < 3; i++)
+                    if((m_currentStudyID == 1 && m_currentTrialID >= TRIAL_NUMBER_STUDY_1) ||
+                       (m_currentStudyID == 2 && m_currentTrialID >= TRIAL_NUMBER_STUDY_2))
                     {
-                        double pos = rand() / std::nextafter(double(RAND_MAX), DBL_MAX) - 0.5;
-                        m_trialAnnotationPos[i] = pos;
+                        m_currentTrialID = 0;
+                        m_currentTabletTrial = 1;
+
+                        if(m_currentTechniqueIdx == 3)
+                        {
+                            INFO << "\n---------------\n";
+                            INFO << "SWITCHING STUDY\n";
+                            INFO << "---------------\n";
+                            m_currentStudyID++;
+                            m_currentTechniqueIdx = 0;
+                        }
+                        else
+                            m_currentTechniqueIdx++;
                     }
+
+                    //Quit the training session
+                    else if(m_currentStudyID == 0)
+                    {
+                        m_currentStudyID = 1;
+                        m_currentTrialID = 0;
+                        m_currentTabletTrial = 0;
+                        m_currentTechniqueIdx = 0;
+                    }
+
+                    //Search what will be the next annotation's position
+                    if(m_currentStudyID == 1)
+                        for(int i = 0; i < 3; i++)
+                            m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy1[m_currentTrialID] + i];
+
+                    else if(m_currentStudyID == 2)
+                        for(int i = 0; i < 3; i++)
+                            m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy2[m_currentTrialID] + i];
+
 
                     //Send the message to everyone
                     {
@@ -1976,8 +2222,23 @@ endFor:
 
                     //No more trial to send for now
                     m_waitSendNextTrial = false;
+
+                    //We have finish the study. This is done after the whole computation because we need to send data information to all the devices
+                    if(m_currentStudyID == 3)
+                    {
+                        INFO << "\n--------------\n";
+                        INFO << "Study Finished\n";
+                        INFO << "--------------\n\n";
+                        m_datasetMutex.unlock();
+                        return;
+                    }
                 }
                 m_datasetMutex.unlock();
+            }
+            else
+            {
+                m_datasetMutex.unlock();
+                usleep(8);
             }
         }
     }

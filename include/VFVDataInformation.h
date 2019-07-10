@@ -824,6 +824,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
+#ifdef LOG_UPDATE_HEAD
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "UpdateHeadset");
             oss << ",    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
                 << "    \"rotation\" : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "],\n" 
@@ -834,6 +835,7 @@ namespace sereno
                 << "    \"pointingLocalSDPosition\" : [" << pointingLocalSDPosition[0] << "," << pointingLocalSDPosition[1] << "," << pointingLocalSDPosition[2] << "],\n"
                 << "    \"pointingHeadsetStartPosition\" : [" << pointingHeadsetStartPosition[0] << "," << pointingHeadsetStartPosition[1] << "," << pointingHeadsetStartPosition[2] << "]\n";
             VFV_END_TO_JSON(oss);
+#endif
 
             return oss.str();
         }
