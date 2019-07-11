@@ -547,6 +547,8 @@ namespace sereno
         std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
 
+        bool alreadyConnected = client->isHeadset();
+
         if(m_nbConnectedHeadsets >= MAX_NB_HEADSETS)
         {
             WARNING << "Too much headsets connected... Disconnecting this one\n";
@@ -569,18 +571,24 @@ namespace sereno
                     INFO << "Tablet found!\n";
                     client->getHeadsetData().tablet     = clt.second;
                     clt.second->getTabletData().headset = client;
+
+                    INFO << "Send the tablet the binding information\n";
+                    sendHeadsetBindingInfo(clt.second, client); //Send the tablet the binding information
+
                     break;
                 }
             }
         }
 
         //Set visualizable color
-        client->getHeadsetData().color = m_availableHeadsetColors.top();
-        m_availableHeadsetColors.pop();
+        if(!alreadyConnected)
+        {
+            client->getHeadsetData().color = m_availableHeadsetColors.top();
+            m_availableHeadsetColors.pop();
+            onLoginSendCurrentStatus(client);
+        }
 
-        onLoginSendCurrentStatus(client);
-
-        //Add current opened datasets
+        //Add meta data of current opened datasets
         {
             for(auto& it : m_datasets)
             {
@@ -974,8 +982,14 @@ namespace sereno
 
     void VFVServer::onAnchorAnnotation(VFVClientSocket* client, VFVAnchorAnnotation& anchorAnnot)
     {
+        if(!client && !anchorAnnot.inPublic)
+        {
+            WARNING << "Attending to write a private annotation without a client...\n";
+            return;
+        }
         uint32_t annotID = 0;
-        uint32_t headsetID = 0;
+        uint32_t headsetID = -1;
+        if(client != NULL) //Not the server
         {
             std::lock_guard<std::mutex> mapLock(m_mapMutex);
             //Search for the headset ID
@@ -985,14 +999,12 @@ namespace sereno
             else if(client->isHeadset())
                 headsetData = &client->getHeadsetData();
 
-            headsetID = headsetData->id;
-
             if(!headsetData)
                 return;
+            headsetID = headsetData->id;
         }
 
         //Add the annotation first
-        SubDatasetHeadsetInformation* sdMetaData  = NULL;
         {
             std::lock_guard<std::mutex> datasetLock(m_datasetMutex);
             Dataset* dataset = getDataset(anchorAnnot.datasetID, anchorAnnot.subDatasetID);
@@ -1007,6 +1019,7 @@ namespace sereno
 
             if(!anchorAnnot.inPublic)
             {
+                SubDatasetHeadsetInformation* sdMetaData  = NULL;
                 sdMetaData = getSubDatasetMetaData(client, sd);
                 if(!sdMetaData)
                     return;
@@ -2158,13 +2171,13 @@ endFor:
                 time_t targetSleep = m_msWaitNextTrialTime;
                 m_datasetMutex.unlock();
 
-                if(getTimeOffset() > targetSleep)
-                    usleep(getTimeOffset() - targetSleep);
+                if(getTimeOffset() < targetSleep)
+                    usleep(targetSleep-getTimeOffset());
 
                 VFVClearAnnotations clrAnnot;
                 clrAnnot.datasetID    = 0;
                 clrAnnot.subDatasetID = 0;
-                clrAnnot.inPublic     = -1;
+                clrAnnot.inPublic     = 1;
 
                 onClearAnnotations(NULL, clrAnnot);
 
