@@ -285,7 +285,7 @@ namespace sereno
             time_t   m_msWaitNextTrialTime;        /*!< At what time should the next trial be launched ? (based on getTimeOffset()) */
 
             uint8_t  m_currentTabletTrial = 1;  /*!< Who is the current tablet to be able to do the trial?*/
-            uint32_t m_currentTrialID = 0;      /*!< The current trial ID*/
+            int32_t  m_currentTrialID = -1;     /*!< The current trial ID. Can be -1*/
             uint32_t m_currentStudyID = 0;      /*!< The current study ID*/
             uint32_t m_currentTechniqueIdx = 0; /* !< The current technique index to use to determine which technique to use in the current trial.*/
 

@@ -210,7 +210,7 @@ namespace sereno
                             if(arrBufferIdx == uint32Buffer.getValue() && arrBuffer)
                             {
                                 uint32Buffer.clear();
-                                if(!info->pushValue(m_cursor, std::shared_ptr<uint8_t>(arrBuffer), arrBufferIdx))
+                                if(!info->pushValue(m_cursor, std::shared_ptr<uint8_t>(arrBuffer, free), arrBufferIdx))
                                 {
                                     arrBuffer = NULL;
                                     ERROR_VALUE
@@ -253,6 +253,10 @@ namespace sereno
             m_tablet.headsetAddr.sin_port = htons(CLIENT_PORT);
             INFO << "Bound to Headset IP " << headsetIP << " port " << CLIENT_PORT << std::endl;
         }
+        else
+        {
+            memset(&m_tablet.headsetAddr, 0, sizeof(SOCKADDR_IN));
+        }
         return true;
     }
 
@@ -260,8 +264,8 @@ namespace sereno
     bool VFVClientSocket::setAsHeadset()
     {
         new (&m_headset) VFVHeadsetData;
-        m_identityType = HEADSET;
         m_headset.id   = nextHeadsetID++;
+        m_identityType = HEADSET;
         return true;
     }
 

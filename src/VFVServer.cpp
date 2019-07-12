@@ -198,6 +198,8 @@ namespace sereno
 #endif
 
 #ifdef CHI2020
+        for(int i = 0; i < 3; i++)
+            m_trialAnnotationPos[i] = 0;
         //Get the current pair ID (go from 0 to MAX_INTERACTION_TECHNIQUE_NUMBER! - 1)
         INFO << "Please, enter the pair ID for the CHI 2020 user study\n";
         std::cin >> m_pairID;
@@ -384,6 +386,7 @@ namespace sereno
                 if(tablet)
                 {
                     tablet->getTabletData().headset = NULL;
+                    c->getHeadsetData().tablet = NULL;
                     sendHeadsetBindingInfo(tablet, NULL);
                 }
 
@@ -400,13 +403,13 @@ namespace sereno
                 INFO << "Disconnecting a tablet client\n";
 
                 //Disconnect with the headset as well
-                for(auto it : m_clientTable)
-                    if(it.second->isHeadset() && it.second->getHeadsetData().tablet == c)
-                    {
-                        it.second->getHeadsetData().tablet = NULL;
-                        sendHeadsetBindingInfo(it.second, it.second);
-                        break;
-                    }
+                VFVClientSocket* headset = c->getTabletData().headset;
+                if(headset)
+                {
+                    headset->getHeadsetData().tablet = NULL;
+                    c->getTabletData().headset = NULL;
+                    sendHeadsetBindingInfo(headset, headset);
+                }
             }
         m_mapMutex.unlock();
 
@@ -462,7 +465,6 @@ namespace sereno
                 mt->sdMetaData[sdID].hmdClient = client->getTabletData().headset;
 
                 //Send owner to all the clients
-                std::lock_guard<std::mutex> lock2(m_mapMutex);
                 sendSubDatasetOwner(&mt->sdMetaData[sdID]);
             }
         }
@@ -500,6 +502,7 @@ namespace sereno
         INFO << "Tablet connected.\n";
         std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
+
         if(!client->setAsTablet(identTablet.headsetIP))
         {
             VFVSERVER_NOT_A_TABLET
@@ -713,6 +716,7 @@ namespace sereno
     void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
 
         Dataset* dataset = getDataset(rotate.datasetID, rotate.subDatasetID);
         if(dataset == NULL)
@@ -755,8 +759,6 @@ namespace sereno
                 rotate.headsetID = client->getHeadsetData().id;
         }
 
-        std::lock_guard<std::mutex> lockMap(m_mapMutex);
-
         //Send to all if public
         if(rotate.inPublic)
         {
@@ -778,6 +780,7 @@ namespace sereno
     void VFVServer::translateSubDataset(VFVClientSocket* client, VFVMoveInformation& translate)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
 
         Dataset* dataset = getDataset(translate.datasetID, translate.subDatasetID);
         if(dataset == NULL)
@@ -819,8 +822,6 @@ namespace sereno
                 translate.headsetID = client->getHeadsetData().id;
         }
 
-        std::lock_guard<std::mutex> lockMap(m_mapMutex);
-
         //Send to all if public
         if(translate.inPublic)
         {
@@ -842,6 +843,7 @@ namespace sereno
     void VFVServer::scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
 
         Dataset* dataset = getDataset(scale.datasetID, scale.subDatasetID);
         if(dataset == NULL)
@@ -884,7 +886,6 @@ namespace sereno
         }
 
         //Send to all if public
-        std::lock_guard<std::mutex> lockMap(m_mapMutex);
         if(scale.inPublic)
         {
             for(auto& clt : m_clientTable)
@@ -905,6 +906,7 @@ namespace sereno
     void VFVServer::setVisibility(VFVClientSocket* client, const VFVVisibilityDataset& visibility)
     {
         //Look for the counterPart to notify and the headset data
+        std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
         VFVClientSocket* counterPart = NULL;
         VFVClientSocket* headset     = NULL;
@@ -970,6 +972,7 @@ namespace sereno
 
     void VFVServer::onStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)
     {
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
         if(!client->isTablet())
         {
             VFVSERVER_NOT_A_TABLET
@@ -982,6 +985,9 @@ namespace sereno
 
     void VFVServer::onAnchorAnnotation(VFVClientSocket* client, VFVAnchorAnnotation& anchorAnnot)
     {
+        std::lock_guard<std::mutex> datasetLock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
         if(!client && !anchorAnnot.inPublic)
         {
             WARNING << "Attending to write a private annotation without a client...\n";
@@ -991,7 +997,6 @@ namespace sereno
         uint32_t headsetID = -1;
         if(client != NULL) //Not the server
         {
-            std::lock_guard<std::mutex> mapLock(m_mapMutex);
             //Search for the headset ID
             VFVHeadsetData* headsetData = NULL;
             if(client->isTablet() && client->getTabletData().headset)
@@ -1006,7 +1011,6 @@ namespace sereno
 
         //Add the annotation first
         {
-            std::lock_guard<std::mutex> datasetLock(m_datasetMutex);
             Dataset* dataset = getDataset(anchorAnnot.datasetID, anchorAnnot.subDatasetID);
             if(dataset == NULL)
             {
@@ -1030,7 +1034,6 @@ namespace sereno
             sd->emplaceAnnotation(640, 640, anchorAnnot.localPos);
         }
 
-        std::lock_guard<std::mutex> mapLock(m_mapMutex);
         anchorAnnot.headsetID    = headsetID;
         anchorAnnot.annotationID = annotID;
 
@@ -1051,6 +1054,7 @@ namespace sereno
     void VFVServer::onClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnots)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
 
         Dataset* dataset = getDataset(clearAnnots.datasetID, clearAnnots.subDatasetID);
         if(dataset == NULL)
@@ -1092,7 +1096,6 @@ namespace sereno
         }
 
 
-        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
         if(clearAnnots.inPublic)
         {
             for(auto& clt : m_clientTable)
@@ -1112,6 +1115,7 @@ namespace sereno
     void VFVServer::onNextTrial(VFVClientSocket* client)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lock2(m_mapMutex);
 
         //Check alreay in next state
         if(m_waitSendNextTrial)
@@ -1144,7 +1148,7 @@ namespace sereno
         }
         else
         {
-            INFO << "Tablet ID " << id << " has finished the training\n";
+            INFO << "Tablet ID " << id << " has finished the training or break\n";
             m_trialTabletData[id].finishTraining = true;
             sendEmptyMessage(client, VFV_SEND_ACK_END_TRAINING);
         }
@@ -1170,7 +1174,7 @@ namespace sereno
 
         INFO << "Sending EMPTY MESSAGE Event data. Type : " << type << std::endl;
         std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, sizeof(int16_t));
+        SocketMessage<int> sm(client->socket, sharedData, sizeof(uint16_t));
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
@@ -1224,7 +1228,7 @@ namespace sereno
 
         INFO << "Sending ADD VTK DATASET Event data. File : " << dataset.name << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
@@ -1261,7 +1265,7 @@ namespace sereno
         INFO << "Sending ROTATE DATASET Event data. Data : " << rotate.datasetID << " sdID : " << rotate.subDatasetID
              << " Q = " << rotate.quaternion[0] << " " << rotate.quaternion[1] << " " << rotate.quaternion[2] << " " << rotate.quaternion[3] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
@@ -1298,7 +1302,7 @@ namespace sereno
         INFO << "Sending SCALE DATASET Event data DatasetID " << scale.datasetID << " SubDataset ID " << scale.subDatasetID << " ["
              << scale.scale[0] << ", " << scale.scale[1] << ", " << scale.scale[2] << "]\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
@@ -1334,7 +1338,7 @@ namespace sereno
 
         INFO << "Sending MOVE DATASET Event data Dataset ID " << position.datasetID << " sdID : " << position.subDatasetID << " position : [" << position.position[0] << ", " << position.position[1] << ", " << position.position[2] << "]\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, dataSize);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
@@ -1604,7 +1608,7 @@ endFor:
     void VFVServer::sendSubDatasetOwner(SubDatasetMetaData* metaData)
     {
         //Generate the data
-        uint8_t* data   = (uint8_t*)malloc(sizeof(uint8_t)*2+3*4);
+        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 3*sizeof(uint32_t));
         uint32_t offset = 0;
 
         writeUint16(data, VFV_SEND_SUBDATASET_OWNER);
@@ -1665,7 +1669,10 @@ endFor:
         std::shared_ptr<uint8_t> sharedData(data, free);
 
 #ifdef VFV_LOG_DATA
-        m_log << visibility.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << visibility.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
         
         INFO << "Sending new visibility : " << visibility.visibility << std::endl;
@@ -1695,7 +1702,10 @@ endFor:
         std::shared_ptr<uint8_t> sharedData(data, free);
 
 #ifdef VFV_LOG_DATA
-        m_log << startAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << startAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
 
         INFO << "Sending start annotation \n";
@@ -1734,7 +1744,10 @@ endFor:
         std::shared_ptr<uint8_t> sharedData(data, free);
 
 #ifdef VFV_LOG_DATA
-        m_log << anchorAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << anchorAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
 
         INFO << "Sending anchor annotation " << anchorAnnot.localPos[0] << "x" << anchorAnnot.localPos[1] << "x" << anchorAnnot.localPos[2] << "\n";
@@ -1768,7 +1781,10 @@ endFor:
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-        m_log << clearAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << clearAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+        }
 #endif
     }
 
@@ -1809,13 +1825,16 @@ endFor:
         writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendNextTrial");
-        m_log << ",    \"currentTabletID\" : " << (int)m_currentTabletTrial << ",\n"
-              << "    \"currentTrialID\" : " << m_currentTrialID << ",\n"
-              << "    \"currentStudyID\" : " << m_currentStudyID << ",\n"
-              << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "],\n"
-              << "    \"currentTechnique\" : " << currentTechnique << "\n"
-              << "},\n";
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendNextTrial");
+            m_log << ",    \"currentTabletID\" : " << (int)m_currentTabletTrial << ",\n"
+                  << "    \"currentTrialID\" : " << m_currentTrialID << ",\n"
+                  << "    \"currentStudyID\" : " << m_currentStudyID << ",\n"
+                  << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "],\n"
+                  << "    \"currentTechnique\" : " << currentTechnique << "\n"
+                  << "},\n";
+        }
 #endif
     }
 #endif
@@ -1916,7 +1935,11 @@ endFor:
                     m_anchorData.finalize(msg.anchoringDataStatus.succeed);
 
                     if(msg.anchoringDataStatus.succeed == false)
+                    {
+                        INFO << "Asking for a new anchor\n";
+                        m_headsetAnchorClient = NULL;
                         askNewAnchor();
+                    }
                     else
                     {
                         client->getHeadsetData().anchoringSent = true;
@@ -2011,119 +2034,122 @@ endFor:
             if(getBytesInWriting() < (1<<16))
             {
                 unlockWriteThread();
+                if(m_anchorData.isCompleted())
                 {
-                    if(m_anchorData.isCompleted())
+                    std::lock_guard<std::mutex> lock2(m_datasetMutex);
+                    std::lock_guard<std::mutex> lock(m_mapMutex);
+                    //Send HEADSETS_STATUS
+                    for(auto it : m_clientTable)
                     {
-                        std::lock_guard<std::mutex> lock2(m_datasetMutex);
-                        std::lock_guard<std::mutex> lock(m_mapMutex);
-                        //Send HEADSETS_STATUS
-                        for(auto it : m_clientTable)
+                        if(!it.second->isTablet() && !it.second->isHeadset())
+                            continue;
+
+                        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
+                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 6*sizeof(float)));
+                        uint32_t offset    = 0;
+                        uint32_t nbHeadset = 0;
+
+                        //Type
+                        writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
+                        offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
+#ifdef LOG_UPDATE_HEAD
+#ifdef VFV_LOG_DATA
+                        m_logMutex.lock();
+                        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
+                        m_log << ",    \"status\" : [";
+                        bool logAdded = false;
+#endif
+#endif
+                        for(auto& it2 : m_clientTable)
                         {
-                            uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
-                                                             MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 6*sizeof(float)));
-                            uint32_t offset    = 0;
-                            uint32_t nbHeadset = 0;
-
-                            //Type
-                            writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
-                            offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
-#ifdef LOG_UPDATE_HEAD
-#ifdef VFV_LOG_DATA
-                            std::lock_guard<std::mutex> logLock(m_logMutex);
-                            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
-                            m_log << ",    \"status\" : [";
-                            bool logAdded = false;
-#endif
-#endif
-                            for(auto& it2 : m_clientTable)
+                            if(it2.second->isHeadset())
                             {
-                                if(it2.second->isHeadset())
-                                {
-                                    VFVHeadsetData& headsetData = it2.second->getHeadsetData();
+                                VFVHeadsetData& headsetData = it2.second->getHeadsetData();
 
-                                    //ID
-                                    writeUint32(data+offset, headsetData.id);
-                                    offset += sizeof(uint32_t);
+                                //ID
+                                writeUint32(data+offset, headsetData.id);
+                                offset += sizeof(uint32_t);
 
-                                    //Color
-                                    writeUint32(data+offset, headsetData.color);
-                                    offset += sizeof(uint32_t);
+                                //Color
+                                writeUint32(data+offset, headsetData.color);
+                                offset += sizeof(uint32_t);
 
-                                    //Current action
-                                    writeUint32(data+offset, headsetData.currentAction);
-                                    offset += sizeof(uint32_t);
+                                //Current action
+                                writeUint32(data+offset, headsetData.currentAction);
+                                offset += sizeof(uint32_t);
 
-                                    //Position
-                                    for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                        writeFloat(data+offset, headsetData.position[i]);
+                                //Position
+                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, headsetData.position[i]);
 
-                                    //Rotation
-                                    for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
-                                        writeFloat(data+offset, headsetData.rotation[i]);
+                                //Rotation
+                                for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, headsetData.rotation[i]);
 
-                                    //Pointing IT
-                                    writeUint32(data+offset, headsetData.pointingData.pointingIT);
-                                    offset += sizeof(uint32_t);
+                                //Pointing IT
+                                writeUint32(data+offset, headsetData.pointingData.pointingIT);
+                                offset += sizeof(uint32_t);
 
-                                    //Pointing Dataset ID
-                                    writeUint32(data+offset, headsetData.pointingData.datasetID);
-                                    offset += sizeof(uint32_t);
+                                //Pointing Dataset ID
+                                writeUint32(data+offset, headsetData.pointingData.datasetID);
+                                offset += sizeof(uint32_t);
 
-                                    //Pointing SubDataset ID
-                                    writeUint32(data+offset, headsetData.pointingData.subDatasetID);
-                                    offset += sizeof(uint32_t);
+                                //Pointing SubDataset ID
+                                writeUint32(data+offset, headsetData.pointingData.subDatasetID);
+                                offset += sizeof(uint32_t);
 
-                                    //Pointing done in public space?
-                                    data[offset++] = headsetData.pointingData.pointingInPublic ? 1 : 0;
+                                //Pointing done in public space?
+                                data[offset] = headsetData.pointingData.pointingInPublic ? 1 : 0;
+                                offset++;
 
-                                    //Pointing local SD position
-                                    for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                        writeFloat(data+offset, headsetData.pointingData.localSDPosition[i]);
+                                //Pointing local SD position
+                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, headsetData.pointingData.localSDPosition[i]);
 
-                                    //Pointing headset starting position
-                                    for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                        writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
+                                //Pointing headset starting position
+                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
 
 #ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
-                                    if(logAdded)
-                                        m_log << ", ";
+                                if(logAdded)
+                                    m_log << ", ";
 
-                                    m_log << "{\n"
-                                          << "    \"id\" : " << headsetData.id << ",\n"
-                                          << "    \"color\" : " << headsetData.color << ",\n"
-                                          << "    \"currentAction\" : " << headsetData.currentAction << ",\n"
-                                          << "    \"position\" : [" << headsetData.position[0] << ", " << headsetData.position[1] << ", " << headsetData.position[2] << "],\n"
-                                          << "    \"rotation\" : [" << headsetData.rotation[0] << ", " << headsetData.rotation[1] << ", " << headsetData.rotation[2] << ", " << headsetData.rotation[3] << "],\n"
-                                          << "    \"pointingIT\" : " << headsetData.pointingData.pointingIT << ",\n"
-                                          << "    \"pointingDatasetID\" : " << headsetData.pointingData.datasetID << ",\n"
-                                          << "    \"pointingSubDatasetID\" : " << headsetData.pointingData.subDatasetID << ",\n"
-                                          << "    \"pointingInPublic\" : " << headsetData.pointingData.pointingInPublic << ",\n"
-                                          << "    \"pointingLocalSDPosition\" : [" << headsetData.pointingData.localSDPosition[0] << "," << headsetData.pointingData.localSDPosition[1] << "," << headsetData.pointingData.localSDPosition[2] << "],\n"
-                                          << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "]\n"
-                                          << "}\n";
-                                    logAdded = true;
+                                m_log << "{\n"
+                                      << "    \"id\" : " << headsetData.id << ",\n"
+                                      << "    \"color\" : " << headsetData.color << ",\n"
+                                      << "    \"currentAction\" : " << headsetData.currentAction << ",\n"
+                                      << "    \"position\" : [" << headsetData.position[0] << ", " << headsetData.position[1] << ", " << headsetData.position[2] << "],\n"
+                                      << "    \"rotation\" : [" << headsetData.rotation[0] << ", " << headsetData.rotation[1] << ", " << headsetData.rotation[2] << ", " << headsetData.rotation[3] << "],\n"
+                                      << "    \"pointingIT\" : " << headsetData.pointingData.pointingIT << ",\n"
+                                      << "    \"pointingDatasetID\" : " << headsetData.pointingData.datasetID << ",\n"
+                                      << "    \"pointingSubDatasetID\" : " << headsetData.pointingData.subDatasetID << ",\n"
+                                      << "    \"pointingInPublic\" : " << headsetData.pointingData.pointingInPublic << ",\n"
+                                      << "    \"pointingLocalSDPosition\" : [" << headsetData.pointingData.localSDPosition[0] << "," << headsetData.pointingData.localSDPosition[1] << "," << headsetData.pointingData.localSDPosition[2] << "],\n"
+                                      << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "]\n"
+                                      << "}\n";
+                                logAdded = true;
 #endif
 #endif
 
-                                    nbHeadset++;
-                                }
+                                nbHeadset++;
                             }
+                        }
 
 #ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
-                            m_log << "]},\n";
+                        m_log << "]},\n";
+                        m_logMutex.unlock();
 #endif
 #endif
 
-                            //Write the number of headset to take account of
-                            writeUint32(data+sizeof(uint16_t), nbHeadset);
+                        //Write the number of headset to take account of
+                        writeUint32(data+sizeof(uint16_t), nbHeadset);
 
-                            //Send the message to all
-                            std::shared_ptr<uint8_t> sharedData(data, free);
-                            SocketMessage<int> sm(it.first, sharedData, offset);
-                            writeMessage(sm);
-                        }
+                        //Send the message to all
+                        std::shared_ptr<uint8_t> sharedData(data, free);
+                        SocketMessage<int> sm(it.first, sharedData, offset);
+                        writeMessage(sm);
                     }
                 }
                 clock_gettime(CLOCK_REALTIME, &end);
@@ -2191,8 +2217,8 @@ endFor:
                     if((m_currentStudyID == 1 && m_currentTrialID >= TRIAL_NUMBER_STUDY_1) ||
                        (m_currentStudyID == 2 && m_currentTrialID >= TRIAL_NUMBER_STUDY_2))
                     {
-                        m_currentTrialID = 0;
-                        m_currentTabletTrial = 1;
+                        m_currentTrialID     = -1;
+                        m_currentTabletTrial = 1; //This will be a 0 after the end of the break
 
                         if(m_currentTechniqueIdx == 3)
                         {
@@ -2204,6 +2230,10 @@ endFor:
                         }
                         else
                             m_currentTechniqueIdx++;
+
+                        //This is for telling people that they can take a break
+                        m_trialTabletData[0].finishTraining = false;
+                        m_trialTabletData[1].finishTraining = false;
                     }
 
                     //Quit the training session
@@ -2216,13 +2246,21 @@ endFor:
                     }
 
                     //Search what will be the next annotation's position
-                    if(m_currentStudyID == 1)
+                    if(m_currentTrialID == -1)
+                    {
                         for(int i = 0; i < 3; i++)
-                            m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy1[m_currentTrialID] + i];
+                            m_trialAnnotationPos[i] = 0;
+                    }
+                    else
+                    {
+                        if(m_currentStudyID == 1)
+                            for(int i = 0; i < 3; i++)
+                                m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy1[m_currentTrialID] + i];
 
-                    else if(m_currentStudyID == 2)
-                        for(int i = 0; i < 3; i++)
-                            m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy2[m_currentTrialID] + i];
+                        else if(m_currentStudyID == 2)
+                            for(int i = 0; i < 3; i++)
+                                m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy2[m_currentTrialID] + i];
+                    }
 
 
                     //Send the message to everyone
