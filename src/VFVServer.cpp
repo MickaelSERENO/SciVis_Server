@@ -295,15 +295,6 @@ namespace sereno
         if(m_trialPositions)
             free(m_trialPositions);
 #endif
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CloseTheServer");
-            m_log << "        }\n"
-                  << "    ]\n"
-                  << "}";
-        }
-#endif
     }
 
     bool VFVServer::launch()
@@ -351,6 +342,15 @@ namespace sereno
             delete m_nextTrialThread;
             m_nextTrialThread = 0;
         }
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CloseTheServer");
+            m_log << "    ]\n"
+                  << "}";
+        }
+#endif
     }
 
     void VFVServer::closeClient(SOCKET client)
