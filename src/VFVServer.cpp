@@ -258,12 +258,12 @@ namespace sereno
         m_trialTabletData[0].tabletID = 0;
         m_trialTabletData[1].tabletID = 1;
 
+        uint32_t techniqueOrder[3] = {POINTING_GOGO, POINTING_WIM, POINTING_MANUAL};
+
         //Set the technique IDs
         for(uint32_t i = 0; i < 2; i++)
-        {
             for(uint32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER; j++)
-                m_trialTabletData[i].techniqueOrder[j] = (j+m_pairID)%MAX_INTERACTION_TECHNIQUE_NUMBER;
-        }
+                m_trialTabletData[i].techniqueOrder[j] = techniqueOrder[(j+m_pairID)%MAX_INTERACTION_TECHNIQUE_NUMBER];
 
         //Add the dataset the users will play with
         VFVVTKDatasetInformation vtkInfo;
@@ -387,7 +387,7 @@ namespace sereno
                 {
                     tablet->getTabletData().headset = NULL;
                     c->getHeadsetData().tablet = NULL;
-                    sendHeadsetBindingInfo(tablet, NULL);
+                    sendHeadsetBindingInfo(tablet);
                 }
 
                 if(m_headsetAnchorClient == c)
@@ -408,7 +408,7 @@ namespace sereno
                 {
                     headset->getHeadsetData().tablet = NULL;
                     c->getTabletData().headset = NULL;
-                    sendHeadsetBindingInfo(headset, headset);
+                    sendHeadsetBindingInfo(headset);
                 }
             }
         m_mapMutex.unlock();
@@ -485,7 +485,7 @@ namespace sereno
             for(auto it : m_clientTable)
                 if(it.second->isHeadset())
                 {
-                    sendHeadsetBindingInfo(it.second, it.second);
+                    sendHeadsetBindingInfo(it.second);
                     break;
                 }
         }
@@ -503,7 +503,7 @@ namespace sereno
         std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
 
-        if(!client->setAsTablet(identTablet.headsetIP))
+        if(!client->setAsTablet(identTablet.headsetIP, (VFVHandedness)identTablet.handedness))
         {
             VFVSERVER_NOT_A_TABLET
             return;
@@ -518,9 +518,9 @@ namespace sereno
         //Tell the old bound headset the tablet disconnection
         if(client->getTabletData().headset)
         {
-            sendHeadsetBindingInfo(client->getTabletData().headset, NULL);
             client->getTabletData().headset->getHeadsetData().tablet = NULL;
             client->getTabletData().headset = NULL;
+            sendHeadsetBindingInfo(client->getTabletData().headset);
         }
 
         //Useful if the packet was sent without headset information
@@ -534,8 +534,8 @@ namespace sereno
                     INFO << "Headset found!\n";
                     clt.second->getHeadsetData().tablet = client;
                     client->getTabletData().headset     = clt.second;
-                    sendHeadsetBindingInfo(clt.second, clt.second); //Send the headset the binding information
-                    sendHeadsetBindingInfo(client,     clt.second); //Send the tablet the binding information
+                    sendHeadsetBindingInfo(clt.second); //Send the headset the binding information
+                    sendHeadsetBindingInfo(client);     //Send the tablet the binding information
                     sendAllDatasetVisibility(client);
                     break;
                 }
@@ -576,7 +576,7 @@ namespace sereno
                     clt.second->getTabletData().headset = client;
 
                     INFO << "Send the tablet the binding information\n";
-                    sendHeadsetBindingInfo(clt.second, client); //Send the tablet the binding information
+                    sendHeadsetBindingInfo(clt.second); //Send the tablet the binding information
 
                     break;
                 }
@@ -1352,10 +1352,7 @@ namespace sereno
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
         //Send binding information
-        if(client->isHeadset())
-            sendHeadsetBindingInfo(client, client);
-        else if(client->isTablet())
-            sendHeadsetBindingInfo(client, client->getTabletData().headset);
+        sendHeadsetBindingInfo(client);
 
         //Send common data
         for(auto& it : m_vtkDatasets)
@@ -1473,9 +1470,23 @@ endFor:
 
     }
 
-    void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset)
+    void VFVServer::sendHeadsetBindingInfo(VFVClientSocket* client)
     {
-        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint8_t) + 3*sizeof(uint32_t));
+        VFVClientSocket* headset = NULL;
+        VFVClientSocket* tablet  = NULL;
+
+        if(client->isHeadset())
+        {
+            headset = client;
+            tablet  = client->getHeadsetData().tablet;
+        }
+        else if(client->isTablet())
+        {
+            headset = client->getTabletData().headset;
+            tablet  = client;
+        }
+
+        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + 2*sizeof(uint8_t) + 4*sizeof(uint32_t));
         uint32_t offset = 0;
 
         //Type
@@ -1484,17 +1495,22 @@ endFor:
 
         uint32_t id    = -1;
         uint32_t color = 0x000000;
-        bool tabletConnected = false;
-        uint8_t firstConnected = 0;
-        uint32_t tabletID = -1;
+        bool     tabletConnected = false;
+        uint8_t  firstConnected = 0;
+        uint32_t handedness = HANDEDNESS_RIGHT;
+        uint32_t tabletID   = -1;
 
         if(headset)
         {
-            id = headset->getHeadsetData().id;
+            id    = headset->getHeadsetData().id;
             color = headset->getHeadsetData().color;
-            tabletConnected = headset->getHeadsetData().tablet != NULL;
-            if(tabletConnected)
-                tabletID = headset->getHeadsetData().tablet->getTabletData().number;
+        }
+
+        if(tablet)
+        {
+            tabletConnected = true;
+            tabletID        = tablet->getTabletData().number;
+            handedness      = tablet->getTabletData().handedness;
         }
 
         //Headset ID
@@ -1507,6 +1523,10 @@ endFor:
 
         //Tablet connected
         data[offset++] = tabletConnected;
+
+        //Handedness
+        writeUint32(data+offset, handedness);
+        offset+=sizeof(uint32_t);
 
         //Tablet ID
         writeUint32(data+offset, tabletID);
@@ -1538,7 +1558,6 @@ endFor:
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-
 #ifdef VFV_LOG_DATA
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
@@ -1546,6 +1565,7 @@ endFor:
             m_log << ",    \"headsetID\" : " << id << ",\n"
                   << "    \"color\" : " << color << ",\n"
                   << "    \"tabletConnected\" : " << tabletConnected << ",\n"
+                  << "    \"handedness\" : " << handedness << ",\n"
                   << "    \"tabletID\" : " << tabletID << ",\n"
                   << "    \"firstConnected\" : " << (bool)firstConnected << "\n"
                   << "},\n";
@@ -2220,7 +2240,7 @@ endFor:
                         m_currentTrialID     = -1;
                         m_currentTabletTrial = 1; //This will be a 0 after the end of the break
 
-                        if(m_currentTechniqueIdx == 3)
+                        if(m_currentTechniqueIdx == MAX_INTERACTION_TECHNIQUE_NUMBER)
                         {
                             INFO << "\n---------------\n";
                             INFO << "SWITCHING STUDY\n";

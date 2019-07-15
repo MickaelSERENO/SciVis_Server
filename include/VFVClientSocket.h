@@ -81,6 +81,12 @@ namespace sereno
         POINTING_MANUAL  = 3,
     };
 
+    enum VFVHandedness
+    {
+        HANDEDNESS_LEFT  = 0,
+        HANDEDNESS_RIGHT = 1,
+    };
+
     template<typename T>
     struct IsString : std::false_type
     {};
@@ -403,6 +409,7 @@ namespace sereno
         SOCKADDR_IN      headsetAddr;    /*!< What is the address of the headset bound to this tablet?*/
         VFVClientSocket* headset = NULL; /*!< WHat is the headset bound to this tablet?*/
         int              number = 0;     /*!< The device number. This is defined by the device itself*/
+        VFVHandedness    handedness = HANDEDNESS_RIGHT; /*!< The user's handedness (left or right)*/
     };
 
     /** \brief  The Pointing data of a headset (what pointing action and relative data is the user doing?) */
@@ -443,8 +450,9 @@ namespace sereno
             bool feedMessage(uint8_t* message, uint32_t size);
 
             /* \brief Set the client as tablet
-             * \param headset IP the headset IP */
-            bool setAsTablet(const std::string& headsetIP);
+             * \param headset IP the headset IP 
+             * \param handedness the tablet's handedness*/
+            bool setAsTablet(const std::string& headsetIP, VFVHandedness handedness);
 
             /* \brief  Set the client as headset
              * \return true on success, false on failure */

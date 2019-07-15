@@ -1064,6 +1064,7 @@ namespace sereno
     struct VFVIdentTabletInformation : public VFVDataInformation
     {
         std::string headsetIP; /*!< The headset IP adresse it is bound to*/
+        uint32_t handedness;   /*!< The user's handedness*/
         uint32_t tabletID;     /*!< The tablet ID, permits to define for instance roles per tablet */
         bool paired = false; /* !< To set: is the tablet paired after this message was handled? */
 
@@ -1071,7 +1072,7 @@ namespace sereno
         {
             if(cursor == 0)
                 return 's';
-            else if(cursor == 1)
+            else if(cursor == 1 || cursor == 2)
                 return 'I';
             return 0;
         }
@@ -1090,13 +1091,18 @@ namespace sereno
         {
             if(cursor == 1)
             {
+                handedness = value;
+                return true;
+            }
+            if(cursor == 2)
+            {
                 tabletID = value;
                 return true;
             }
             VFV_DATA_ERROR
         }
 
-        int32_t getMaxCursor() const {return 1;}
+        int32_t getMaxCursor() const {return 2;}
 
         virtual std::string toJson(const std::string& sender, const std::string& pairedHeadsetIP, time_t timeOffset) const
         {

@@ -200,9 +200,8 @@ namespace sereno
             void sendAnnotationData(VFVClientSocket* client, Annotation* annot);
 
             /* \brief Send the binding information to the tablet and headset about the binding information
-             * \param client the client to send the data (tablet or headset)
-             * \param headset the headset bound to the client */
-            void sendHeadsetBindingInfo(VFVClientSocket* client, VFVClientSocket* headset);
+             * \param client the client to send the data (tablet or headset)*/
+            void sendHeadsetBindingInfo(VFVClientSocket* client);
 
             /** \brief  Send the anchoring data to he given client
              * \param client the client to send the anchoring*/

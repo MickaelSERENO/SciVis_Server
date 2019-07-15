@@ -238,11 +238,12 @@ namespace sereno
         return true;
     }
 
-    bool VFVClientSocket::setAsTablet(const std::string& headsetIP)
+    bool VFVClientSocket::setAsTablet(const std::string& headsetIP, VFVHandedness handedness)
     {
         new (&m_tablet) VFVTabletData;
 
         m_identityType = TABLET;
+        m_tablet.handedness = handedness;
         if(headsetIP.size())
         {
             if(!inet_pton(AF_INET, headsetIP.c_str(), &(m_tablet.headsetAddr.sin_addr)))

@@ -31,7 +31,7 @@ enum { COUNTER_BASE = __COUNTER__ };
 
 #ifdef CHI2020
     #define TRIAL_WAITING_TIME               (2*1e6)
-    #define MAX_INTERACTION_TECHNIQUE_NUMBER 4
+    #define MAX_INTERACTION_TECHNIQUE_NUMBER 3
     #define TRIAL_NUMBER_STUDY_1             (2*8) //Two person, 8 trial per person
     #define TRIAL_NUMBER_STUDY_2             (2*8)
 #endif
