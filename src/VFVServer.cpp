@@ -355,69 +355,64 @@ namespace sereno
 
     void VFVServer::closeClient(SOCKET client)
     {
-        m_mapMutex.lock();
-            auto itClient = m_clientTable.find(client);
-            if(itClient == m_clientTable.end())
-            {
-                m_mapMutex.unlock();
-                return;
-            } 
-            auto c = itClient->second;
+        auto itClient = m_clientTable.find(client);
+        if(itClient == m_clientTable.end())
+        {
+            return;
+        } 
+        auto c = itClient->second;
 
 #ifdef VFV_LOG_DATA
-            {
-                std::lock_guard<std::mutex> logLock(m_logMutex);
-                VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
-                m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\"\n"
-                      << "},\n";
-            }
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
+            m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\"\n"
+                  << "},\n";
+        }
 #endif
 
 
-            INFO << "Disconnecting a client...\n";
-            //Handle headset disconnections
-            if(c->isHeadset())
+        INFO << "Disconnecting a client...\n";
+        //Handle headset disconnections
+        if(c->isHeadset())
+        {
+            INFO << "Disconnecting a headset client\n";
+            m_availableHeadsetColors.push(c->getHeadsetData().color);
+            m_nbConnectedHeadsets--;
+
+            VFVClientSocket* tablet = c->getHeadsetData().tablet;
+            if(tablet)
             {
-                INFO << "Disconnecting a headset client\n";
-                m_availableHeadsetColors.push(c->getHeadsetData().color);
-                m_nbConnectedHeadsets--;
-
-                VFVClientSocket* tablet = c->getHeadsetData().tablet;
-                if(tablet)
-                {
-                    tablet->getTabletData().headset = NULL;
-                    c->getHeadsetData().tablet = NULL;
-                    sendHeadsetBindingInfo(tablet);
-                }
-
-                if(m_headsetAnchorClient == c)
-                {
-                    m_headsetAnchorClient = NULL;
-                    m_anchorData.finalize(false);
-                }
+                tablet->getTabletData().headset = NULL;
+                c->getHeadsetData().tablet = NULL;
+                sendHeadsetBindingInfo(tablet);
             }
 
-            //Handle table disconnections
-            else if(c->isTablet())
+            if(m_headsetAnchorClient == c)
             {
-                INFO << "Disconnecting a tablet client\n";
-
-                //Disconnect with the headset as well
-                VFVClientSocket* headset = c->getTabletData().headset;
-                if(headset)
-                {
-                    headset->getHeadsetData().tablet = NULL;
-                    c->getTabletData().headset = NULL;
-                    sendHeadsetBindingInfo(headset);
-                }
+                m_headsetAnchorClient = NULL;
+                m_anchorData.finalize(false);
             }
-        m_mapMutex.unlock();
+        }
+
+        //Handle table disconnections
+        else if(c->isTablet())
+        {
+            INFO << "Disconnecting a tablet client\n";
+
+            //Disconnect with the headset as well
+            VFVClientSocket* headset = c->getTabletData().headset;
+            if(headset)
+            {
+                headset->getHeadsetData().tablet = NULL;
+                c->getTabletData().headset = NULL;
+                sendHeadsetBindingInfo(headset);
+            }
+        }
 
         Server::closeClient(client);
 
-        m_mapMutex.lock();
-            askNewAnchor();
-        m_mapMutex.unlock();
+        askNewAnchor();
         INFO << "End of disconnection\n";
     }
 
@@ -497,12 +492,12 @@ namespace sereno
 
     void VFVServer::loginTablet(VFVClientSocket* client, const VFVIdentTabletInformation& identTablet)
     {
-        bool alreadyConnected = client->isTablet();
-
-        INFO << "Tablet connected.\n";
         std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
         std::lock_guard<std::mutex> lock(m_mapMutex);
 
+        bool alreadyConnected = client->isTablet();
+
+        INFO << "Tablet connected.\n";
         if(!client->setAsTablet(identTablet.headsetIP, (VFVHandedness)identTablet.handedness))
         {
             VFVSERVER_NOT_A_TABLET
@@ -611,6 +606,7 @@ namespace sereno
     {
         if(client != NULL && !client->isTablet())
         {
+            std::lock_guard<std::mutex> lock(m_mapMutex);
             VFVSERVER_NOT_A_TABLET
             return;
         }
@@ -944,6 +940,7 @@ namespace sereno
 
     void VFVServer::updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset)
     {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
         if(!client->isHeadset())
         {
             VFVSERVER_NOT_A_HEADSET  
@@ -1117,6 +1114,8 @@ namespace sereno
         std::lock_guard<std::mutex> lock(m_datasetMutex);
         std::lock_guard<std::mutex> lock2(m_mapMutex);
 
+        bool commandEndTrial = false;
+
         //Check alreay in next state
         if(m_waitSendNextTrial)
         {
@@ -1151,10 +1150,11 @@ namespace sereno
             INFO << "Tablet ID " << id << " has finished the training or break\n";
             m_trialTabletData[id].finishTraining = true;
             sendEmptyMessage(client, VFV_SEND_ACK_END_TRAINING);
+            commandEndTrial = m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining;
         }
 
-        //Send the next trial only if all the tablet finished the training
-        if(m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining && id == m_currentTabletTrial)
+        //Send the next trial only if all the tablet finished the training (or just finished the training)
+        if(commandEndTrial || (m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining && id == m_currentTabletTrial))
         {
             INFO << "Received the next trial command by tablet ID " << id << std::endl;
             m_msWaitNextTrialTime = getTimeOffset() + TRIAL_WAITING_TIME;
@@ -1932,6 +1932,7 @@ endFor:
 
                 case ANCHORING_DATA_SEGMENT:
                 {
+                    std::lock_guard<std::mutex> lock(m_mapMutex);
                     if(m_headsetAnchorClient != client)
                     {
                         VFVSERVER_NOT_CORRECT_HEADSET
@@ -1945,6 +1946,7 @@ endFor:
                 {
                     if(m_headsetAnchorClient != client)
                     {
+                        std::lock_guard<std::mutex> lock(m_mapMutex);
                         VFVSERVER_NOT_CORRECT_HEADSET
                         return;
                     }
@@ -2238,9 +2240,9 @@ endFor:
                        (m_currentStudyID == 2 && m_currentTrialID >= TRIAL_NUMBER_STUDY_2))
                     {
                         m_currentTrialID     = -1;
-                        m_currentTabletTrial = 1; //This will be a 0 after the end of the break
+                        m_currentTabletTrial = -1; //This will be a 0 after the end of the break
 
-                        if(m_currentTechniqueIdx == MAX_INTERACTION_TECHNIQUE_NUMBER)
+                        if(m_currentTechniqueIdx == MAX_INTERACTION_TECHNIQUE_NUMBER-1)
                         {
                             INFO << "\n---------------\n";
                             INFO << "SWITCHING STUDY\n";
@@ -2262,7 +2264,7 @@ endFor:
                         m_currentStudyID = 1;
                         m_currentTrialID = 0;
                         m_currentTabletTrial = 0;
-                        m_currentTechniqueIdx = 0;
+                        m_currentTechniqueIdx = 0; 
                     }
 
                     //Search what will be the next annotation's position

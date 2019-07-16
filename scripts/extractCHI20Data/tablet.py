@@ -20,7 +20,7 @@ class Annotation:
     def __repr__(self):
         return "ID: {}, Accuracy: {}, annotTCT: {}, trialTCT: {}\n".format(self.trialID, np.linalg.norm(self.anchorPos-self.targetPos), self.annotTCT*1e-6, self.trialTCT*1e-6)
 
-    precision = property(lambda self: np.linalg.norm(self._targetPos - self._anchorPos))
+    accuracy = property(lambda self: np.linalg.norm(self.targetPos - self.anchorPos))
 
 class PointingTrial:
     """Represent a set of trial for a given pointingID"""
@@ -88,3 +88,6 @@ class TabletData:
                 if pointingTrial.pointingID == annot.pointingID:
                     pointingTrial.annotations.append(annot)
                     break
+
+    study2Data = property(lambda self: self._study2Annotations)
+    study1Data = property(lambda self: self._study1Annotations)
