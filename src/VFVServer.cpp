@@ -237,14 +237,13 @@ namespace sereno
         free(csvFileContent);
         csvPositionFile.close();
 
+        if(numTokens < TRIAL_TABLET_DATA_MAX_POOL_SIZE*3)
+            throw std::runtime_error(std::string("Not enough tokens in position.csv"));
+
         //Set the pool of targets' positions
         for(uint32_t i = 0; i < TRIAL_TABLET_DATA_MAX_POOL_SIZE; i++)
-        {
-            uint64_t pos = rand()%(numTokens/3);
-
             for(uint8_t j = 0; j < 2; j++)
-                m_trialTabletData[j].poolTargetPositionIdxStudy1[i] = m_trialTabletData[j].poolTargetPositionIdxStudy2[i] = pos;
-        }
+                m_trialTabletData[j].poolTargetPositionIdxStudy1[i] = m_trialTabletData[j].poolTargetPositionIdxStudy2[i] = i;
 
 #ifdef VFV_LOG_DATA
         {
@@ -593,6 +592,7 @@ namespace sereno
                 for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
                 {
                     SubDatasetHeadsetInformation info(it.second->getSubDataset(i));
+
                     std::pair<SubDataset*, SubDatasetHeadsetInformation> p(it.second->getSubDataset(i), info);
                     client->getHeadsetData().sdInfo.insert(p);
                 }
@@ -965,6 +965,8 @@ namespace sereno
             internalData.pointingData.localSDPosition[i]      = headset.pointingLocalSDPosition[i];
             internalData.pointingData.headsetStartPosition[i] = headset.pointingHeadsetStartPosition[i];
         }
+        for(uint32_t i = 0; i < 4; i++)
+            internalData.pointingData.headsetStartOrientation[i] = headset.pointingHeadsetStartOrientation[i];
     }
 
     void VFVServer::onStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)
@@ -1880,15 +1882,20 @@ endFor:
             if(msg.curMsg)
             {
 #ifdef VFV_LOG_DATA
-                bool isTablet  = client->isTablet();
-                bool isHeadset = client->isHeadset();
-
+#ifdef CHI2020
+                if(msg.type != SCALE_DATASET) //Do not log dataset scaling
+#endif
                 {
-                    std::lock_guard<std::mutex> logLock(m_logMutex);
-                    std::string str = msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset());
+                    bool isTablet  = client->isTablet();
+                    bool isHeadset = client->isHeadset();
 
-                    if(str.size())
-                        m_log << str << ",\n";
+                    {
+                        std::lock_guard<std::mutex> logLock(m_logMutex);
+                        std::string str = msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset());
+
+                        if(str.size())
+                            m_log << str << ",\n";
+                    }
                 }
 #endif
             }
@@ -1977,7 +1984,10 @@ endFor:
                 }
                 case SCALE_DATASET:
                 {
+                    //Disable scaling during CHI'20 study
+#ifndef CHI2020
                     scaleSubDataset(client, msg.scale);
+#endif
                     break;
                 }
 
@@ -2067,7 +2077,7 @@ endFor:
                             continue;
 
                         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
-                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 6*sizeof(float)));
+                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 10*sizeof(float)));
                         uint32_t offset    = 0;
                         uint32_t nbHeadset = 0;
 
@@ -2132,6 +2142,10 @@ endFor:
                                 for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
                                     writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
 
+                                //Pointing headset starting orientation
+                                for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
+                                    writeFloat(data+offset, headsetData.pointingData.headsetStartOrientation[i]);
+
 #ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
                                 if(logAdded)
@@ -2148,7 +2162,8 @@ endFor:
                                       << "    \"pointingSubDatasetID\" : " << headsetData.pointingData.subDatasetID << ",\n"
                                       << "    \"pointingInPublic\" : " << headsetData.pointingData.pointingInPublic << ",\n"
                                       << "    \"pointingLocalSDPosition\" : [" << headsetData.pointingData.localSDPosition[0] << "," << headsetData.pointingData.localSDPosition[1] << "," << headsetData.pointingData.localSDPosition[2] << "],\n"
-                                      << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "]\n"
+                                      << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "],\n"
+                                      << "    \"pointingHeadsetStartOrientation\" : [" << headsetData.pointingData.headsetStartOrientation[0] << "," << headsetData.pointingData.headsetStartOrientation[1] << "," << headsetData.pointingData.headsetStartOrientation[2] << "," << headsetData.pointingData.headsetStartOrientation[3] << "]\n"
                                       << "}\n";
                                 logAdded = true;
 #endif
@@ -2232,15 +2247,11 @@ endFor:
                 m_datasetMutex.lock();
                 {
                     m_currentTrialID++;
-
-                    //Search for the next "tablet" and "headset" to be able to visualize the anchor
-                    m_currentTabletTrial = (m_currentTabletTrial+1)%2;
-
                     if((m_currentStudyID == 1 && m_currentTrialID >= TRIAL_NUMBER_STUDY_1) ||
                        (m_currentStudyID == 2 && m_currentTrialID >= TRIAL_NUMBER_STUDY_2))
                     {
                         m_currentTrialID     = -1;
-                        m_currentTabletTrial = -1; //This will be a 0 after the end of the break
+                        m_currentTabletTrial = 0; //This will be a 0 again after the end of the break
 
                         if(m_currentTechniqueIdx == MAX_INTERACTION_TECHNIQUE_NUMBER-1)
                         {
@@ -2263,9 +2274,12 @@ endFor:
                     {
                         m_currentStudyID = 1;
                         m_currentTrialID = 0;
-                        m_currentTabletTrial = 0;
+                        m_currentTabletTrial = -1;
                         m_currentTechniqueIdx = 0; 
                     }
+
+                    //Search for the next "tablet" and "headset" to be able to visualize the anchor
+                    m_currentTabletTrial = (m_currentTabletTrial+1)%2;
 
                     //Search what will be the next annotation's position
                     if(m_currentTrialID == -1)

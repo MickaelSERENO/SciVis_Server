@@ -1,5 +1,10 @@
 import numpy as np
 
+POINTINGID_GOGO    = 0
+POINTINGID_WIM     = 1
+POINTINGID_WIM_RAY = 1
+POINTINGID_MANUAL  = 3
+
 class Annotation:
     """Represent an annotation"""
     def __init__(self, trialID, pointingID, targetPos, anchorPos, tct, trialTCT):
@@ -16,11 +21,16 @@ class Annotation:
         self.annotTCT   = tct
         self.trialTCT   = trialTCT
         self.pointingID = pointingID;
+        self.scaling    = np.array([1.0, 1.0, 1.0])
 
     def __repr__(self):
         return "ID: {}, Accuracy: {}, annotTCT: {}, trialTCT: {}\n".format(self.trialID, np.linalg.norm(self.anchorPos-self.targetPos), self.annotTCT*1e-6, self.trialTCT*1e-6)
 
-    accuracy = property(lambda self: np.linalg.norm(self.targetPos - self.anchorPos))
+    """Accuracy in local space"""
+    localAccuracy = property(lambda self: np.linalg.norm(self.targetPos - self.anchorPos))
+
+    """Accuracy in world space"""
+    worldAccuracy = property(lambda self: np.linalg.norm((self.targetPos - self.anchorPos)*self.scaling))
 
 class PointingTrial:
     """Represent a set of trial for a given pointingID"""
@@ -58,18 +68,19 @@ class TabletData:
         self._currentAnnotation = Annotation(trialID, pointingID, targetPos, targetPos, annotStartTime, trialStartTime)
         self._currentStudyID    = studyID
 
-    def commitAnnotation(self, anchorPos, endTime):
+    def commitAnnotation(self, anchorPos, endTime, scaling):
         """Commit a started annotation. Call initAnnotation first
         @param anchorPos the anchoring position done by the user
-        @param endTime the when the annotation has been anchored"""
+        @param endTime the when the annotation has been anchored
+        @param scaling the scaling factor of the dataset for this annotation"""
 
         if self._currentAnnotation is not None:
-            self._currentAnnotation.annotTCT = endTime - self._currentAnnotation.annotTCT
-            self._currentAnnotation.trialTCT = endTime - self._currentAnnotation.trialTCT
+            self._currentAnnotation.annotTCT  = endTime - self._currentAnnotation.annotTCT
+            self._currentAnnotation.trialTCT  = endTime - self._currentAnnotation.trialTCT
             self._currentAnnotation.anchorPos = anchorPos
+            self._currentAnnotation.scaling   = scaling
             self._pushAnnotation(self._currentStudyID, self._currentAnnotation)
             self._currentAnnotation = None
-
 
     def _pushAnnotation(self, studyID, annot):
         """Push a new annotation into the tablet data

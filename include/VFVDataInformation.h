@@ -746,6 +746,7 @@ namespace sereno
         bool    pointingInPublic     = true;     /*!< Is the pointing action in the user's public space?*/
         float   pointingLocalSDPosition[3];      /*!< The position targeted by the pointing IT in the local Subdataset's space*/
         float   pointingHeadsetStartPosition[3]; /*!< The position of the headset once the pointing interaction started*/
+        float   pointingHeadsetStartOrientation[4]; /*!< The orientation of the headset once the pointing interaction started*/
 
         char getTypeAt(uint32_t cursor) const
         {
@@ -758,6 +759,8 @@ namespace sereno
             else if(cursor < 14)
                 return 'f';
             else if(cursor < 17)
+                return 'f';
+            else if(cursor < 21)
                 return 'f';
             return 0;
         }
@@ -779,9 +782,14 @@ namespace sereno
                 pointingLocalSDPosition[cursor-11] = value;
                 return true;
             }
-            else if(cursor < 17)
+            else if(cursor < 17 && cursor > 13)
             {
                 pointingHeadsetStartPosition[cursor-14] = value;
+                return true;
+            }
+            else if(cursor < 21 && cursor > 16)
+            {
+                pointingHeadsetStartOrientation[cursor-17] = value;
                 return true;
             }
             VFV_DATA_ERROR
@@ -818,7 +826,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        int32_t getMaxCursor() const {return 16;}
+        int32_t getMaxCursor() const {return 20;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -833,7 +841,8 @@ namespace sereno
                 << "    \"pointingSubDatasetID\" : " << pointingSubDatasetID << ",\n"
                 << "    \"pointingInPublic\" : " << pointingInPublic << ",\n"
                 << "    \"pointingLocalSDPosition\" : [" << pointingLocalSDPosition[0] << "," << pointingLocalSDPosition[1] << "," << pointingLocalSDPosition[2] << "],\n"
-                << "    \"pointingHeadsetStartPosition\" : [" << pointingHeadsetStartPosition[0] << "," << pointingHeadsetStartPosition[1] << "," << pointingHeadsetStartPosition[2] << "]\n";
+                << "    \"pointingHeadsetStartPosition\" : [" << pointingHeadsetStartPosition[0] << "," << pointingHeadsetStartPosition[1] << "," << pointingHeadsetStartPosition[2] << "],\n"
+                << "    \"pointingHeadsetStartOrientation\" : [" << pointingHeadsetStartOrientation[0] << "," << pointingHeadsetStartOrientation[1] << "," << pointingHeadsetStartOrientation[2] << "," << pointingHeadsetStartOrientation[3] << "]\n";
             VFV_END_TO_JSON(oss);
 #endif
 

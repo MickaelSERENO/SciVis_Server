@@ -421,6 +421,7 @@ namespace sereno
         bool          pointingInPublic = true;          /*!< Is the user manipulating the dataset in the public space?*/
         glm::vec3     localSDPosition;                  /*!< The pointing position in the local subdataset space*/
         glm::vec3     headsetStartPosition;             /*!< The headset starting position when the pointing interaction technique started*/
+        Quaternionf   headsetStartOrientation;          /*!< The headset starting orientation when the pointing interaction technique started*/
     };
 
     /** \brief  Headset data structure */
