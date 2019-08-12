@@ -1,4 +1,6 @@
 #include "VFVServer.h"
+#include <random>
+#include <algorithm>
 
 namespace sereno
 {
@@ -182,6 +184,33 @@ namespace sereno
     }
     */
 
+#ifdef CHI2020
+    /*Compute random position index
+     *
+     *\param out[out] the array to save the random results (from 0... nbPos-1 shuffled)
+     *\param nbPos the number of positions
+     *
+     *\return out*/
+    static uint8_t* computeRandomPositions(uint8_t* out, uint32_t nbPos)
+    {
+        //Create a list of positions (distinct)
+        std::vector<uint8_t> pos(nbPos);
+        for(uint32_t i = 0; i < nbPos; i++)
+            pos[i] = i;
+
+        //Randomize without replacement
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(pos.begin(), pos.end(), g);
+        
+        for(uint32_t i = 0; i < nbPos; i++)
+           out[i] = pos[i]; 
+
+        return out;
+    }
+
+#endif
+
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
 #ifdef VFV_LOG_DATA
@@ -194,6 +223,7 @@ namespace sereno
 
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
             m_log << "},\n";
+            m_log << std::flush;
         }
 #endif
 
@@ -241,9 +271,34 @@ namespace sereno
             throw std::runtime_error(std::string("Not enough tokens in position.csv"));
 
         //Set the pool of targets' positions
-        for(uint32_t i = 0; i < TRIAL_TABLET_DATA_MAX_POOL_SIZE; i++)
-            for(uint8_t j = 0; j < 2; j++)
-                m_trialTabletData[j].poolTargetPositionIdxStudy1[i] = m_trialTabletData[j].poolTargetPositionIdxStudy2[i] = i;
+        for(uint8_t i = 0; i < 2; i++)
+        {
+            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy1, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
+            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy2, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
+        }
+
+        std::cout << "Study1: \n";
+        for(uint8_t i = 0; i < 2; i++)
+        {
+            std::cout << "[";
+            for(uint32_t j = 0; j < TRIAL_TABLET_DATA_MAX_POOL_SIZE; j++)
+                std::cout << (int)m_trialTabletData[i].poolTargetPositionIdxStudy1[j] << ", ";
+            std::cout << "]\n";
+        }
+
+        std::cout << "Study2: \n";
+        for(uint8_t i = 0; i < 2; i++)
+        {
+            std::cout << "[";
+            for(uint32_t j = 0; j < TRIAL_TABLET_DATA_MAX_POOL_SIZE; j++)
+                std::cout << (int)m_trialTabletData[i].poolTargetPositionIdxStudy2[j] << ", ";
+            std::cout << "]\n";
+        }
+
+
+        //for(uint32_t i = 0; i < TRIAL_TABLET_DATA_MAX_POOL_SIZE; i++)
+        //    for(uint8_t j = 0; j < 2; j++)
+        //        m_trialTabletData[j].poolTargetPositionIdxStudy1[i] = m_trialTabletData[j].poolTargetPositionIdxStudy2[i] = i;
 
 #ifdef VFV_LOG_DATA
         {
@@ -251,6 +306,7 @@ namespace sereno
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "SetPairID");
             m_log << ", \"pairID\": " << m_pairID << "\n"
                   << "},\n";
+            m_log << std::flush;
         }
 #endif
 
@@ -273,6 +329,7 @@ namespace sereno
 #ifdef VFV_LOG_DATA
         m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
         m_log << ",\n";
+        m_log << std::flush;
 #endif
 
         addVTKDataset(NULL, vtkInfo);
@@ -295,6 +352,8 @@ namespace sereno
             m_log << "        }\n"
                   << "    ]\n"
                   << "}";
+            m_log << std::flush;
+            m_log.close();
         }
 #endif
         for(auto& d : m_datasets)
@@ -367,6 +426,7 @@ namespace sereno
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(c), getTimeOffset(), "DisconnectClient");
             m_log << ",  \"clientType\" : \"" << (c->isTablet() ? VFV_SENDER_TABLET : (c->isHeadset() ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN)) << "\"\n"
                   << "},\n";
+            m_log << std::flush;
         }
 #endif
 
@@ -1185,6 +1245,7 @@ namespace sereno
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset())<< ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1237,6 +1298,7 @@ namespace sereno
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1274,6 +1336,7 @@ namespace sereno
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1311,6 +1374,7 @@ namespace sereno
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << scale.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1347,6 +1411,7 @@ namespace sereno
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << position.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1571,6 +1636,7 @@ endFor:
                   << "    \"tabletID\" : " << tabletID << ",\n"
                   << "    \"firstConnected\" : " << (bool)firstConnected << "\n"
                   << "},\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1612,6 +1678,7 @@ endFor:
             {
                 std::lock_guard<std::mutex> logLock(m_logMutex);
                 m_log << byteArr.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+                m_log << std::flush;
             }
 #endif
         }
@@ -1666,6 +1733,7 @@ endFor:
                       << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
                       << "    \"headsetID\" : " << id << "\n"
                       << "},\n";
+                m_log << std::flush;
             }
 #endif
         }
@@ -1694,6 +1762,7 @@ endFor:
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << visibility.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
         
@@ -1727,6 +1796,7 @@ endFor:
         {
             std::lock_guard<std::mutex> lockJson(m_logMutex);
             m_log << startAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
 
@@ -1769,6 +1839,7 @@ endFor:
         {
             std::lock_guard<std::mutex> lockJson(m_logMutex);
             m_log << anchorAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
 
@@ -1806,6 +1877,7 @@ endFor:
         {
             std::lock_guard<std::mutex> lockJson(m_logMutex);
             m_log << clearAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1856,6 +1928,7 @@ endFor:
                   << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "],\n"
                   << "    \"currentTechnique\" : " << currentTechnique << "\n"
                   << "},\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -1894,7 +1967,10 @@ endFor:
                         std::string str = msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset());
 
                         if(str.size())
+                        {
                             m_log << str << ",\n";
+                            m_log << std::flush;
+                        }
                     }
                 }
 #endif
@@ -2089,6 +2165,7 @@ endFor:
                         m_logMutex.lock();
                         VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
                         m_log << ",    \"status\" : [";
+                        m_log << std::flush;
                         bool logAdded = false;
 #endif
 #endif
@@ -2176,6 +2253,7 @@ endFor:
 #ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
                         m_log << "]},\n";
+                        m_log << std::flush;
                         m_logMutex.unlock();
 #endif
 #endif
@@ -2255,7 +2333,8 @@ endFor:
 
                         if(m_currentTechniqueIdx == MAX_INTERACTION_TECHNIQUE_NUMBER-1)
                         {
-                            INFO << "\n---------------\n";
+                            std::cout << "\n";
+                            INFO << "---------------\n";
                             INFO << "SWITCHING STUDY\n";
                             INFO << "---------------\n";
                             m_currentStudyID++;
@@ -2267,6 +2346,13 @@ endFor:
                         //This is for telling people that they can take a break
                         m_trialTabletData[0].finishTraining = false;
                         m_trialTabletData[1].finishTraining = false;
+
+                        //Shuffle the positions
+                        for(uint8_t i = 0; i < 2; i++)
+                        {
+                            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy1, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
+                            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy2, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
+                        }
                     }
 
                     //Quit the training session
@@ -2289,15 +2375,31 @@ endFor:
                     }
                     else
                     {
+                        //First or second part of the pool?
+                        float* trialPos = m_trialPositions + TRIAL_TABLET_DATA_MAX_POOL_SIZE*m_currentTabletTrial*3;
+
                         if(m_currentStudyID == 1)
+                        {
+                            INFO << "Position: [";
                             for(int i = 0; i < 3; i++)
-                                m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy1[m_currentTrialID] + i];
+                            {
+                                m_trialAnnotationPos[i] = trialPos[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy1[m_currentTrialID/2] + i];
+                                std::cout << m_trialAnnotationPos[i];
+                            }
+                            std::cout << "]\n";
+                        }
 
                         else if(m_currentStudyID == 2)
+                        {
+                            INFO << "Position: [";
                             for(int i = 0; i < 3; i++)
-                                m_trialAnnotationPos[i] = m_trialPositions[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy2[m_currentTrialID] + i];
+                            {
+                                m_trialAnnotationPos[i] = trialPos[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy2[m_currentTrialID/2] + i];
+                                std::cout << m_trialAnnotationPos[i];
+                            }
+                            std::cout << "]\n";
+                        }
                     }
-
 
                     //Send the message to everyone
                     {

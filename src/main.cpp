@@ -26,17 +26,19 @@ int main()
 {
     srand(time(NULL));
 
-    VFVServer server(NB_READ_THREAD, CLIENT_PORT);
-    serverPtr = &server;
+    VFVServer* server = new VFVServer(NB_READ_THREAD, CLIENT_PORT);
+    serverPtr = server;
 
     InternalData::initSingleton();
-    server.launch();
+    server->launch();
 
     signal(SIGPIPE, SIG_IGN);
     signal(SIGINT,  inSigInt);
 
-    server.wait();
-    server.closeServer();
+    server->wait();
+    server->closeServer();
+
+    delete server;
 
     //Copy the log file in case of "issue" from the investigators (always ;) )
     pid_t pid;
@@ -46,7 +48,7 @@ int main()
     {
         char logFile[1024];
 #ifdef CHI2020
-        sprintf(logFile, "pair%d.json", server.getPairID());
+        sprintf(logFile, "pair%d.json", server->getPairID());
 #else
         strcpy(logFile, "log.json.old");
 #endif

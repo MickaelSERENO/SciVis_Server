@@ -2,7 +2,7 @@ import numpy as np
 
 POINTINGID_GOGO    = 0
 POINTINGID_WIM     = 1
-POINTINGID_WIM_RAY = 1
+POINTINGID_WIM_RAY = 2
 POINTINGID_MANUAL  = 3
 
 class Annotation:
@@ -22,6 +22,7 @@ class Annotation:
         self.trialTCT   = trialTCT
         self.pointingID = pointingID;
         self.scaling    = np.array([1.0, 1.0, 1.0])
+        self.pID        = -1
 
     def __repr__(self):
         return "ID: {}, Accuracy: {}, annotTCT: {}, trialTCT: {}\n".format(self.trialID, np.linalg.norm(self.anchorPos-self.targetPos), self.annotTCT*1e-6, self.trialTCT*1e-6)
@@ -54,6 +55,7 @@ class TabletData:
         self._currentStudyID    = -1
         self.tabletID           = tabletID
         self.headsetIP          = headsetIP
+        self.pairID             = -1
 
     def __repr__(self):
         return "tabletID: {}\nstudy 1: {}\n Study2: {}\n".format(self.tabletID, self._study1Annotations, self._study2Annotations)
@@ -65,8 +67,9 @@ class TabletData:
         @param targetPos the position of the target
         @param startTime the starting time of the annotation"""
 
-        self._currentAnnotation = Annotation(trialID, pointingID, targetPos, targetPos, annotStartTime, trialStartTime)
-        self._currentStudyID    = studyID
+        self._currentAnnotation     = Annotation(trialID, pointingID, targetPos, targetPos, annotStartTime, trialStartTime)
+        self._currentStudyID        = studyID
+        self._currentAnnotation.pID = self.pID
 
     def commitAnnotation(self, anchorPos, endTime, scaling):
         """Commit a started annotation. Call initAnnotation first
@@ -102,3 +105,5 @@ class TabletData:
 
     study2Data = property(lambda self: self._study2Annotations)
     study1Data = property(lambda self: self._study1Annotations)
+    pID        = property(lambda self: self.pairID*2+self.tabletID)
+
