@@ -10,3 +10,7 @@ Needed library:
 Runs with 
     -github.com/MickaelSereno/SciVis_Android  (android  application - remote controller)
     -github.com/MickaelSereno/SciVis_HoloLens (HoloLens application - 3D visualization)
+
+All the needed datasets (VTK datasets) must be in <binaryDir>/Datasets/
+
+If a dataset is needed when running this program, a log message is written in the console

@@ -326,6 +326,8 @@ namespace sereno
         vtkInfo.nbPtFields = 1;
         vtkInfo.ptFields.push_back(1);
 
+        INFO << "For CHI'20 study, we open the dataset" << vtkInfo.name << std::endl; 
+
 #ifdef VFV_LOG_DATA
         m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
         m_log << ",\n";
