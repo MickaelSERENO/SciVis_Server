@@ -184,33 +184,6 @@ namespace sereno
     }
     */
 
-#ifdef CHI2020
-    /*Compute random position index
-     *
-     *\param out[out] the array to save the random results (from 0... nbPos-1 shuffled)
-     *\param nbPos the number of positions
-     *
-     *\return out*/
-    static uint8_t* computeRandomPositions(uint8_t* out, uint32_t nbPos)
-    {
-        //Create a list of positions (distinct)
-        std::vector<uint8_t> pos(nbPos);
-        for(uint32_t i = 0; i < nbPos; i++)
-            pos[i] = i;
-
-        //Randomize without replacement
-        std::random_device rd;
-        std::mt19937 g(rd());
-        std::shuffle(pos.begin(), pos.end(), g);
-        
-        for(uint32_t i = 0; i < nbPos; i++)
-           out[i] = pos[i]; 
-
-        return out;
-    }
-
-#endif
-
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
 #ifdef VFV_LOG_DATA
@@ -225,116 +198,6 @@ namespace sereno
             m_log << "},\n";
             m_log << std::flush;
         }
-#endif
-
-#ifdef CHI2020
-        for(int i = 0; i < 3; i++)
-            m_trialAnnotationPos[i] = 0;
-        //Get the current pair ID (go from 0 to MAX_INTERACTION_TECHNIQUE_NUMBER! - 1)
-        INFO << "Please, enter the pair ID for the CHI 2020 user study\n";
-        std::cin >> m_pairID;
-        INFO << "The pair ID is: " << m_pairID << std::endl;
-
-        //Read the csv's position file
-        std::ifstream csvPositionFile;
-        csvPositionFile.open("position.csv", std::ios::in);
-
-        csvPositionFile.seekg(0, std::ios_base::end);
-        uint64_t csvFileSize = csvPositionFile.tellg();
-        char* csvFileContent = (char*)malloc(sizeof(char)*csvFileSize+1);
-        csvPositionFile.seekg(0, std::ios_base::beg);
-
-        csvPositionFile.read(csvFileContent, csvFileSize);
-        csvFileContent[csvFileSize-1] = '\0';
-
-        //Get how many tokens the csv file contains
-        std::stringstream convertor(csvFileContent);
-        std::string token;
-
-        uint64_t numTokens = 0;
-        while(std::getline(convertor, token, ','))
-            numTokens++;
-
-        //Read all the tokens
-        uint64_t trialPositionIdx=0;
-        m_trialPositions = (float*)malloc(sizeof(float)*numTokens);
-        convertor.clear();
-        convertor.str(csvFileContent);
-        while(std::getline(convertor, token, ','))
-            m_trialPositions[trialPositionIdx++] = std::atof(token.c_str());
-
-        //Free and close the file's content
-        free(csvFileContent);
-        csvPositionFile.close();
-
-        if(numTokens < TRIAL_TABLET_DATA_MAX_POOL_SIZE*3)
-            throw std::runtime_error(std::string("Not enough tokens in position.csv"));
-
-        //Set the pool of targets' positions
-        for(uint8_t i = 0; i < 2; i++)
-        {
-            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy1, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
-            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy2, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
-        }
-
-        std::cout << "Study1: \n";
-        for(uint8_t i = 0; i < 2; i++)
-        {
-            std::cout << "[";
-            for(uint32_t j = 0; j < TRIAL_TABLET_DATA_MAX_POOL_SIZE; j++)
-                std::cout << (int)m_trialTabletData[i].poolTargetPositionIdxStudy1[j] << ", ";
-            std::cout << "]\n";
-        }
-
-        std::cout << "Study2: \n";
-        for(uint8_t i = 0; i < 2; i++)
-        {
-            std::cout << "[";
-            for(uint32_t j = 0; j < TRIAL_TABLET_DATA_MAX_POOL_SIZE; j++)
-                std::cout << (int)m_trialTabletData[i].poolTargetPositionIdxStudy2[j] << ", ";
-            std::cout << "]\n";
-        }
-
-
-        //for(uint32_t i = 0; i < TRIAL_TABLET_DATA_MAX_POOL_SIZE; i++)
-        //    for(uint8_t j = 0; j < 2; j++)
-        //        m_trialTabletData[j].poolTargetPositionIdxStudy1[i] = m_trialTabletData[j].poolTargetPositionIdxStudy2[i] = i;
-
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "SetPairID");
-            m_log << ", \"pairID\": " << m_pairID << "\n"
-                  << "},\n";
-            m_log << std::flush;
-        }
-#endif
-
-        m_trialTabletData[0].tabletID = 0;
-        m_trialTabletData[1].tabletID = 1;
-
-        uint32_t techniqueOrder[3] = {POINTING_GOGO, POINTING_WIM, POINTING_MANUAL};
-
-        //Set the technique IDs
-        for(uint32_t i = 0; i < 2; i++)
-            for(uint32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER; j++)
-                m_trialTabletData[i].techniqueOrder[j] = techniqueOrder[(j+m_pairID)%MAX_INTERACTION_TECHNIQUE_NUMBER];
-
-        //Add the dataset the users will play with
-        VFVVTKDatasetInformation vtkInfo;
-        vtkInfo.name = "Agulhas_10_resampled.vtk";
-        vtkInfo.nbPtFields = 1;
-        vtkInfo.ptFields.push_back(1);
-
-        INFO << "For CHI'20 study, we open the dataset" << vtkInfo.name << std::endl; 
-
-#ifdef VFV_LOG_DATA
-        m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
-        m_log << ",\n";
-        m_log << std::flush;
-#endif
-
-        addVTKDataset(NULL, vtkInfo);
 #endif
     }
 
@@ -360,10 +223,6 @@ namespace sereno
 #endif
         for(auto& d : m_datasets)
             delete d.second;
-#ifdef CHI2020
-        if(m_trialPositions)
-            free(m_trialPositions);
-#endif
     }
 
     bool VFVServer::launch()
@@ -374,7 +233,6 @@ namespace sereno
 
         bool ret = Server::launch();
         m_updateThread = new std::thread(&VFVServer::updateThread, this);
-        m_nextTrialThread = new std::thread(&VFVServer::nextTrialThread, this);
 
         return ret;
     }
@@ -384,8 +242,6 @@ namespace sereno
         Server::cancel();
         if(m_updateThread && m_updateThread->joinable())
             pthread_cancel(m_updateThread->native_handle());
-        if(m_nextTrialThread && m_nextTrialThread->joinable())
-            pthread_cancel(m_nextTrialThread->native_handle());
     }
 
     void VFVServer::wait()
@@ -393,8 +249,6 @@ namespace sereno
         Server::wait();
         if(m_updateThread && m_updateThread->joinable())
             m_updateThread->join();
-        if(m_nextTrialThread && m_nextTrialThread->joinable())
-            m_nextTrialThread->join();
     }
 
     void VFVServer::closeServer()
@@ -404,12 +258,6 @@ namespace sereno
         {
             delete m_updateThread;
             m_updateThread = 0;
-        }
-
-        if(m_nextTrialThread != NULL)
-        {
-            delete m_nextTrialThread;
-            m_nextTrialThread = 0;
         }
     }
 
@@ -1172,61 +1020,6 @@ namespace sereno
         }
     }
 
-#ifdef CHI2020
-    void VFVServer::onNextTrial(VFVClientSocket* client)
-    {
-        std::lock_guard<std::mutex> lock(m_datasetMutex);
-        std::lock_guard<std::mutex> lock2(m_mapMutex);
-
-        bool commandEndTrial = false;
-
-        //Check alreay in next state
-        if(m_waitSendNextTrial)
-        {
-            INFO << "Already waiting for the next trial to come. Discard.\n";
-            return;
-        }
-
-        //Check the client. Is it a tablet?
-        if(!client->isTablet())
-        {
-            VFVSERVER_NOT_A_TABLET
-        }
-
-        uint32_t id = client->getTabletData().number;
-
-        if(id >= 2)
-        {
-            WARNING << "The maximum role ID should be 1 (included)\n";
-            return;
-        }
-
-        if(m_trialTabletData[id].finishTraining)
-        {
-            if(id != m_currentTabletTrial)
-            {
-                WARNING << "Expected the tablet ID " << id << " to send the next trial...\n";
-                return;
-            }
-        }
-        else
-        {
-            INFO << "Tablet ID " << id << " has finished the training or break\n";
-            m_trialTabletData[id].finishTraining = true;
-            sendEmptyMessage(client, VFV_SEND_ACK_END_TRAINING);
-            commandEndTrial = m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining;
-        }
-
-        //Send the next trial only if all the tablet finished the training (or just finished the training)
-        if(commandEndTrial || (m_trialTabletData[0].finishTraining && m_trialTabletData[1].finishTraining && id == m_currentTabletTrial))
-        {
-            INFO << "Received the next trial command by tablet ID " << id << std::endl;
-            m_msWaitNextTrialTime = getTimeOffset() + TRIAL_WAITING_TIME;
-            m_waitSendNextTrial = true;
-        }
-    }
-#endif
-
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
@@ -1464,11 +1257,6 @@ namespace sereno
         //Send anchoring data
         if(client->isHeadset())
             sendAnchoring(client);
-
-        //Send next trial data
-#ifdef CHI2020
-        sendNextTrialDataCHI2020(client);
-#endif
     }
 
     void VFVServer::sendAllDatasetVisibility(VFVClientSocket* client)
@@ -1884,58 +1672,6 @@ endFor:
 #endif
     }
 
-#ifdef CHI2020
-    void VFVServer::sendNextTrialDataCHI2020(VFVClientSocket* client)
-    {
-        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 4*sizeof(uint32_t) + 3*sizeof(float));
-        uint32_t offset = 0;
-        uint32_t currentTechnique = m_trialTabletData[m_currentTabletTrial].techniqueOrder[m_currentTechniqueIdx];
-
-        //ID
-        writeUint16(data, VFV_SEND_NEXT_TRIAL_DATA_CHI2020);
-        offset += sizeof(uint16_t);
-
-        //Which tablet should anchor the annotation
-        writeUint32(data+offset, m_currentTabletTrial);
-        offset += sizeof(uint32_t);
-
-        //The trial ID
-        writeUint32(data+offset, m_currentTrialID);
-        offset += sizeof(uint32_t);
-
-        //The current study (1 or 2)
-        writeUint32(data+offset, m_currentStudyID);
-        offset += sizeof(uint32_t);
-
-        //The current interaction technique to use
-        writeUint32(data+offset, currentTechnique);
-        offset += sizeof(uint32_t);
-
-        //The annotation's position
-        for(uint32_t i = 0; i < 3; i++, offset += sizeof(float))
-            writeFloat(data+offset, m_trialAnnotationPos[i]);
-
-        INFO << "Sending a next trial message data\n";
-        std::shared_ptr<uint8_t> sharedData(data, free);
-        SocketMessage<int> sm(client->socket, sharedData, offset);
-        writeMessage(sm);
-
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendNextTrial");
-            m_log << ",    \"currentTabletID\" : " << (int)m_currentTabletTrial << ",\n"
-                  << "    \"currentTrialID\" : " << m_currentTrialID << ",\n"
-                  << "    \"currentStudyID\" : " << m_currentStudyID << ",\n"
-                  << "    \"annotationPos\" : [" << m_trialAnnotationPos[0] << "," << m_trialAnnotationPos[1] << "," << m_trialAnnotationPos[2] << "],\n"
-                  << "    \"currentTechnique\" : " << currentTechnique << "\n"
-                  << "},\n";
-            m_log << std::flush;
-        }
-#endif
-    }
-#endif
-
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -1957,9 +1693,6 @@ endFor:
             if(msg.curMsg)
             {
 #ifdef VFV_LOG_DATA
-#ifdef CHI2020
-                if(msg.type != SCALE_DATASET) //Do not log dataset scaling
-#endif
                 {
                     bool isTablet  = client->isTablet();
                     bool isHeadset = client->isHeadset();
@@ -2062,10 +1795,7 @@ endFor:
                 }
                 case SCALE_DATASET:
                 {
-                    //Disable scaling during CHI'20 study
-#ifndef CHI2020
                     scaleSubDataset(client, msg.scale);
-#endif
                     break;
                 }
 
@@ -2109,13 +1839,7 @@ endFor:
                     onClearAnnotations(client, msg.clearAnnotations);
                     break;
                 }
-#ifdef CHI2020
-                case NEXT_TRIAL:
-                {
-                    onNextTrial(client);
-                    break;
-                }
-#endif
+
                 default:
                     break;
             }
@@ -2299,139 +2023,4 @@ endFor:
             usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
         }
     }
-
-#ifdef CHI2020
-    void VFVServer::nextTrialThread()
-    {
-        while(!m_closeThread)
-        {
-            m_datasetMutex.lock();
-
-            //Should we send the next trial?
-            if(m_waitSendNextTrial == true)
-            {
-                //Sleep for that much time
-                time_t targetSleep = m_msWaitNextTrialTime;
-                m_datasetMutex.unlock();
-
-                if(getTimeOffset() < targetSleep)
-                    usleep(targetSleep-getTimeOffset());
-
-                VFVClearAnnotations clrAnnot;
-                clrAnnot.datasetID    = 0;
-                clrAnnot.subDatasetID = 0;
-                clrAnnot.inPublic     = 1;
-
-                onClearAnnotations(NULL, clrAnnot);
-
-                m_datasetMutex.lock();
-                {
-                    m_currentTrialID++;
-                    if((m_currentStudyID == 1 && m_currentTrialID >= TRIAL_NUMBER_STUDY_1) ||
-                       (m_currentStudyID == 2 && m_currentTrialID >= TRIAL_NUMBER_STUDY_2))
-                    {
-                        m_currentTrialID     = -1;
-                        m_currentTabletTrial = 0; //This will be a 0 again after the end of the break
-
-                        if(m_currentTechniqueIdx == MAX_INTERACTION_TECHNIQUE_NUMBER-1)
-                        {
-                            std::cout << "\n";
-                            INFO << "---------------\n";
-                            INFO << "SWITCHING STUDY\n";
-                            INFO << "---------------\n";
-                            m_currentStudyID++;
-                            m_currentTechniqueIdx = 0;
-                        }
-                        else
-                            m_currentTechniqueIdx++;
-
-                        //This is for telling people that they can take a break
-                        m_trialTabletData[0].finishTraining = false;
-                        m_trialTabletData[1].finishTraining = false;
-
-                        //Shuffle the positions
-                        for(uint8_t i = 0; i < 2; i++)
-                        {
-                            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy1, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
-                            computeRandomPositions(m_trialTabletData[i].poolTargetPositionIdxStudy2, TRIAL_TABLET_DATA_MAX_POOL_SIZE);
-                        }
-                    }
-
-                    //Quit the training session
-                    else if(m_currentStudyID == 0)
-                    {
-                        m_currentStudyID = 1;
-                        m_currentTrialID = 0;
-                        m_currentTabletTrial = -1;
-                        m_currentTechniqueIdx = 0; 
-                    }
-
-                    //Search for the next "tablet" and "headset" to be able to visualize the anchor
-                    m_currentTabletTrial = (m_currentTabletTrial+1)%2;
-
-                    //Search what will be the next annotation's position
-                    if(m_currentTrialID == -1)
-                    {
-                        for(int i = 0; i < 3; i++)
-                            m_trialAnnotationPos[i] = 0;
-                    }
-                    else
-                    {
-                        //First or second part of the pool?
-                        float* trialPos = m_trialPositions + TRIAL_TABLET_DATA_MAX_POOL_SIZE*m_currentTabletTrial*3;
-
-                        if(m_currentStudyID == 1)
-                        {
-                            INFO << "Position: [";
-                            for(int i = 0; i < 3; i++)
-                            {
-                                m_trialAnnotationPos[i] = trialPos[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy1[m_currentTrialID/2] + i];
-                                std::cout << m_trialAnnotationPos[i];
-                            }
-                            std::cout << "]\n";
-                        }
-
-                        else if(m_currentStudyID == 2)
-                        {
-                            INFO << "Position: [";
-                            for(int i = 0; i < 3; i++)
-                            {
-                                m_trialAnnotationPos[i] = trialPos[3*m_trialTabletData[m_currentTabletTrial].poolTargetPositionIdxStudy2[m_currentTrialID/2] + i];
-                                std::cout << m_trialAnnotationPos[i];
-                            }
-                            std::cout << "]\n";
-                        }
-                    }
-
-                    //Send the message to everyone
-                    {
-                        std::lock_guard<std::mutex> lock(m_mapMutex);
-                        for(auto it : m_clientTable)
-                            if(it.second->isTablet() || it.second->isHeadset())
-                                sendNextTrialDataCHI2020(it.second);                                
-                    }
-
-                    //No more trial to send for now
-                    m_waitSendNextTrial = false;
-
-                    //We have finish the study. This is done after the whole computation because we need to send data information to all the devices
-                    if(m_currentStudyID == 3)
-                    {
-                        INFO << "\n--------------\n";
-                        INFO << "Study Finished\n";
-                        INFO << "--------------\n\n";
-                        m_datasetMutex.unlock();
-                        return;
-                    }
-                }
-                m_datasetMutex.unlock();
-            }
-            else
-            {
-                m_datasetMutex.unlock();
-                usleep(8);
-            }
-        }
-    }
-#endif
 }

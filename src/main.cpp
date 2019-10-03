@@ -47,11 +47,7 @@ int main()
     if(pid == 0)
     {
         char logFile[1024];
-#ifdef CHI2020
-        sprintf(logFile, "pair%d.json", server->getPairID());
-#else
         strcpy(logFile, "log.json.old");
-#endif
         execl("/bin/cp", "/bin/cp", "log.json", logFile, NULL);
     }
     else
@@ -59,7 +55,6 @@ int main()
         int childExitStatus;
         waitpid(pid, &childExitStatus, 0);
     }
-
 
     return 0;
 }

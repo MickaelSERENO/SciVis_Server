@@ -16,7 +16,6 @@
 #include "MetaData.h"
 #include "AnchorHeadsetData.h"
 #include "config.h"
-#include "TrialTabletData.h"
 
 namespace sereno
 {
@@ -49,8 +48,6 @@ namespace sereno
         VFV_SEND_START_ANNOTATION        = 11, /*!< Send the start annotation message (asking to start an annotation) */
         VFV_SEND_ANCHOR_ANNOTATION       = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
         VFV_SEND_CLEAR_ANNOTATION        = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
-        VFV_SEND_NEXT_TRIAL_DATA_CHI2020 = 14, /*!< Send the next trial data*/
-        VFV_SEND_ACK_END_TRAINING        = 15, /*!< Send an acknowledge about the end of the training session*/
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -65,10 +62,6 @@ namespace sereno
             void cancel();
             void wait();
             void closeServer();
-
-#ifdef CHI2020
-            uint32_t getPairID() const {return m_pairID;}
-#endif
 
             /** \brief  The distinguishable color used in this sci vis application */
             static const uint32_t SCIVIS_DISTINGUISHABLE_COLORS[10];
@@ -147,12 +140,6 @@ namespace sereno
              * \param clearAnnots the message parsed containing information about the dataset to clear the annotations*/
             void onClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnots);
 
-#ifdef CHI2020
-            /* \brief  Handle the "next" trial command
-             * \param client the client sending the next trial command */
-            void onNextTrial(VFVClientSocket* client);
-#endif
-
             /* \brief  Send an empty message
              * \param client the client to send the message
              * \param type the type of the message*/
@@ -229,12 +216,6 @@ namespace sereno
              * \param clearAnnot the clean annotations command */
             void sendClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnot);
 
-#ifdef CHI2020
-            /* \brief  Send the next trial data to a particular client
-             * \param client the client to send the trial */
-            void sendNextTrialDataCHI2020(VFVClientSocket* client);
-#endif
-
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
             void onLoginSendCurrentStatus(VFVClientSocket* client);
@@ -243,11 +224,6 @@ namespace sereno
 
             /** \brief Main thread running for updating other devices*/
             void updateThread();
-
-#ifdef CHI2020
-            /** \brief The next trial thread which notify persons when the next trial is necessary */
-            void nextTrialThread();
-#endif
 
             /*----------------------------------------------------------------------------*/
             /*---------------------------------ATTRIBUTES---------------------------------*/
@@ -272,24 +248,6 @@ namespace sereno
 #ifdef VFV_LOG_DATA
             std::mutex    m_logMutex; /*!< The log file mutex */
             std::ofstream m_log;      /*!< The output log file recording every messages received and sent*/
-#endif
-
-#ifdef CHI2020
-            std::thread* m_nextTrialThread = NULL; /*!< Thread handling the next trial message (sending next trial). The mutex: datasetMutex*/
-
-            uint32_t m_pairID;                     /*!< The pair ID (id of the participants)*/
-            TrialTabletData m_trialTabletData[2];  /*!< The tablet data regarding the CHI2020 experiment*/
-
-            bool     m_waitSendNextTrial = false;  /*!< Should we send the next trial command?*/ 
-            time_t   m_msWaitNextTrialTime;        /*!< At what time should the next trial be launched ? (based on getTimeOffset()) */
-
-            uint8_t  m_currentTabletTrial = 1;  /*!< Who is the current tablet to be able to do the trial?*/
-            int32_t  m_currentTrialID = -1;     /*!< The current trial ID. Can be -1*/
-            uint32_t m_currentStudyID = 0;      /*!< The current study ID*/
-            uint32_t m_currentTechniqueIdx = 0; /* !< The current technique index to use to determine which technique to use in the current trial.*/
-
-            float    m_trialAnnotationPos[3];  /*!< The annotation position in the current trial*/
-            float*   m_trialPositions = NULL;  /*!< The position of all the possible targeted annotations*/ 
 #endif
             //Mutex load order:
             //datasetMutex, mapMutex, logMutex
