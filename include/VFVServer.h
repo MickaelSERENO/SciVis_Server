@@ -47,6 +47,8 @@ namespace sereno
         VFV_SEND_START_ANNOTATION        = 11, /*!< Send the start annotation message (asking to start an annotation) */
         VFV_SEND_ANCHOR_ANNOTATION       = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
         VFV_SEND_CLEAR_ANNOTATION        = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
+        VFV_SEND_ADD_SUBDATASET          = 14, /*!< Send the "add" subdataset command.*/
+        VFV_SEND_DEL_SUBDATASET          = 15, /*!< Send the "delete" subdataset command.*/
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -144,6 +146,11 @@ namespace sereno
              * \param dataset the dataset information 
              * \param datasetID the datasetID*/
             void sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID);
+
+            /* \brief Send the AddSubDataset Event to a given client for a given SubDataset
+             * \param client the client to send the message
+             * \param SubDataset the subdataset information */
+            void sendAddSubDataset(VFVClientSocket* client, const SubDataset* sd);
 
             /* \brief  Send a rotation event to client
              * \param client the client to send the information

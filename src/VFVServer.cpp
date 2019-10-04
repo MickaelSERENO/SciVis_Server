@@ -100,53 +100,6 @@ namespace sereno
         return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
     }
 
-    /**
-     * \brief  Generate all the possible order based on the maximum number of techniques
-     *
-     * \param curID the current ID to generate the order for
-     * \param printOrder should we print this order into the console?
-     *
-     * \return   the generated order
-     */
-    /*
-    static std::vector<uint32_t> generateFactorialOrder(uint32_t curID, bool printOrder=false)
-    {
-        curID %= MAX_INTERACTION_TECHNIQUE_NUMBER;
-
-        std::vector<uint32_t> orderAvailable(MAX_INTERACTION_TECHNIQUE_NUMBER);
-        std::vector<uint32_t> trialOrder(MAX_INTERACTION_TECHNIQUE_NUMBER);
-
-        //Fill all the distinguished value into an array
-        for(uint32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER; j++)
-            orderAvailable[j] = j;
-
-        for(int32_t j = 0; j < MAX_INTERACTION_TECHNIQUE_NUMBER-1; j++) 
-        {
-            uint32_t div    = factorial(MAX_INTERACTION_TECHNIQUE_NUMBER-1-j);
-            uint32_t target = curID / div;
-            curID %= div;
-
-            trialOrder[j] = orderAvailable[target];
-            auto it = orderAvailable.begin();
-            std::advance(it, target);
-            orderAvailable.erase(it);
-        }
-
-        trialOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] = orderAvailable[0];
-
-        //Print the order
-        if(printOrder)
-        {
-            INFO << "Technique Order : [";
-            for(uint32_t j = 0; j < 3; j++)
-                std::cout << trialOrder[j] << ",";
-            std::cout << trialOrder[MAX_INTERACTION_TECHNIQUE_NUMBER-1] << "]\n";
-        }
-
-        return trialOrder;
-    }
-    */
-
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
 #ifdef VFV_LOG_DATA
@@ -297,7 +250,7 @@ namespace sereno
             return NULL;
         }
 
-        if(it->second->getNbSubDatasets() <= sdID)
+        if(it->second->getSubDataset(sdID) == NULL)
         {
             WARNING << "The subdataset ID 'sdID' in dataset ID 'datasetID' is not found\n";
             return NULL;
@@ -309,10 +262,12 @@ namespace sereno
     MetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID)
     {
         MetaData* mt = NULL;
+        SubDatasetMetaData* sdMT = NULL;
         auto it = m_vtkDatasets.find(datasetID);
         if(it != m_vtkDatasets.end())
         {
-            if(it->second.sdMetaData.size() <= sdID)
+            sdMT = it->second.getSDMetaDataByID(sdID);
+            if(sdMT == NULL)
                 return NULL;
             mt = &it->second;
         }
@@ -322,7 +277,7 @@ namespace sereno
         //Update time
         struct timespec t;
         clock_gettime(CLOCK_REALTIME, &t);
-        mt->sdMetaData[sdID].lastModification = t.tv_nsec*1e-3 + t.tv_sec*1e6;
+        sdMT->lastModification = t.tv_nsec*1e-3 + t.tv_sec*1e6;
 
         //UPdate client
         if(client->isTablet() && client->getTabletData().headset)
@@ -332,7 +287,7 @@ namespace sereno
                 mt->sdMetaData[sdID].hmdClient = client->getTabletData().headset;
 
                 //Send owner to all the clients
-                sendSubDatasetOwner(&mt->sdMetaData[sdID]);
+                sendSubDatasetOwner(sdMT);
             }
         }
         return mt;
@@ -516,7 +471,7 @@ namespace sereno
         //Update the position
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
         {
-            SubDataset* sd = vtk->getSubDataset(i);
+            SubDataset* sd = vtk->getSubDatasets()[i];
             sd->setPosition(glm::vec3(m_currentSubDataset*2.0f, 0.0f, 0.0f));
             sd->setScale(glm::vec3(0.5f, 0.5f, 0.5f));
         }
@@ -527,10 +482,10 @@ namespace sereno
         metaData.ptFieldValueIndices   = dataset.ptFields;
         metaData.cellFieldValueIndices = dataset.cellFields;
 
-        for(size_t i = 0; i < dataset.ptFields.size() + dataset.cellFields.size(); i++)
+        for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
         {
             SubDatasetMetaData md;
-            md.sdID = i;
+            md.sdID = vtk->getSubDatasets()[i]->getID();
             metaData.sdMetaData.push_back(md);
         }
 
@@ -885,6 +840,54 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendAddSubDataset(VFVClientSocket* client, const SubDataset* sd)
+    {
+        for(auto it : m_datasets)
+        {
+            if(it.second == sd->getParent())
+            {
+                uint32_t id = it.first;
+                uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t)*2 + sizeof(uint32_t) +
+                                    sd->getName().size()*sizeof(uint8_t);
+
+                uint8_t* data = (uint8_t*)malloc(dataSize);
+                uint32_t offset = 0;
+
+                writeUint16(data, VFV_SEND_ADD_SUBDATASET);
+                offset+=sizeof(uint16_t);
+
+                writeUint32(data+offset, id);
+                offset+=sizeof(uint32_t);
+
+                writeUint32(data+offset, sd->getID());
+                offset+=sizeof(uint32_t);
+
+                writeUint32(data+offset, sd->getName().size());
+                offset+=sizeof(uint32_t);
+
+                memcpy(data+offset, sd->getName().c_str(), sd->getName().size());
+                offset+=sd->getName().size();
+
+                INFO << "Sending ADDSUBDATASET Event data. Name : " << sd->getName() << "\n";
+                std::shared_ptr<uint8_t> sharedData(data, free);
+                SocketMessage<int> sm(client->socket, sharedData, offset);
+                writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+                {
+                    std::lock_guard<std::mutex> logLock(m_logMutex);
+                    VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AddSubDataset");
+                    m_log << ",    \"datasetID\" : " << id << ",\n"
+                          << "    \"subDatasetID\" : " << sd->getID() << ",\n"
+                          << "    \"name\" : " << sd->getName() << "\n"
+                          << "},\n";
+                    m_log << std::flush;
+                }
+#endif
+            }
+        }
+    }
+
     void VFVServer::sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate)
     {
         uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 4*sizeof(float);
@@ -1017,12 +1020,12 @@ namespace sereno
             sendDatasetStatus(client, it.second, it.first);
             for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
             {
-                SubDataset* sd = it.second->getSubDataset(i);
+                SubDataset* sd = it.second->getSubDatasets()[i];
                 for(uint32_t j = 0; j < sd->getAnnotations().size(); j++)
                 {
                     VFVAnchorAnnotation anchorAnnot;
                     anchorAnnot.datasetID    = it.first;
-                    anchorAnnot.subDatasetID = i;
+                    anchorAnnot.subDatasetID = sd->getID();
                     anchorAnnot.annotationID = j;
                     auto annotIT = sd->getAnnotations().begin();
                     std::advance(annotIT, j);
@@ -1043,12 +1046,12 @@ namespace sereno
     {
         for(uint32_t i = 0; i < dataset->getNbSubDatasets(); i++)
         {
-            SubDataset* sd = dataset->getSubDataset(i);
+            SubDataset* sd = dataset->getSubDatasets()[i];
             
             //Send rotate
             VFVRotationInformation rotate;
             rotate.datasetID    = datasetID;
-            rotate.subDatasetID = i;
+            rotate.subDatasetID = sd->getID();
             rotate.quaternion[0] = sd->getGlobalRotate().w;
             rotate.quaternion[1] = sd->getGlobalRotate().x;
             rotate.quaternion[2] = sd->getGlobalRotate().y;
@@ -1058,7 +1061,7 @@ namespace sereno
             //Send move
             VFVMoveInformation position;
             position.datasetID    = datasetID;
-            position.subDatasetID = i;
+            position.subDatasetID = sd->getID();
             for(uint32_t j = 0; j < 3; j++)
                 position.position[j] = sd->getPosition()[j];
             sendMoveDatasetEvent(client, position);
@@ -1066,7 +1069,7 @@ namespace sereno
             //Send scale
             VFVScaleInformation scale;
             scale.datasetID    = datasetID;
-            scale.subDatasetID = i;
+            scale.subDatasetID = sd->getID();
             for(uint32_t j = 0; j < 3; j++)
                 scale.scale[j] = sd->getScale()[j];
             sendScaleDatasetEvent(client, scale);

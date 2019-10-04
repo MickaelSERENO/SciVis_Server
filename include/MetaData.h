@@ -24,6 +24,17 @@ namespace sereno
         uint32_t    datasetID; /*!< The MetaData's ID*/
 
         std::vector<SubDatasetMetaData> sdMetaData; /*!< SubDataset meta data*/
+
+        /** \brief  Get the SubDatasetMetaData based on the sdID
+         * \param sdID the SubDataset ID
+         * \return  The SubDataset at the corresponding ID, NULL otherwise */
+        SubDatasetMetaData* getSDMetaDataByID(uint32_t sdID)
+        {
+            for(SubDatasetMetaData& sd : sdMetaData)
+                if(sd.sdID == sdID)
+                    return &sd;
+            return NULL;
+        }
     };
 
     /** \brief  The VTK MetaData structure, containing metadata of VTK Datasets */
