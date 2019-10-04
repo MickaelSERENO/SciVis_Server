@@ -11,7 +11,6 @@
 #include <glm/glm.hpp>
 #include <map>
 #include "Datasets/SubDataset.h"
-#include "SubDatasetHeadsetInformation.h"
 #include "utils.h"
 #include "ClientSocket.h"
 #include "ColorMode.h"
@@ -52,7 +51,6 @@ namespace sereno
         HEADSET_CURRENT_SUB_DATASET = 10,
         TRANSLATE_DATASET           = 11,
         SCALE_DATASET               = 12,
-        VISIBILITY_DATASET          = 13,
         START_ANNOTATION            = 14,
         ANCHOR_ANNOTATION           = 15,
         CLEAR_ANNOTATIONS           = 16,
@@ -135,7 +133,6 @@ namespace sereno
             struct VFVHeadsetCurrentSubDataset  headsetCurrentSubDataset; /*!< The headset current SubDataset*/
             struct VFVMoveInformation           translate;  /*!< Translate information*/
             struct VFVScaleInformation          scale;      /*!< Scale information*/
-            struct VFVVisibilityDataset         visibility; /*!< Visibility information*/
             struct VFVStartAnnotation           startAnnotation;  /*!< Start an annotation information*/
             struct VFVAnchorAnnotation          anchorAnnotation; /*!< Anchor an annotation at a specific location*/
             struct VFVClearAnnotations          clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
@@ -209,10 +206,6 @@ namespace sereno
                         case SCALE_DATASET:
                             scale = cpy.scale;
                             curMsg = &scale;
-                            break;
-                        case VISIBILITY_DATASET:
-                            visibility = cpy.visibility;
-                            curMsg = &visibility;
                             break;
                         case START_ANNOTATION:
                             startAnnotation = cpy.startAnnotation;
@@ -303,10 +296,6 @@ namespace sereno
                     new (&scale) VFVScaleInformation;
                     curMsg = &scale;
                     break;
-                case VISIBILITY_DATASET:
-                    new (&visibility) VFVVisibilityDataset;
-                    curMsg = &visibility;
-                    break;
                 case START_ANNOTATION:
                     new (&startAnnotation) VFVStartAnnotation;
                     curMsg = &startAnnotation;
@@ -373,9 +362,6 @@ namespace sereno
                 case SCALE_DATASET:
                     scale.~VFVScaleInformation();
                     break;
-                case VISIBILITY_DATASET:
-                    visibility.~VFVVisibilityDataset();
-                    break;
                 case START_ANNOTATION:
                     startAnnotation.~VFVStartAnnotation();
                     break;
@@ -430,7 +416,6 @@ namespace sereno
         Quaternionf                 rotation;                                       /*!< 3D rotation of the headset*/
         bool                        anchoringSent = false;                          /*!< Has the anchoring data been sent?*/
         VFVHeadsetCurrentActionType currentAction = HEADSET_CURRENT_ACTION_NOTHING; /*!< What is the tablet current action?*/
-        std::map<SubDataset*, SubDatasetHeadsetInformation> sdInfo;                 /*!< Information per dataset regarding each headset*/
 
         VFVHeadsetPointingData      pointingData; /*!< The pointing data of the headset*/
     };

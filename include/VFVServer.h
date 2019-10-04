@@ -44,7 +44,6 @@ namespace sereno
         VFV_SEND_HEADSET_ANCHOR_EOF      = 7,  /*!< Send anchor end of stream*/
         VFV_SEND_SUBDATASET_OWNER        = 8,  /*!< Send the new subdataset owner*/
         VFV_SEND_SCALE_DATASET           = 9,  /*!< Send the scaling status of a dataset*/
-        VFV_SEND_SET_VISIBILITY_DATASET  = 10, /*!< Send the new dataset visibility*/
         VFV_SEND_START_ANNOTATION        = 11, /*!< Send the start annotation message (asking to start an annotation) */
         VFV_SEND_ANCHOR_ANNOTATION       = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
         VFV_SEND_CLEAR_ANNOTATION        = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
@@ -110,11 +109,6 @@ namespace sereno
              * \param scale the scale values of the data. Not constant because the headset ID will change*/
             void scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale);
 
-            /* \brief  Set a subdataset visibility for a given client
-             * \param client the client modifying the dataset
-             * \param visibility the new visibility to apply*/
-            void setVisibility(VFVClientSocket* client, const VFVVisibilityDataset& visibility);
-
             /* \brief  Add a VTKDataset to the visualized datasets
              * \param client the client adding the dataset
              * \param dataset the dataset information to add */
@@ -165,15 +159,6 @@ namespace sereno
              * \param client the client to send the information
              * \param position the position information */
             void sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position);
-
-            /* \brief  Send all subdataset visibility when linked with a headset
-             * \param client the tablet client */
-            void sendAllDatasetVisibility(VFVClientSocket* client);
-
-            /* \brief  notify a client about the change of the dataset visibility
-             * \param client the client to send the data
-             * \param visibility The dataset visibility*/
-            void sendVisibilityEvent(VFVClientSocket* client, const VFVVisibilityDataset& visibility);
 
             /* \brief  Send the whole dataset status to a client
              * \param client the client to send the data

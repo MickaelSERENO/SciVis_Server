@@ -105,7 +105,6 @@ namespace sereno
     {
         int32_t datasetID    = 0;
         int32_t subDatasetID = -1;
-        bool inPublic     = 1;
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -118,24 +117,14 @@ namespace sereno
             return true;
         }
 
-        virtual bool pushValue(uint32_t cursor, uint8_t value)
-        {
-            if(cursor == 2)
-                inPublic = value;
-            else
-                VFV_DATA_ERROR
-            return true;
-        }
-
         virtual char getTypeAt(uint32_t cursor) const 
         {
             if(cursor <= 1)
                 return 'I';
-            else if(cursor == 2)
-                return 'b';
             return 0;
         }
-        virtual int32_t getMaxCursor() const {return 2;}
+
+        virtual int32_t getMaxCursor() const {return 1;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -143,8 +132,7 @@ namespace sereno
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ClearAnnotations");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
-                << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
-                << "    \"inPublic\" : " << inPublic << "\n";
+                << "    \"subDatasetID\" : " << subDatasetID << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
@@ -157,7 +145,6 @@ namespace sereno
         int32_t subDatasetID = -1;
         int32_t annotationID = -1; /*!< Only the server sets this information*/
         int32_t headsetID    = -1; /*!< Only the server sets this information*/
-        bool    inPublic     = 1;
         float   localPos[3];
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
@@ -171,19 +158,10 @@ namespace sereno
             return true;
         }
 
-        virtual bool pushValue(uint32_t cursor, uint8_t value)
-        {
-            if(cursor == 2)
-                inPublic = value;
-            else
-                VFV_DATA_ERROR
-            return true;
-        }
-
         virtual bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor <= 5 && cursor >= 3)
-                localPos[cursor-3] = value;
+            if(cursor <= 4 && cursor >= 2)
+                localPos[cursor-2] = value;
             else
                 VFV_DATA_ERROR
             return true;
@@ -193,13 +171,11 @@ namespace sereno
         {
             if(cursor <= 1)
                 return 'I';
-            else if(cursor == 2)
-                return 'b';
-            else if(cursor <= 5)
+            else if(cursor <= 4)
                 return 'f';
             return 0;
         }
-        virtual int32_t getMaxCursor() const {return 5;}
+        virtual int32_t getMaxCursor() const {return 4;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -209,7 +185,6 @@ namespace sereno
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
                 << "    \"annotationID\" : " << annotationID << ",\n"
-                << "    \"inPublic\" : " << inPublic << ",\n"
                 << "    \"localPos\" : [" << localPos[0] << "," << localPos[1] << "," << localPos[2] << "]\n";
             VFV_END_TO_JSON(oss);
 
@@ -223,7 +198,6 @@ namespace sereno
         int32_t datasetID    = 0;
         int32_t subDatasetID = -1;
         int32_t pointingID   = 0;
-        bool inPublic     = 1;
 
         virtual bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -238,24 +212,13 @@ namespace sereno
             return true;
         }
 
-        virtual bool pushValue(uint32_t cursor, uint8_t value)
-        {
-            if(cursor == 3)
-                inPublic = value;
-            else
-                VFV_DATA_ERROR
-            return true;
-        }
-
         virtual char getTypeAt(uint32_t cursor) const 
         {
             if(cursor <= 2)
                 return 'I';
-            else if(cursor == 3)
-                return 'b';
             return 0;
         }
-        virtual int32_t getMaxCursor() const {return 3;}
+        virtual int32_t getMaxCursor() const {return 2;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -264,45 +227,7 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "StartAnnotation");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
-                << "    \"inPublic\" : " << inPublic << ",\n"
                 << "    \"pointingID\" : " << pointingID << "\n";
-            VFV_END_TO_JSON(oss);
-
-            return oss.str();
-        }
-    };
-
-    /** \brief  Set the visibility of a dataset */
-    struct VFVVisibilityDataset : public VFVDataInformation
-    {
-        int32_t datasetID    = 0;  /*!< Dataset ID*/
-        int32_t subDatasetID = -1; /*!< SubDataset ID*/
-        int32_t visibility   = VISIBILITY_PUBLIC; /*!< Either VISIBILITY_PUBLIC or VISIBILITY_PRIVATE*/
-
-        virtual bool pushValue(uint32_t cursor, uint32_t value)
-        {
-            if(cursor == 0)
-                datasetID = value;
-            else if(cursor == 1)
-                subDatasetID = value;
-            else if(cursor == 2)
-                visibility = value;
-            else
-                VFV_DATA_ERROR
-            return true;
-        }
-
-        virtual char getTypeAt(uint32_t cursor) const {return 'I';}
-        virtual int32_t getMaxCursor() const {return 2;}
-
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
-        {
-            std::ostringstream oss;
-
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "VisibilityDataset");
-            oss << ",    \"datasetID\" : " << datasetID << ",\n"
-                << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
-                << "    \"visibility\" : " << visibility << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
@@ -856,25 +781,22 @@ namespace sereno
         uint32_t datasetID;      /*!< The dataset ID*/
         uint32_t subDatasetID;   /*!< The SubDataset ID*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
-        bool     inPublic  = true;  /*!< The scaling is done in the public view?*/
         float    scale[3];       /*!< The scale information*/
 
         char getTypeAt(uint32_t cursor) const
         {
             if(cursor < 2)
                 return 'I';
-            else if(cursor == 2)
-                return 'b';
-            else if(cursor < 6)
+            else if(cursor < 5)
                 return 'f';
             return 0;
         }
 
         bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor < 6 && cursor >= 3)
+            if(cursor < 5 && cursor >= 2)
             {
-                scale[cursor-3] = value;
+                scale[cursor-2] = value;
                 return true;
             }
             VFV_DATA_ERROR
@@ -896,17 +818,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        bool pushValue(uint32_t cursor, uint8_t value)
-        {
-            if(cursor == 2)
-            {
-                inPublic = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        int32_t getMaxCursor() const {return 5;}
+        int32_t getMaxCursor() const {return 4;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -915,7 +827,6 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ScaleDataset");
             oss << ",    \"datasetID\" : " << datasetID << ",\n" 
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n"
-                << "    \"inPublic\" : " << inPublic << ",\n"
                 << "    \"scale\" : [" << scale[0] << "," << scale[1] << "," << scale[2] << "]\n";
             VFV_END_TO_JSON(oss);
 
@@ -928,7 +839,6 @@ namespace sereno
     {
         uint32_t datasetID;     /*!< The dataset ID*/
         uint32_t subDatasetID;  /*!< The SubDataset ID*/
-        bool     inPublic  = true; /*!< The movement is done in the public view?*/
         float    position[3];   /*!< The position information*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 
@@ -936,18 +846,16 @@ namespace sereno
         {
             if(cursor < 2)
                 return 'I';
-            else if(cursor == 2)
-                return 'b';
-            else if(cursor < 6)
+            else if(cursor < 5)
                 return 'f';
             return 0;
         }
 
         bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor < 6 && cursor >= 3)
+            if(cursor < 5 && cursor >= 2)
             {
-                position[cursor-3] = value;
+                position[cursor-2] = value;
                 return true;
             }
             VFV_DATA_ERROR
@@ -969,17 +877,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        bool pushValue(uint32_t cursor, uint8_t value)
-        {
-            if(cursor == 2)
-            {
-                inPublic = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        int32_t getMaxCursor() const {return 5;}
+        int32_t getMaxCursor() const {return 4;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -988,7 +886,6 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "MoveDataset");
             oss << ",    \"datasetID\" : " << datasetID << ",\n" 
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n"
-                << "    \"inPublic\" : " << inPublic << ",\n"
                 << "    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "]\n";
             VFV_END_TO_JSON(oss);
 
@@ -1001,7 +898,6 @@ namespace sereno
     {
         uint32_t datasetID;      /*!< The dataset ID*/
         uint32_t subDatasetID;   /*!< The SubDataset ID*/
-        bool     inPublic  = 1;  /*!< Is the rotation done in the public view?*/
         float    quaternion[4];  /*!< The quaternion information*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
 
@@ -1009,18 +905,16 @@ namespace sereno
         {
             if(cursor < 2)
                 return 'I';
-            else if(cursor == 2)
-                return 'b';
-            else if(cursor < 7)
+            else if(cursor < 6)
                 return 'f';
             return 0;
         }
 
         bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor < 7 && cursor >= 3)
+            if(cursor < 6 && cursor >= 2)
             {
-                quaternion[cursor-3] = value;
+                quaternion[cursor-2] = value;
                 return true;
             }
             VFV_DATA_ERROR
@@ -1042,17 +936,7 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        bool pushValue(uint32_t cursor, uint8_t value)
-        {
-            if(cursor == 2)
-            {
-                inPublic = value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        int32_t getMaxCursor() const {return 6;}
+        int32_t getMaxCursor() const {return 5;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -1061,7 +945,6 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "RotateDataset");
             oss << ",    \"datasetID\" : " << datasetID << ",\n" 
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n"
-                << "    \"inPublic\" : " << inPublic << ",\n"
                 << "    \"quaternion\" : [" << quaternion[0] << "," << quaternion[1] << "," << quaternion[2] << "," << quaternion[3] << "]\n";
             VFV_END_TO_JSON(oss);
 
