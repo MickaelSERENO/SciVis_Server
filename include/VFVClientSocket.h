@@ -56,7 +56,6 @@ namespace sereno
         START_ANNOTATION            = 14,
         ANCHOR_ANNOTATION           = 15,
         CLEAR_ANNOTATIONS           = 16,
-        NEXT_TRIAL                  = 17,
         END_MESSAGE_TYPE
     };
 
@@ -160,7 +159,6 @@ namespace sereno
                     switch(type)
                     {
                         case IDENT_HEADSET:
-                        case NEXT_TRIAL:
                             noData = cpy.noData;
                             curMsg = &noData;
                             break;
@@ -252,7 +250,6 @@ namespace sereno
             switch(t)
             {
                 case IDENT_HEADSET:
-                case NEXT_TRIAL:
                     new (&noData) VFVNoDataInformation;
                     curMsg = &noData;
                     noData.type = t;
@@ -338,7 +335,6 @@ namespace sereno
             switch(type)
             {
                 case IDENT_HEADSET:
-                case NEXT_TRIAL:
                     noData.~VFVNoDataInformation();
                     break;
                 case IDENT_TABLET:
