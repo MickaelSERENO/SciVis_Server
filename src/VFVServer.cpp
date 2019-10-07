@@ -2,6 +2,10 @@
 #include <random>
 #include <algorithm>
 
+#ifndef TEST
+#define TEST
+#endif
+
 namespace sereno
 {
 #define DATASET_DIRECTORY "Datasets/"
@@ -115,6 +119,23 @@ namespace sereno
             m_log << std::flush;
         }
 #endif
+
+#ifdef TEST
+        //Add the dataset the users will play with
+        VFVVTKDatasetInformation vtkInfo;
+        vtkInfo.name = "Agulhas_10_resampled.vtk";
+        vtkInfo.nbPtFields = 1;
+        vtkInfo.ptFields.push_back(1);
+
+#ifdef VFV_LOG_DATA
+        m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
+        m_log << ",\n";
+        m_log << std::flush;
+#endif
+
+        addVTKDataset(NULL, vtkInfo);
+#endif
+
     }
 
     VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
@@ -514,10 +535,10 @@ namespace sereno
             for(auto clt : m_clientTable)
             {
                 sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
-                sendDatasetStatus(clt.second, vtk, metaData.datasetID);
                 //Send the first property as a new SubDataset
                 if(vtk->getNbSubDatasets() != 0)
                     sendAddSubDataset(clt.second, vtk->getSubDatasets()[0]);
+                sendDatasetStatus(clt.second, vtk, metaData.datasetID);
             }
         }
     }
@@ -1029,10 +1050,11 @@ namespace sereno
 
         for(auto& it : m_datasets)
         {
-            sendDatasetStatus(client, it.second, it.first);
             for(uint32_t i = 0; i < it.second->getNbSubDatasets(); i++)
             {
                 SubDataset* sd = it.second->getSubDatasets()[i];
+
+                sendAddSubDataset(client, sd);
                 for(uint32_t j = 0; j < sd->getAnnotations().size(); j++)
                 {
                     VFVAnchorAnnotation anchorAnnot;
@@ -1047,6 +1069,8 @@ namespace sereno
                     sendAnchorAnnotation(client, anchorAnnot);
                 }
             }
+
+            sendDatasetStatus(client, it.second, it.first);
         }
 
         //Send anchoring data
