@@ -468,6 +468,14 @@ namespace sereno
         std::shared_ptr<VTKParser> sharedParser(parser);
         VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
 
+        //Add a SubDataset if no one is registered yet
+        if(vtk->getNbSubDatasets()        == 0 &&
+           vtk->getPtFieldValues().size() != 0)
+        {
+            SubDataset* sd = new SubDataset(vtk, vtk->getPtFieldValues()[0]->name, 0);
+            vtk->addSubDataset(sd);
+        }
+
         //Update the position
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
         {
@@ -507,6 +515,9 @@ namespace sereno
             {
                 sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
                 sendDatasetStatus(clt.second, vtk, metaData.datasetID);
+                //Send the first property as a new SubDataset
+                if(vtk->getNbSubDatasets() != 0)
+                    sendAddSubDataset(clt.second, vtk->getSubDatasets()[0]);
             }
         }
     }
@@ -884,6 +895,7 @@ namespace sereno
                     m_log << std::flush;
                 }
 #endif
+                break;
             }
         }
     }
