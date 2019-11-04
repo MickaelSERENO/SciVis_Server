@@ -124,18 +124,22 @@ namespace sereno
         //Add the dataset the users will play with
         VFVVTKDatasetInformation vtkInfo;
         vtkInfo.name = "Agulhas_10_resampled.vtk";
-        vtkInfo.nbPtFields = 1;
+        vtkInfo.nbPtFields = 2;
         vtkInfo.ptFields.push_back(1);
+        vtkInfo.ptFields.push_back(2);
 
 #ifdef VFV_LOG_DATA
         m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
         m_log << ",\n";
         m_log << std::flush;
 #endif
-
         addVTKDataset(NULL, vtkInfo);
-#endif
 
+        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
+        {
+            INFO << "Loaded. Status: " << status << std::endl;
+        }, NULL);
+#endif
     }
 
     VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
