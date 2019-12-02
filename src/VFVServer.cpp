@@ -1,4 +1,6 @@
 #include "VFVServer.h"
+#include "TransferFunction/GTF.h"
+#include "TransferFunction/TriangularGTF.h"
 #include <random>
 #include <algorithm>
 
@@ -124,9 +126,10 @@ namespace sereno
         //Add the dataset the users will play with
         VFVVTKDatasetInformation vtkInfo;
         vtkInfo.name = "Agulhas_10_resampled.vtk";
-        vtkInfo.nbPtFields = 2;
+        vtkInfo.nbPtFields = 3;
         vtkInfo.ptFields.push_back(1);
         vtkInfo.ptFields.push_back(2);
+        vtkInfo.ptFields.push_back(3);
 
 #ifdef VFV_LOG_DATA
         m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
@@ -284,7 +287,7 @@ namespace sereno
         return it->second;
     }
 
-    MetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID)
+    MetaData* VFVServer::getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr)
     {
         MetaData* mt = NULL;
         SubDatasetMetaData* sdMT = NULL;
@@ -297,6 +300,19 @@ namespace sereno
             mt = &it->second;
         }
         else
+            return NULL;
+
+        if(sdMTPtr)
+            *sdMTPtr = sdMT;
+
+        return mt;
+    }
+
+    MetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID)
+    {
+        SubDatasetMetaData* sdMT = NULL;
+        MetaData* mt = NULL;
+        if((mt = getMetaData(datasetID, sdID, &sdMT)) == NULL)
             return NULL;
 
         //Update time
@@ -629,6 +645,122 @@ namespace sereno
         for(auto& clt : m_clientTable)
             if(clt.second != client)
                 sendMoveDatasetEvent(clt.second, translate);
+    }
+
+    void VFVServer::tfSubDataset(VFVClientSocket* client, VFVTransferFunctionSubDataset& tfSD)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        Dataset* dataset = getDataset(tfSD.datasetID, tfSD.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(tfSD.datasetID, tfSD.subDatasetID)
+            return;
+        }
+
+        //Search for the meta data
+        SubDataset* sd = dataset->getSubDataset(tfSD.subDatasetID);
+
+        SubDatasetMetaData* sdMT = NULL;
+        MetaData* mt = NULL;
+        getMetaData(tfSD.datasetID, tfSD.subDatasetID, &sdMT);
+        if(!mt)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(tfSD.datasetID, tfSD.subDatasetID)
+            return;
+        }
+
+        if(client)
+            updateMetaDataModification(client, tfSD.datasetID, tfSD.subDatasetID);
+
+        //Now, update the transfer function
+        //
+        //First check if the type has changes
+        if(tfSD.tfID != sdMT->tfType)
+        {
+            //Delete
+            if(sdMT->tf != NULL)
+                delete sdMT->tf;
+
+            //Reallocate
+            switch((TFType)tfSD.tfID)
+            {
+                case TF_GTF:
+                    sdMT->tf = new GTF(tfSD.gtfData.nbProps, (ColorMode)tfSD.gtfData.colorMode);
+                    break;
+                case TF_TRIANGULAR_GTF:
+                    sdMT->tf = new TriangularGTF(tfSD.gtfData.nbProps, (ColorMode)tfSD.gtfData.colorMode);
+                    break;
+                default:
+                    ERROR << "The Transfer Function type: " << tfSD.tfID << " is unknown. Set the NONE\n";
+                    sdMT->tfType = TF_NONE;
+                    sdMT->tf     = NULL;
+                    break;
+                sd->setTransferFunction(sdMT->tf);
+            }
+        }
+
+        //Update the corresponding one
+        if(sdMT->tfType != TF_NONE)
+        {
+            switch(sdMT->tfType)
+            {
+                case TF_GTF:
+                case TF_TRIANGULAR_GTF:
+                {
+                    //Get the ordered array of centers and scaling
+                    float* centers = (float*)malloc(sizeof(float)*tfSD.gtfData.nbProps);
+                    float* scales  = (float*)malloc(sizeof(float)*tfSD.gtfData.nbProps);
+
+                    for(uint32_t i = 0; i < tfSD.gtfData.nbProps; i++)
+                    {
+                        //Look for corresponding ID...
+                        for(uint32_t j = 0; j < tfSD.gtfData.nbProps; j++)
+                        {
+                            if(tfSD.gtfData.propData[j].propID == i)
+                            {
+                                centers[i] = tfSD.gtfData.propData[j].center;
+                                scales[i]  = tfSD.gtfData.propData[j].scale;
+                                break;
+                            }
+                        }
+                    }
+
+                    //Set the center and scaling factors
+                    if(sdMT->tfType == TF_GTF)
+                    {
+                        ((GTF*)sdMT->tf)->setCenter(centers);
+                        ((GTF*)sdMT->tf)->setScale(centers);
+                    }
+
+                    else if(sdMT->tfType == TF_TRIANGULAR_GTF)
+                    {
+                        ((TriangularGTF*)sdMT->tf)->setCenter(centers);
+                        ((TriangularGTF*)sdMT->tf)->setScale(centers);
+                    }
+
+                    //Free data
+                    free(centers);
+                    free(scales);
+                    break;
+                }
+                default: //Should never come here
+                    ERROR << "Missing the handle for one Transfer Function Type: " << sdMT->tfType << std::endl;
+                    break;
+            }
+        }
+
+        //Set the headsetID
+        if(client)
+        {
+            if(client->isTablet() && client->getTabletData().headset)
+                tfSD.headsetID = client->getTabletData().headset->getHeadsetData().id;
+            else if(client->isHeadset())
+                tfSD.headsetID = client->getHeadsetData().id;
+        }
+
+        //TODO send data to other devices
     }
 
     void VFVServer::scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale)
@@ -1552,6 +1684,12 @@ namespace sereno
                 case SCALE_DATASET:
                 {
                     scaleSubDataset(client, msg.scale);
+                    break;
+                }
+
+                case TF_DATASET:
+                {
+                    tfSubDataset(client, msg.tfSD);
                     break;
                 }
 

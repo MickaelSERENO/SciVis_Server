@@ -3,6 +3,7 @@
 
 #include "utils.h"
 #include "visibility.h"
+#include "TransferFunction/TFType.h"
 #include <string>
 #include <cstdint>
 #include <memory>
@@ -772,6 +773,177 @@ namespace sereno
 #endif
 
             return oss.str();
+        }
+    };
+
+    /** \brief  Structure containing information for Transfer Function to apply to a dataset*/
+    struct VFVTransferFunctionSubDataset : public VFVDataInformation
+    {
+        struct GTFData
+        {
+            uint32_t propID; /*!< The property ID*/
+            float    center; /*!< The center of the gaussian function*/
+            float    scale;  /*!< The scale of the gaussian function*/
+        };
+
+        uint32_t datasetID;      /*!< The dataset ID*/
+        uint32_t subDatasetID;   /*!< The SubDataset ID*/
+        int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
+        uint8_t  tfID = -1;      /*!< The transfer function ID*/
+        struct
+        {
+            uint32_t nbProps = 0;          /*!< The number of properties*/
+            uint8_t  colorMode;            /*!< The color mode to apply*/ 
+            std::vector<GTFData> propData; /*!< Each property data*/
+        }gtfData;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 2) //dataset/subdatasetID
+                return 'I';
+            else if(cursor == 3) //tfID
+                return 'b';
+            else
+            {
+                switch((TFType)tfID)
+                {
+                    case TF_GTF:
+                    case TF_TRIANGULAR_GTF:
+                    {
+                        if(cursor == 4) //nbProps
+                            return 'I';
+                        if((cursor-5) / 3 > gtfData.nbProps) //Check the size
+                            return 0;
+
+                        uint32_t offset = (cursor-5)%3;
+                        if(offset == 0) //propID
+                            return 'I';
+                        return 'f'; //center, scale
+                    }
+                    default:
+                        return 0;
+                }
+            }
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                datasetID = value;
+                return true;
+            }
+            else if(cursor == 1)
+            {
+                subDatasetID = value;
+                return true;
+            }
+            else if(cursor >= 3)
+            {
+                switch((TFType)tfID)
+                {
+                    case TF_GTF:
+                    case TF_TRIANGULAR_GTF:
+                    {
+                        if(cursor == 4)
+                        {
+                            gtfData.nbProps = value;
+                            return true;
+                        }
+                        else
+                        {
+                            uint32_t id     = (cursor-6)/3;
+                            uint32_t offset = (cursor-6)%3;
+                            if(id > gtfData.nbProps)
+                                VFV_DATA_ERROR
+
+                            if(offset == 0)
+                            {
+                                gtfData.propData[id].propID = value;
+                                return true;
+                            }
+                        }
+                    }
+                    default:
+                        VFV_DATA_ERROR
+                }
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 2)
+            {
+                tfID = value;
+                return true;
+            }
+
+            else if(cursor >= 3)
+            {
+                switch((TFType)tfID)
+                {
+                    case TF_GTF:
+                    case TF_TRIANGULAR_GTF:
+                        if(cursor == 5)
+                        {
+                            gtfData.colorMode = value;
+                            return true;
+                        }
+                        break;
+                    default:
+                        VFV_DATA_ERROR
+                };
+            }
+            VFV_DATA_ERROR;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor <= 2)
+                VFV_DATA_ERROR
+            switch((TFType)tfID)
+            {
+                case TF_GTF:
+                case TF_TRIANGULAR_GTF:
+                {
+                    if(cursor == 4)
+                        VFV_DATA_ERROR
+
+                    uint32_t id     = (cursor-6)/3;
+                    uint32_t offset = (cursor-6)%3;
+                    if(id > gtfData.nbProps)
+                        VFV_DATA_ERROR
+
+                    if(offset == 1)
+                    {
+                        gtfData.propData[id].center = value;
+                        return true;
+                    }
+                    else if(offset == 2)
+                    {
+                        gtfData.propData[id].scale = value;
+                        return true;
+                    }
+
+                }
+
+                default:
+                    VFV_DATA_ERROR
+            }
+        }
+
+        int32_t getMaxCursor() const 
+        {
+            switch((TFType)tfID)
+            {
+                case TF_GTF:
+                case TF_TRIANGULAR_GTF:
+                    return 4+gtfData.nbProps*3;
+                default:
+                    return 2;
+            }
         }
     };
 

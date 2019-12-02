@@ -4,6 +4,8 @@
 #include <string>
 #include "Datasets/VTKDataset.h"
 #include "VFVClientSocket.h"
+#include "TransferFunction/TFType.h"
+#include "TransferFunction/TransferFunction.h"
 
 namespace sereno
 {
@@ -15,6 +17,8 @@ namespace sereno
                                                     This is used to automatically reset the owner*/
         uint64_t         sdID      = 0;        /*!< SubDataset ID*/
         uint64_t         datasetID = 0;        /*!< Dataset ID*/
+        TFType           tfType    = TF_NONE;  /*!< The Transfer Function type in use*/
+        TF*              tf        = NULL;     /*!< The Transfer Function being used*/
     };
 
     /*!< Structure representing MetaData associated with the opened Datasets*/

@@ -76,6 +76,13 @@ namespace sereno
              * \return  NULL if not found, a pointer to the dataset if found*/
             Dataset* getDataset(uint32_t datasetID, uint32_t sdID);
 
+            /* \brief  Get the Dataset meta data via its ID
+             * \param datasetID the dataset ID
+             * \param sdID the subdataset ID
+             * \param sdMTPtr[out] if not NULL, will contain the SubDatasetMetaData corresponding
+             * \return The MetaData being updated. NULL if not found. In this case, sdMTPtr will not be modified*/
+            MetaData* getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr);
+
             /* \brief  Update the subdataset meta data last modification component via its ID
              * \param client the client modifying the metadata
              * \param datasetID the dataset ID
@@ -105,6 +112,11 @@ namespace sereno
              * \param client the client asking for a rotation
              * \param position the position of the data. Not constant because the headset ID will change*/
             void translateSubDataset(VFVClientSocket* client, VFVMoveInformation& position);
+
+            /* \brief Handle the change of transfer function
+             * \param client the client asking for a new transfer function
+             * \param tfSD the transfer function data. Not constant because the headset ID will change */
+            void tfSubDataset(VFVClientSocket* client, VFVTransferFunctionSubDataset& tfSD);
 
             /* \brief Handle the scaling
              * \param client the client asking for a rotation

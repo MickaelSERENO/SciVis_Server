@@ -51,6 +51,7 @@ namespace sereno
         HEADSET_CURRENT_SUB_DATASET = 10,
         TRANSLATE_DATASET           = 11,
         SCALE_DATASET               = 12,
+        TF_DATASET                  = 13,
         START_ANNOTATION            = 14,
         ANCHOR_ANNOTATION           = 15,
         CLEAR_ANNOTATIONS           = 16,
@@ -119,23 +120,23 @@ namespace sereno
 
         union
         {
-            struct VFVNoDataInformation         noData;        /*!< Structure for message with no internal data*/
-            struct VFVIdentTabletInformation    identTablet;   /*!< Ident information of a tablet*/
-            struct VFVBinaryDatasetInformation  binaryDataset; /*!< Binary Dataset information*/
-            struct VFVVTKDatasetInformation     vtkDataset;    /*!< Binary Dataset information*/
-            struct VFVColorInformation          color;         /*!< The color information sent from a tablet*/
-            struct VFVRotationInformation       rotate;        /*!< The rotate information sent from a tablet*/
-            struct VFVUpdateHeadset             headset;       /*!< The headset update data information*/
-            struct VFVAnnotation                annotation;    /*!< The annotation data information*/
-            struct VFVDefaultByteArray          defaultByteArray;    /*!< Default byte array information*/
-            struct VFVAnchoringDataStatus       anchoringDataStatus; /*!< Anchoring data status*/
-            struct VFVHeadsetCurrentAction      headsetCurrentAction;     /*!< The headset current action*/
-            struct VFVHeadsetCurrentSubDataset  headsetCurrentSubDataset; /*!< The headset current SubDataset*/
-            struct VFVMoveInformation           translate;  /*!< Translate information*/
-            struct VFVScaleInformation          scale;      /*!< Scale information*/
-            struct VFVStartAnnotation           startAnnotation;  /*!< Start an annotation information*/
-            struct VFVAnchorAnnotation          anchorAnnotation; /*!< Anchor an annotation at a specific location*/
-            struct VFVClearAnnotations          clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
+            struct VFVNoDataInformation          noData;        /*!< Structure for message with no internal data*/
+            struct VFVIdentTabletInformation     identTablet;   /*!< Ident information of a tablet*/
+            struct VFVBinaryDatasetInformation   binaryDataset; /*!< Binary Dataset information*/
+            struct VFVVTKDatasetInformation      vtkDataset;    /*!< Binary Dataset information*/
+            struct VFVRotationInformation        rotate;        /*!< The rotate information sent from a tablet*/
+            struct VFVUpdateHeadset              headset;       /*!< The headset update data information*/
+            struct VFVAnnotation                 annotation;    /*!< The annotation data information*/
+            struct VFVDefaultByteArray           defaultByteArray;    /*!< Default byte array information*/
+            struct VFVAnchoringDataStatus        anchoringDataStatus; /*!< Anchoring data status*/
+            struct VFVHeadsetCurrentAction       headsetCurrentAction;     /*!< The headset current action*/
+            struct VFVHeadsetCurrentSubDataset   headsetCurrentSubDataset; /*!< The headset current SubDataset*/
+            struct VFVMoveInformation            translate;  /*!< Translate information*/
+            struct VFVScaleInformation           scale;      /*!< Scale information*/
+            struct VFVTransferFunctionSubDataset tfSD;       /*!< Transfer Function information for a SubDataset*/          
+            struct VFVStartAnnotation            startAnnotation;  /*!< Start an annotation information*/
+            struct VFVAnchorAnnotation           anchorAnnotation; /*!< Anchor an annotation at a specific location*/
+            struct VFVClearAnnotations           clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -206,6 +207,10 @@ namespace sereno
                         case SCALE_DATASET:
                             scale = cpy.scale;
                             curMsg = &scale;
+                            break;
+                        case TF_DATASET:
+                            tfSD = cpy.tfSD;
+                            curMsg = &tfSD;
                             break;
                         case START_ANNOTATION:
                             startAnnotation = cpy.startAnnotation;
@@ -296,6 +301,10 @@ namespace sereno
                     new (&scale) VFVScaleInformation;
                     curMsg = &scale;
                     break;
+                case TF_DATASET:
+                    new (&tfSD) VFVTransferFunctionSubDataset;
+                    curMsg = &tfSD;
+                    break;
                 case START_ANNOTATION:
                     new (&startAnnotation) VFVStartAnnotation;
                     curMsg = &startAnnotation;
@@ -361,6 +370,9 @@ namespace sereno
                     break;
                 case SCALE_DATASET:
                     scale.~VFVScaleInformation();
+                    break;
+                case TF_DATASET:
+                    tfSD.~VFVTransferFunctionSubDataset();
                     break;
                 case START_ANNOTATION:
                     startAnnotation.~VFVStartAnnotation();
