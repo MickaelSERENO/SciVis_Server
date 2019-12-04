@@ -137,12 +137,12 @@ namespace sereno
         m_log << std::flush;
 #endif
         addVTKDataset(NULL, vtkInfo);
+#endif
 
         m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
         {
             INFO << "Loaded. Status: " << status << std::endl;
         }, NULL);
-#endif
     }
 
     VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
@@ -165,6 +165,19 @@ namespace sereno
             m_log.close();
         }
 #endif
+
+        //Delete meta data information
+        for(auto& d : m_vtkDatasets)
+            for(auto& sd : d.second.sdMetaData)
+                if(sd.tf)
+                    delete sd.tf;
+
+        for(auto& d : m_binaryDatasets)
+            for(auto& sd : d.second.sdMetaData)
+                if(sd.tf)
+                    delete sd.tf;
+
+        //delete datasets
         for(auto& d : m_datasets)
             delete d.second;
     }
@@ -295,8 +308,6 @@ namespace sereno
         if(it != m_vtkDatasets.end())
         {
             sdMT = it->second.getSDMetaDataByID(sdID);
-            if(sdMT == NULL)
-                return NULL;
             mt = &it->second;
         }
         else
@@ -312,7 +323,7 @@ namespace sereno
     {
         SubDatasetMetaData* sdMT = NULL;
         MetaData* mt = NULL;
-        if((mt = getMetaData(datasetID, sdID, &sdMT)) == NULL)
+        if((mt = getMetaData(datasetID, sdID, &sdMT)) == NULL || sdMT == NULL)
             return NULL;
 
         //Update time
@@ -509,14 +520,6 @@ namespace sereno
         std::shared_ptr<VTKParser> sharedParser(parser);
         VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
 
-        //Add a SubDataset if no one is registered yet
-        if(vtk->getNbSubDatasets()        == 0 &&
-           vtk->getPtFieldValues().size() != 0)
-        {
-            SubDataset* sd = new SubDataset(vtk, vtk->getPtFieldValues()[0]->name, 0);
-            vtk->addSubDataset(sd);
-        }
-
         //Update the position
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
         {
@@ -534,13 +537,16 @@ namespace sereno
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
         {
             SubDatasetMetaData md;
-            md.sdID = vtk->getSubDatasets()[i]->getID();
+            md.sdID   = vtk->getSubDatasets()[i]->getID();
+            md.tf     = new TriangularGTF(dataset.ptFields.size(), RAINBOW);
+            md.tfType = TF_TRIANGULAR_GTF;
+            vtk->getSubDatasets()[i]->setTransferFunction(md.tf);
             metaData.sdMetaData.push_back(md);
         }
 
         //Add it to the list
-        std::lock_guard<std::mutex> lock(m_datasetMutex);
         {
+            std::lock_guard<std::mutex> lock(m_datasetMutex);
             metaData.datasetID = m_currentDataset;
             for(auto& it : metaData.sdMetaData)
                 it.datasetID = m_currentDataset;
@@ -555,11 +561,54 @@ namespace sereno
             for(auto clt : m_clientTable)
             {
                 sendAddVTKDatasetEvent(clt.second, dataset, metaData.datasetID);
-                //Send the first property as a new SubDataset
-                if(vtk->getNbSubDatasets() != 0)
-                    sendAddSubDataset(clt.second, vtk->getSubDatasets()[0]);
                 sendDatasetStatus(clt.second, vtk, metaData.datasetID);
             }
+        }
+
+        //Add a SubDataset if no one is registered yet
+        if(vtk->getNbSubDatasets()        == 0 &&
+           vtk->getPtFieldValues().size() != 0)
+        {
+            VFVAddSubDataset addSubDataset;
+            addSubDataset.datasetID = metaData.datasetID;
+            onAddSubDataset(NULL, addSubDataset);
+        }
+    }
+
+    void VFVServer::onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset)
+    {
+        INFO << "OnAddSubDataset" << std::endl;
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        auto it = m_datasets.find(dataset.datasetID);
+        if(it == m_datasets.end())
+        {
+            WARNING << "The dataset id 'datasetID' is not found\n";
+            return;
+        }
+
+        //Add a dataset
+        Dataset* d = it->second;
+        MetaData* mt = getMetaData(dataset.datasetID, 0, NULL);
+        if(mt == NULL)
+        {
+            ERROR << "Could not find the Meta Data of Dataset ID: " << dataset.datasetID << std::endl;
+            return;
+        }
+        SubDataset* sd = new SubDataset(d, std::to_string(d->getNbSubDatasets()+1), 0);
+        d->addSubDataset(sd);
+                
+        SubDatasetMetaData md;
+        md.sdID   = sd->getID();
+        md.tf     = new TriangularGTF(d->getPointFieldDescs().size(), RAINBOW);
+        md.tfType = TF_TRIANGULAR_GTF;
+        sd->setTransferFunction(md.tf);
+        mt->sdMetaData.push_back(md);
+
+        std::lock_guard<std::mutex> lock2(m_mapMutex);
+        for(auto& clt : m_clientTable)
+        {
+            sendAddSubDataset(clt.second, sd);
+            sendSubDatasetStatus(clt.second, sd, dataset.datasetID);
         }
     }
 
@@ -664,8 +713,8 @@ namespace sereno
 
         SubDatasetMetaData* sdMT = NULL;
         MetaData* mt = NULL;
-        getMetaData(tfSD.datasetID, tfSD.subDatasetID, &sdMT);
-        if(!mt)
+        mt = getMetaData(tfSD.datasetID, tfSD.subDatasetID, &sdMT);
+        if(!mt || sdMT == NULL)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(tfSD.datasetID, tfSD.subDatasetID)
             return;
@@ -674,6 +723,9 @@ namespace sereno
         if(client)
             updateMetaDataModification(client, tfSD.datasetID, tfSD.subDatasetID);
 
+        if(tfSD.gtfData.propData.size() != sd->getParent()->getPointFieldDescs().size())
+            WARNING << "Attemps to use a transfer function with too few parameters... warning!\n";
+
         //Now, update the transfer function
         //
         //First check if the type has changes
@@ -681,16 +733,19 @@ namespace sereno
         {
             //Delete
             if(sdMT->tf != NULL)
+            {
                 delete sdMT->tf;
+                sdMT->tf = NULL;
+            }
 
             //Reallocate
             switch((TFType)tfSD.tfID)
             {
                 case TF_GTF:
-                    sdMT->tf = new GTF(tfSD.gtfData.nbProps, (ColorMode)tfSD.gtfData.colorMode);
+                    sdMT->tf = new GTF(tfSD.gtfData.propData.size(), (ColorMode)tfSD.colorMode);
                     break;
                 case TF_TRIANGULAR_GTF:
-                    sdMT->tf = new TriangularGTF(tfSD.gtfData.nbProps, (ColorMode)tfSD.gtfData.colorMode);
+                    sdMT->tf = new TriangularGTF(tfSD.gtfData.propData.size()+1, (ColorMode)tfSD.colorMode);
                     break;
                 default:
                     ERROR << "The Transfer Function type: " << tfSD.tfID << " is unknown. Set the NONE\n";
@@ -700,6 +755,8 @@ namespace sereno
                 sd->setTransferFunction(sdMT->tf);
             }
         }
+        else
+            sdMT->tf->setColorMode((ColorMode)tfSD.colorMode);
 
         //Update the corresponding one
         if(sdMT->tfType != TF_NONE)
@@ -710,20 +767,17 @@ namespace sereno
                 case TF_TRIANGULAR_GTF:
                 {
                     //Get the ordered array of centers and scaling
-                    float* centers = (float*)malloc(sizeof(float)*tfSD.gtfData.nbProps);
-                    float* scales  = (float*)malloc(sizeof(float)*tfSD.gtfData.nbProps);
+                    float* centers = (float*)malloc(sizeof(float)*sdMT->tf->getDimension());
+                    float* scales  = (float*)malloc(sizeof(float)*sdMT->tf->getDimension());
 
-                    for(uint32_t i = 0; i < tfSD.gtfData.nbProps; i++)
+                    for(uint32_t i = 0; i < tfSD.gtfData.propData.size(); i++)
                     {
                         //Look for corresponding ID...
-                        for(uint32_t j = 0; j < tfSD.gtfData.nbProps; j++)
+                        uint32_t tfID = sd->getParent()->getTFIndiceFromPointFieldID(tfSD.gtfData.propData[i].propID);
+                        if(tfID != (uint32_t)-1 && tfID < sdMT->tf->getDimension())
                         {
-                            if(tfSD.gtfData.propData[j].propID == i)
-                            {
-                                centers[i] = tfSD.gtfData.propData[j].center;
-                                scales[i]  = tfSD.gtfData.propData[j].scale;
-                                break;
-                            }
+                            centers[tfID] = tfSD.gtfData.propData[i].center;
+                            scales[tfID]  = tfSD.gtfData.propData[i].scale;
                         }
                     }
 
@@ -731,13 +785,13 @@ namespace sereno
                     if(sdMT->tfType == TF_GTF)
                     {
                         ((GTF*)sdMT->tf)->setCenter(centers);
-                        ((GTF*)sdMT->tf)->setScale(centers);
+                        ((GTF*)sdMT->tf)->setScale(scales);
                     }
 
                     else if(sdMT->tfType == TF_TRIANGULAR_GTF)
                     {
                         ((TriangularGTF*)sdMT->tf)->setCenter(centers);
-                        ((TriangularGTF*)sdMT->tf)->setScale(centers);
+                        ((TriangularGTF*)sdMT->tf)->setScale(scales);
                     }
 
                     //Free data
@@ -760,7 +814,10 @@ namespace sereno
                 tfSD.headsetID = client->getHeadsetData().id;
         }
 
-        //TODO send data to other devices
+        //Send to all
+        for(auto& clt : m_clientTable)
+            if(clt.second != client)
+                sendTransferFunctionDataset(clt.second, tfSD);
     }
 
     void VFVServer::scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale)
@@ -799,19 +856,10 @@ namespace sereno
                 scale.headsetID = client->getHeadsetData().id;
         }
 
-        //Send to all if public
+        //Send to all
         for(auto& clt : m_clientTable)
             if(clt.second != client)
                 sendScaleDatasetEvent(clt.second, scale);
-
-        //Send just to the connected device counterpart if private
-        if(client)
-        {
-            if(client->isTablet() && client->getTabletData().headset)
-                sendScaleDatasetEvent(client->getTabletData().headset, scale);
-            else if(client->isHeadset() && client->getHeadsetData().tablet)
-                sendScaleDatasetEvent(client->getHeadsetData().tablet, scale);
-        }
     }
 
     void VFVServer::updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset)
@@ -1164,6 +1212,81 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD)
+    {
+        //Determine the size of the packet
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + sizeof(uint8_t);
+        switch(tfSD.tfID)
+        {
+            case TF_GTF:
+            case TF_TRIANGULAR_GTF:
+                dataSize += sizeof(uint32_t) + sizeof(uint8_t) + (sizeof(uint32_t) + 2*sizeof(float))*tfSD.gtfData.propData.size();
+                break;
+            default:
+                break;
+        }
+
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_TF_DATASET); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, tfSD.datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, tfSD.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        writeUint32(data+offset, tfSD.headsetID); //The headset ID
+        offset += sizeof(uint32_t); 
+
+        data[offset] = tfSD.tfID; //The transfer function type
+        offset++;
+
+        data[offset] = tfSD.colorMode; //The color mode
+        offset++;
+
+        //Write tf specific data (depends on type)
+        switch(tfSD.tfID)
+        {
+            case TF_GTF:
+            case TF_TRIANGULAR_GTF:
+            {
+                writeUint32(data+offset, tfSD.gtfData.propData.size()); //The number of properties
+                offset += sizeof(uint32_t);
+
+                for(auto& propData : tfSD.gtfData.propData)
+                {
+                    writeUint32(data+offset, propData.propID); //The property ID
+                    offset += sizeof(uint32_t);
+
+                    writeFloat(data+offset, propData.center); //The center
+                    offset += sizeof(float);
+
+                    writeFloat(data+offset, propData.scale); //The scale
+                    offset += sizeof(float);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+
+        INFO << "Sending TF_DATASET Event data Dataset ID " << tfSD.datasetID << " sdID : " << tfSD.subDatasetID << " tfID : " << tfSD.tfID << std::endl;
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << tfSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
         //Send binding information
@@ -1214,38 +1337,88 @@ namespace sereno
             sendAnchoring(client);
     }
 
+    void VFVServer::sendSubDatasetStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID)
+    {
+        //Send rotate
+        VFVRotationInformation rotate;
+        rotate.datasetID    = datasetID;
+        rotate.subDatasetID = sd->getID();
+        rotate.quaternion[0] = sd->getGlobalRotate().w;
+        rotate.quaternion[1] = sd->getGlobalRotate().x;
+        rotate.quaternion[2] = sd->getGlobalRotate().y;
+        rotate.quaternion[3] = sd->getGlobalRotate().z;
+        sendRotateDatasetEvent(client, rotate);
+
+        //Send move
+        VFVMoveInformation position;
+        position.datasetID    = datasetID;
+        position.subDatasetID = sd->getID();
+        for(uint32_t j = 0; j < 3; j++)
+            position.position[j] = sd->getPosition()[j];
+        sendMoveDatasetEvent(client, position);
+
+        //Send scale
+        VFVScaleInformation scale;
+        scale.datasetID    = datasetID;
+        scale.subDatasetID = sd->getID();
+        for(uint32_t j = 0; j < 3; j++)
+            scale.scale[j] = sd->getScale()[j];
+        sendScaleDatasetEvent(client, scale);
+
+        //Send transfer Function
+        SubDatasetMetaData* sdMT = NULL;
+        if(getMetaData(datasetID, sd->getID(), &sdMT) == NULL || sdMT == NULL)
+        {
+            ERROR << "Could not fetch SubDatasetMetaData of " << datasetID << ':' << sd->getID() << std::endl;
+            return;
+        }
+        VFVTransferFunctionSubDataset tf;
+        tf.datasetID    = datasetID;
+        tf.subDatasetID = sd->getID();
+        tf.tfID         = sdMT->tfType;
+        if(sdMT->tf != NULL)
+        {
+            tf.colorMode    = sdMT->tf->getColorMode();
+            switch(tf.tfID)
+            {
+                case TF_TRIANGULAR_GTF:
+                {
+                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(sdMT->tf);
+                    for(uint32_t j = 0; j < gtf->getDimension()-1; j++)
+                    {
+                        VFVTransferFunctionSubDataset::GTFPropData propData;
+                        propData.propID = sd->getParent()->getPointFieldDescs()[j].id;
+                        propData.center = gtf->getCenter()[j];
+                        propData.scale  = gtf->getScale()[j];
+
+                        tf.gtfData.propData.push_back(propData);
+                    }
+                    break;
+                }
+
+                case TF_GTF:
+                {
+                    GTF* gtf = reinterpret_cast<GTF*>(sdMT->tf);
+                    for(uint32_t j = 0; j < gtf->getDimension(); j++)
+                    {
+                        VFVTransferFunctionSubDataset::GTFPropData propData;
+                        propData.propID = sd->getParent()->getPointFieldDescs()[j].id;
+                        propData.center = gtf->getCenter()[j];
+                        propData.scale  = gtf->getScale()[j];
+
+                        tf.gtfData.propData.push_back(propData);
+                    }
+                    break;
+                }
+            }
+        }
+        sendTransferFunctionDataset(client, tf);
+    }
+
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
     {
         for(uint32_t i = 0; i < dataset->getNbSubDatasets(); i++)
-        {
-            SubDataset* sd = dataset->getSubDatasets()[i];
-            
-            //Send rotate
-            VFVRotationInformation rotate;
-            rotate.datasetID    = datasetID;
-            rotate.subDatasetID = sd->getID();
-            rotate.quaternion[0] = sd->getGlobalRotate().w;
-            rotate.quaternion[1] = sd->getGlobalRotate().x;
-            rotate.quaternion[2] = sd->getGlobalRotate().y;
-            rotate.quaternion[3] = sd->getGlobalRotate().z;
-            sendRotateDatasetEvent(client, rotate);
-
-            //Send move
-            VFVMoveInformation position;
-            position.datasetID    = datasetID;
-            position.subDatasetID = sd->getID();
-            for(uint32_t j = 0; j < 3; j++)
-                position.position[j] = sd->getPosition()[j];
-            sendMoveDatasetEvent(client, position);
-
-            //Send scale
-            VFVScaleInformation scale;
-            scale.datasetID    = datasetID;
-            scale.subDatasetID = sd->getID();
-            for(uint32_t j = 0; j < 3; j++)
-                scale.scale[j] = sd->getScale()[j];
-            sendScaleDatasetEvent(client, scale);
-        }
+            sendSubDatasetStatus(client, dataset->getSubDatasets()[i], datasetID);
     }
 
     void VFVServer::sendAnnotationData(VFVClientSocket* client, Annotation* annot)
@@ -1726,6 +1899,12 @@ namespace sereno
                 case CLEAR_ANNOTATIONS:
                 {
                     onClearAnnotations(client, msg.clearAnnotations);
+                    break;
+                }
+
+                case ADD_SUBDATASET:
+                {
+                    onAddSubDataset(client, msg.addSubDataset);
                     break;
                 }
 

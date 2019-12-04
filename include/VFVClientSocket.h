@@ -55,6 +55,7 @@ namespace sereno
         START_ANNOTATION            = 14,
         ANCHOR_ANNOTATION           = 15,
         CLEAR_ANNOTATIONS           = 16,
+        ADD_SUBDATASET              = 17,
         END_MESSAGE_TYPE
     };
 
@@ -137,6 +138,7 @@ namespace sereno
             struct VFVStartAnnotation            startAnnotation;  /*!< Start an annotation information*/
             struct VFVAnchorAnnotation           anchorAnnotation; /*!< Anchor an annotation at a specific location*/
             struct VFVClearAnnotations           clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
+            struct VFVAddSubDataset              addSubDataset;    /*!< Add a new default SubDataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -223,6 +225,10 @@ namespace sereno
                         case CLEAR_ANNOTATIONS:
                             clearAnnotations = cpy.clearAnnotations;
                             curMsg = &clearAnnotations;
+                            break;
+                        case ADD_SUBDATASET:
+                            addSubDataset = cpy.addSubDataset;
+                            curMsg = &addSubDataset;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -317,6 +323,10 @@ namespace sereno
                     new(&clearAnnotations) VFVClearAnnotations;
                     curMsg = &clearAnnotations;
                     break;
+                case ADD_SUBDATASET:
+                    new(&addSubDataset) VFVAddSubDataset;
+                    curMsg = &addSubDataset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -382,6 +392,9 @@ namespace sereno
                     break;
                 case CLEAR_ANNOTATIONS:
                     clearAnnotations.~VFVClearAnnotations();
+                    break;
+                case ADD_SUBDATASET:
+                    addSubDataset.~VFVAddSubDataset();
                     break;
                 case NOTHING:
                     break;

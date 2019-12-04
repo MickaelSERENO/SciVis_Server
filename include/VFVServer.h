@@ -44,6 +44,7 @@ namespace sereno
         VFV_SEND_HEADSET_ANCHOR_EOF      = 7,  /*!< Send anchor end of stream*/
         VFV_SEND_SUBDATASET_OWNER        = 8,  /*!< Send the new subdataset owner*/
         VFV_SEND_SCALE_DATASET           = 9,  /*!< Send the scaling status of a dataset*/
+        VFV_SEND_TF_DATASET              = 10, /*!< Send the Transfer Function status of a dataset*/
         VFV_SEND_START_ANNOTATION        = 11, /*!< Send the start annotation message (asking to start an annotation) */
         VFV_SEND_ANCHOR_ANNOTATION       = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
         VFV_SEND_CLEAR_ANNOTATION        = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
@@ -128,6 +129,11 @@ namespace sereno
              * \param dataset the dataset information to add */
             void addVTKDataset(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset);
 
+            /* \brief  Add a SubDataset to a given one
+             * \param client the client adding the dataset
+             * \param dataset the dataset information to add*/
+            void onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset);
+
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update
              * \param headset the values to push */
@@ -178,6 +184,17 @@ namespace sereno
              * \param client the client to send the information
              * \param position the position information */
             void sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position);
+
+            /* \brief  Send transfer function of a subdataset event to client
+             * \param client the client to send the information
+             * \param tfSD the transfer function information */
+            void sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD);
+
+            /* \brief  Send the the subdataset status to a client
+             * \param client the client to send the data
+             * \param sd the subdataset information
+             * \param datasetID the dataset ID that this SubDataset is attached to*/
+            void sendSubDatasetStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID);
 
             /* \brief  Send the whole dataset status to a client
              * \param client the client to send the data

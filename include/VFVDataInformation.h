@@ -779,7 +779,7 @@ namespace sereno
     /** \brief  Structure containing information for Transfer Function to apply to a dataset*/
     struct VFVTransferFunctionSubDataset : public VFVDataInformation
     {
-        struct GTFData
+        struct GTFPropData
         {
             uint32_t propID; /*!< The property ID*/
             float    center; /*!< The center of the gaussian function*/
@@ -790,18 +790,19 @@ namespace sereno
         uint32_t subDatasetID;   /*!< The SubDataset ID*/
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
         uint8_t  tfID = -1;      /*!< The transfer function ID*/
+        uint8_t  colorMode;      /*!< The color mode to apply*/ 
         struct
         {
-            uint32_t nbProps = 0;          /*!< The number of properties*/
-            uint8_t  colorMode;            /*!< The color mode to apply*/ 
-            std::vector<GTFData> propData; /*!< Each property data*/
+            std::vector<GTFPropData> propData; /*!< Each property data*/
         }gtfData;
 
         char getTypeAt(uint32_t cursor) const
         {
             if(cursor < 2) //dataset/subdatasetID
                 return 'I';
-            else if(cursor == 3) //tfID
+            else if(cursor == 2) //tfID
+                return 'b';
+            else if(cursor == 3) //The color mode
                 return 'b';
             else
             {
@@ -812,7 +813,8 @@ namespace sereno
                     {
                         if(cursor == 4) //nbProps
                             return 'I';
-                        if((cursor-5) / 3 > gtfData.nbProps) //Check the size
+
+                        if((cursor-5)/3 > gtfData.propData.size()) //Check the size
                             return 0;
 
                         uint32_t offset = (cursor-5)%3;
@@ -839,7 +841,7 @@ namespace sereno
                 subDatasetID = value;
                 return true;
             }
-            else if(cursor >= 3)
+            else if(cursor > 3)
             {
                 switch((TFType)tfID)
                 {
@@ -848,14 +850,14 @@ namespace sereno
                     {
                         if(cursor == 4)
                         {
-                            gtfData.nbProps = value;
+                            gtfData.propData.resize(value);
                             return true;
                         }
                         else
                         {
-                            uint32_t id     = (cursor-6)/3;
-                            uint32_t offset = (cursor-6)%3;
-                            if(id > gtfData.nbProps)
+                            uint32_t id     = (cursor-5)/3;
+                            uint32_t offset = (cursor-5)%3;
+                            if(id > gtfData.propData.size())
                                 VFV_DATA_ERROR
 
                             if(offset == 0)
@@ -880,28 +882,17 @@ namespace sereno
                 return true;
             }
 
-            else if(cursor >= 3)
+            else if(cursor == 3)
             {
-                switch((TFType)tfID)
-                {
-                    case TF_GTF:
-                    case TF_TRIANGULAR_GTF:
-                        if(cursor == 5)
-                        {
-                            gtfData.colorMode = value;
-                            return true;
-                        }
-                        break;
-                    default:
-                        VFV_DATA_ERROR
-                };
+                colorMode = value;
+                return true;
             }
             VFV_DATA_ERROR;
         }
 
         bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor <= 2)
+            if(cursor <= 3)
                 VFV_DATA_ERROR
             switch((TFType)tfID)
             {
@@ -911,9 +902,9 @@ namespace sereno
                     if(cursor == 4)
                         VFV_DATA_ERROR
 
-                    uint32_t id     = (cursor-6)/3;
-                    uint32_t offset = (cursor-6)%3;
-                    if(id > gtfData.nbProps)
+                    uint32_t id     = (cursor-5)/3;
+                    uint32_t offset = (cursor-5)%3;
+                    if(id > gtfData.propData.size())
                         VFV_DATA_ERROR
 
                     if(offset == 1)
@@ -926,7 +917,8 @@ namespace sereno
                         gtfData.propData[id].scale = value;
                         return true;
                     }
-
+                    else
+                        VFV_DATA_ERROR
                 }
 
                 default:
@@ -940,9 +932,9 @@ namespace sereno
             {
                 case TF_GTF:
                 case TF_TRIANGULAR_GTF:
-                    return 4+gtfData.nbProps*3;
+                    return 4+gtfData.propData.size()*3;
                 default:
-                    return 2;
+                    return 3;
             }
         }
     };
@@ -1199,6 +1191,31 @@ namespace sereno
             if(cursor == 0)
             {
                 name = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 0;}
+    };
+
+    /** \brief  Represents the information about a new SubDataset to create */
+    struct VFVAddSubDataset : public VFVDataInformation
+    {
+        uint32_t datasetID; /*!< The dataset ID to consider*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t val)
+        {
+            if(cursor == 0)
+            {
+                datasetID = val;
                 return true;
             }
             VFV_DATA_ERROR

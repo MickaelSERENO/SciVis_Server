@@ -9,9 +9,19 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY   ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY   ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY   ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(RELEASE               FALSE                                   CACHE BOOL "Compiling in release mode.")
 
-set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_CXX_STANDARD 14)
+
+if(RELEASE)
+	MESSAGE(STATUS "Compiling in release mode")
+	set(CMAKE_BUILD_TYPE "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+else()
+	MESSAGE(STATUS "Compiling in Debug mode")
+	set(CMAKE_BUILD_TYPE "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+endif()
 
 SET(WARNING_FLAGS "" CACHE STRING "The warning flags")
 
