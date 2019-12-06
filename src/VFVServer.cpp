@@ -599,7 +599,7 @@ namespace sereno
                 
         SubDatasetMetaData md;
         md.sdID   = sd->getID();
-        md.tf     = new TriangularGTF(d->getPointFieldDescs().size(), RAINBOW);
+        md.tf     = new TriangularGTF(d->getPointFieldDescs().size()+1, RAINBOW);
         md.tfType = TF_TRIANGULAR_GTF;
         sd->setTransferFunction(md.tf);
         mt->sdMetaData.push_back(md);
