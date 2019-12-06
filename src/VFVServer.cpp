@@ -437,6 +437,14 @@ namespace sereno
 
         INFO << "Connected as Headset...\n";
 
+        //Set visualizable color
+        if(!alreadyConnected)
+        {
+            client->getHeadsetData().color = m_availableHeadsetColors.top();
+            m_availableHeadsetColors.pop();
+            onLoginSendCurrentStatus(client);
+        }
+
         //Go through all the known client to look for an already connected tablet
         for(auto& clt : m_clientTable)
         {
@@ -455,15 +463,6 @@ namespace sereno
                 }
             }
         }
-
-        //Set visualizable color
-        if(!alreadyConnected)
-        {
-            client->getHeadsetData().color = m_availableHeadsetColors.top();
-            m_availableHeadsetColors.pop();
-            onLoginSendCurrentStatus(client);
-        }
-
         INFO << "End Connection" << std::endl;
     }
 
