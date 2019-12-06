@@ -334,9 +334,9 @@ namespace sereno
         //UPdate client
         if(client->isTablet() && client->getTabletData().headset)
         {
-            if(mt->sdMetaData[sdID].hmdClient != client->getTabletData().headset)
+            if(sdMT->hmdClient != client->getTabletData().headset)
             {
-                mt->sdMetaData[sdID].hmdClient = client->getTabletData().headset;
+                sdMT->hmdClient = client->getTabletData().headset;
 
                 //Send owner to all the clients
                 sendSubDatasetOwner(sdMT);
