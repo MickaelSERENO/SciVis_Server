@@ -91,6 +91,11 @@ namespace sereno
              * \return The MetaData being updated. NULL if not found*/
             MetaData* updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID);
 
+            /* \brief  Get the Headset ClientSocket object from a VFVClientSocket that can also be a tablet
+             * \param client the client link to a headset. If client->isHeadset, returns client, otherwise returns client->getTabletData().headset
+             * \return   the corresponding headset client object */
+            VFVClientSocket* getHeadsetFromClient(VFVClientSocket* client);
+
             /* \brief  Ask for a new anchor headset */
             void askNewAnchor();
 

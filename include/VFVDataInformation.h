@@ -1202,12 +1202,15 @@ namespace sereno
     /** \brief  Represents the information about a new SubDataset to create */
     struct VFVAddSubDataset : public VFVDataInformation
     {
-        uint32_t datasetID; /*!< The dataset ID to consider*/
+        uint32_t datasetID;       /*!< The dataset ID to consider*/
+        bool     isPublic = true; /*!< Is the SubDataset created public?*/
 
         char getTypeAt(uint32_t cursor) const
         {
             if(cursor == 0)
                 return 'I';
+            else if(cursor == 1)
+                return 'b';
             return 0;
         }
 
@@ -1221,7 +1224,29 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
-        int32_t getMaxCursor() const {return 0;}
+        bool pushValue(uint32_t cursor, uint8_t val)
+        {
+            if(cursor == 1)
+            {
+                isPublic = val;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 1;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddSubDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"isPublic\" : " << isPublic << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
     };
 
     /* \brief Represents the information about VTK Datasets*/

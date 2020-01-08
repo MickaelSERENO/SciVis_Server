@@ -11,8 +11,10 @@ namespace sereno
 {
     struct SubDatasetMetaData
     {
-        VFVClientSocket* hmdClient;            /*!< The HMD client owning this subdataset. 
+        VFVClientSocket* hmdClient;            /*!< The HMD client locking this subdataset for modification.
                                                     NULL == no hmd client owning this subdataset*/
+
+        VFVClientSocket* owner = NULL;         /*!< The client owning this SubDataset. No owner == public SubDataset*/
         time_t           lastModification = 0; /*!< The last modification time is us this subdataset received. 
                                                     This is used to automatically reset the owner*/
         uint64_t         sdID      = 0;        /*!< SubDataset ID*/

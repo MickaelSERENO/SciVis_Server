@@ -243,6 +243,21 @@ namespace sereno
         if(c->isHeadset())
         {
             INFO << "Disconnecting a headset client\n";
+
+            auto f = [c](MetaData& mtData) 
+            {
+                for(SubDatasetMetaData& sdMT : mtData.sdMetaData)
+                    if(sdMT.owner == c)
+                        sdMT.owner = NULL;
+            };
+
+            //Set every open SubDataset public (TODO)
+            for(auto& it : m_vtkDatasets)
+                f(it.second);
+            for(auto& it : m_binaryDatasets)
+                f(it.second);
+
+            //Put available that color
             m_availableHeadsetColors.push(c->getHeadsetData().color);
             m_nbConnectedHeadsets--;
 
@@ -343,6 +358,15 @@ namespace sereno
             }
         }
         return mt;
+    }
+
+    VFVClientSocket* VFVServer::getHeadsetFromClient(VFVClientSocket* client)
+    {
+        if(client->isTablet())
+            return client->getTabletData().headset;
+        else if(client->isHeadset())
+            return client;
+        return NULL;
     }
 
     void VFVServer::askNewAnchor()
@@ -598,6 +622,10 @@ namespace sereno
                 
         SubDatasetMetaData md;
         md.sdID   = sd->getID();
+
+        if(!dataset.isPublic)
+
+        md.owner  = (dataset.isPublic ? NULL : client);
         md.tf     = new TriangularGTF(d->getPointFieldDescs().size()+1, RAINBOW);
         md.tfType = TF_TRIANGULAR_GTF;
         sd->setTransferFunction(md.tf);
@@ -642,10 +670,9 @@ namespace sereno
         //Set the headsetID
         if(client)
         {
-            if(client->isTablet() && client->getTabletData().headset)
-                rotate.headsetID = client->getTabletData().headset->getHeadsetData().id;
-            else if(client->isHeadset())
-                rotate.headsetID = client->getHeadsetData().id;
+            VFVClientSocket* headset = getHeadsetFromClient(client);
+            if(headset)
+                rotate.headsetID = headset->getHeadsetData().id;
         }
 
         //Send to all if public
@@ -684,10 +711,9 @@ namespace sereno
         //Set the headsetID
         if(client)
         {
-            if(client->isTablet() && client->getTabletData().headset)
-                translate.headsetID = client->getTabletData().headset->getHeadsetData().id;
-            else if(client->isHeadset())
-                translate.headsetID = client->getHeadsetData().id;
+            VFVClientSocket* headset = getHeadsetFromClient(client);
+            if(headset)
+                translate.headsetID = headset->getHeadsetData().id;
         }
 
         for(auto& clt : m_clientTable)
@@ -713,7 +739,7 @@ namespace sereno
         SubDatasetMetaData* sdMT = NULL;
         MetaData* mt = NULL;
         mt = getMetaData(tfSD.datasetID, tfSD.subDatasetID, &sdMT);
-        if(!mt || sdMT == NULL)
+        if(!mt || !sdMT)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(tfSD.datasetID, tfSD.subDatasetID)
             return;
@@ -737,8 +763,10 @@ namespace sereno
                 sdMT->tf = NULL;
             }
 
+            sdMT->tfType = (TFType)tfSD.tfID;
+
             //Reallocate
-            switch((TFType)tfSD.tfID)
+            switch(sdMT->tfType)
             {
                 case TF_GTF:
                     sdMT->tf = new GTF(tfSD.gtfData.propData.size(), (ColorMode)tfSD.colorMode);
@@ -747,7 +775,7 @@ namespace sereno
                     sdMT->tf = new TriangularGTF(tfSD.gtfData.propData.size()+1, (ColorMode)tfSD.colorMode);
                     break;
                 default:
-                    ERROR << "The Transfer Function type: " << tfSD.tfID << " is unknown. Set the NONE\n";
+                    ERROR << "The Transfer Function type: " << (int)tfSD.tfID << " is unknown. Set the NONE\n";
                     sdMT->tfType = TF_NONE;
                     sdMT->tf     = NULL;
                     break;
@@ -807,10 +835,9 @@ namespace sereno
         //Set the headsetID
         if(client)
         {
-            if(client->isTablet() && client->getTabletData().headset)
-                tfSD.headsetID = client->getTabletData().headset->getHeadsetData().id;
-            else if(client->isHeadset())
-                tfSD.headsetID = client->getHeadsetData().id;
+            VFVClientSocket* headset = getHeadsetFromClient(client);
+            if(headset)
+                tfSD.headsetID = headset->getHeadsetData().id;
         }
 
         //Send to all
@@ -849,10 +876,9 @@ namespace sereno
         //Set the headsetID
         if(client)
         {
-            if(client->isTablet() && client->getTabletData().headset)
-                scale.headsetID = client->getTabletData().headset->getHeadsetData().id;
-            else if(client->isHeadset())
-                scale.headsetID = client->getHeadsetData().id;
+            VFVClientSocket* headset = getHeadsetFromClient(client);
+            if(headset)
+                scale.headsetID = headset->getHeadsetData().id;
         }
 
         //Send to all
@@ -916,10 +942,10 @@ namespace sereno
         {
             //Search for the headset ID
             VFVHeadsetData* headsetData = NULL;
-            if(client->isTablet() && client->getTabletData().headset)
-                headsetData = &client->getTabletData().headset->getHeadsetData();
-            else if(client->isHeadset())
-                headsetData = &client->getHeadsetData();
+
+            VFVClientSocket* headset = getHeadsetFromClient(client);
+            if(headset)
+                headsetData = &headset->getHeadsetData();
 
             if(!headsetData)
                 return;
@@ -1062,7 +1088,14 @@ namespace sereno
             if(it.second == sd->getParent())
             {
                 uint32_t id = it.first;
-                uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t)*2 + sizeof(uint32_t) +
+                uint32_t ownerID = -1;
+                
+                SubDatasetMetaData* sdMetaData = NULL;
+                getMetaData(id, sd->getID(), &sdMetaData);
+                if(sdMetaData && sdMetaData->owner != NULL)
+                    ownerID = sdMetaData->owner->getHeadsetData().id;
+
+                uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t)*2 + sizeof(uint32_t) + sizeof(uint32_t) +
                                     sd->getName().size()*sizeof(uint8_t);
 
                 uint8_t* data = (uint8_t*)malloc(dataSize);
@@ -1071,17 +1104,23 @@ namespace sereno
                 writeUint16(data, VFV_SEND_ADD_SUBDATASET);
                 offset+=sizeof(uint16_t);
 
+                //Dataset ID
                 writeUint32(data+offset, id);
                 offset+=sizeof(uint32_t);
 
+                //SubDataset ID
                 writeUint32(data+offset, sd->getID());
                 offset+=sizeof(uint32_t);
 
+                //SubDataset Name
                 writeUint32(data+offset, sd->getName().size());
                 offset+=sizeof(uint32_t);
-
                 memcpy(data+offset, sd->getName().c_str(), sd->getName().size());
                 offset+=sd->getName().size();
+
+                //Owner ID
+                writeUint32(data+offset, ownerID);
+                offset+=sizeof(uint32_t);
 
                 INFO << "Sending ADDSUBDATASET Event data. Name : " << sd->getName() << "\n";
                 std::shared_ptr<uint8_t> sharedData(data, free);
@@ -1094,7 +1133,8 @@ namespace sereno
                     VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AddSubDataset");
                     m_log << ",    \"datasetID\" : " << id << ",\n"
                           << "    \"subDatasetID\" : " << sd->getID() << ",\n"
-                          << "    \"name\" : " << sd->getName() << "\n"
+                          << "    \"name\" : " << sd->getName() << ",\n"
+                          << "    \"owner\" : " << ownerID << "\n" 
                           << "},\n";
                     m_log << std::flush;
                 }
@@ -1272,7 +1312,7 @@ namespace sereno
                 break;
         }
 
-        INFO << "Sending TF_DATASET Event data Dataset ID " << tfSD.datasetID << " sdID : " << tfSD.subDatasetID << " tfID : " << tfSD.tfID << std::endl;
+        INFO << "Sending TF_DATASET Event data Dataset ID " << tfSD.datasetID << " sdID : " << tfSD.subDatasetID << " tfID : " << (int)tfSD.tfID << std::endl;
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
@@ -1868,11 +1908,7 @@ namespace sereno
                 case HEADSET_CURRENT_ACTION:
                 {
                     //Look for the headset to modify
-                    VFVClientSocket* headset = NULL;
-                    if(client->isTablet())
-                        headset = client->getTabletData().headset;
-                    else if(client->isHeadset())
-                        headset = client;
+                    VFVClientSocket* headset = getHeadsetFromClient(client);
                     if(!headset)
                         break;
 
