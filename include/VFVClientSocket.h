@@ -56,6 +56,7 @@ namespace sereno
         ANCHOR_ANNOTATION           = 15,
         CLEAR_ANNOTATIONS           = 16,
         ADD_SUBDATASET              = 17,
+        REMOVE_SUBDATASET           = 18,
         END_MESSAGE_TYPE
     };
 
@@ -139,6 +140,7 @@ namespace sereno
             struct VFVAnchorAnnotation           anchorAnnotation; /*!< Anchor an annotation at a specific location*/
             struct VFVClearAnnotations           clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
             struct VFVAddSubDataset              addSubDataset;    /*!< Add a new default SubDataset*/
+            struct VFVRemoveSubDataset           removeSubDataset; /*!< Remove a registered SubDataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -229,6 +231,10 @@ namespace sereno
                         case ADD_SUBDATASET:
                             addSubDataset = cpy.addSubDataset;
                             curMsg = &addSubDataset;
+                            break;
+                        case REMOVE_SUBDATASET:
+                            removeSubDataset = cpy.removeSubDataset;
+                            curMsg = &removeSubDataset;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -327,6 +333,10 @@ namespace sereno
                     new(&addSubDataset) VFVAddSubDataset;
                     curMsg = &addSubDataset;
                     break;
+                case REMOVE_SUBDATASET:
+                    new(&removeSubDataset) VFVRemoveSubDataset;
+                    curMsg = &removeSubDataset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -395,6 +405,9 @@ namespace sereno
                     break;
                 case ADD_SUBDATASET:
                     addSubDataset.~VFVAddSubDataset();
+                    break;
+                case REMOVE_SUBDATASET:
+                    removeSubDataset.~VFVRemoveSubDataset();
                     break;
                 case NOTHING:
                     break;

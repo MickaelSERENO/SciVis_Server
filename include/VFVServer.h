@@ -77,6 +77,12 @@ namespace sereno
              * \return  NULL if not found, a pointer to the dataset if found*/
             Dataset* getDataset(uint32_t datasetID, uint32_t sdID);
 
+            /* \brief  Tells wether a given client can modify a subdataset or not
+             * \param client the client attempting to modify the subdataset. If NULL, the client is considered here as the server (which can modify everything)
+             * \param sdMT the subdataset meta data
+             * \return  true if yes, false otherwise */
+            bool canModifySubDataset(VFVClientSocket* client, SubDatasetMetaData* sdMT);
+
             /* \brief  Get the Dataset meta data via its ID
              * \param datasetID the dataset ID
              * \param sdID the subdataset ID
@@ -88,8 +94,9 @@ namespace sereno
              * \param client the client modifying the metadata
              * \param datasetID the dataset ID
              * \param sdID the subdataset ID
+             * \param sdMTPtr[out] if not NULL, will contain the SubDatasetMetaData corresponding
              * \return The MetaData being updated. NULL if not found*/
-            MetaData* updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID);
+            MetaData* updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr=NULL);
 
             /* \brief  Get the Headset ClientSocket object from a VFVClientSocket that can also be a tablet
              * \param client the client link to a headset. If client->isHeadset, returns client, otherwise returns client->getTabletData().headset
@@ -139,6 +146,15 @@ namespace sereno
              * \param dataset the dataset information to add*/
             void onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset);
 
+            /* \brief  Remove a known subdataset
+             * \param dataset the dataset ID information */
+            void removeSubDataset(const VFVRemoveSubDataset& dataset);
+
+            /* \brief  Remove a known SubDataset
+             * \param client the client asking to remove the subdataset
+             * \param dataset the dataset information to remove */
+            void onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& dataset);
+
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update
              * \param headset the values to push */
@@ -174,6 +190,11 @@ namespace sereno
              * \param client the client to send the message
              * \param SubDataset the subdataset information */
             void sendAddSubDataset(VFVClientSocket* client, const SubDataset* sd);
+
+            /* \brief  Send the Remove SubDataset Event to a given client
+             * \param client the client to send the message
+             * \param dataset the dataset information*/
+            void sendRemoveSubDatasetEvent(VFVClientSocket* client, const VFVRemoveSubDataset& dataset);
 
             /* \brief  Send a rotation event to client
              * \param client the client to send the information

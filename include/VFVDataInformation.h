@@ -1199,6 +1199,49 @@ namespace sereno
         int32_t getMaxCursor() const {return 0;}
     };
 
+    /** Message received to remove a subdataset*/
+    struct VFVRemoveSubDataset : public VFVDataInformation
+    {
+        uint32_t datasetID;    /*!< The dataset ID to consider*/
+        uint32_t subDatasetID; /*!< The subdataset ID to remove*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0 || cursor == 1)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t val)
+        {
+            if(cursor == 0)
+            {
+                datasetID = val;
+                return true;
+            }
+            else if(cursor == 1)
+            {
+                subDatasetID = val;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 1;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "RemoveSubDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"subDatasetID\" : " << subDatasetID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
     /** \brief  Represents the information about a new SubDataset to create */
     struct VFVAddSubDataset : public VFVDataInformation
     {
