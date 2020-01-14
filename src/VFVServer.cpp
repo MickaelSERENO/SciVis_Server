@@ -665,7 +665,7 @@ namespace sereno
 
         if(!dataset.isPublic)
 
-        md.owner  = (dataset.isPublic ? NULL : client);
+        md.owner  = (dataset.isPublic ? NULL : getHeadsetFromClient(client));
         md.tf     = new TriangularGTF(d->getPointFieldDescs().size()+1, RAINBOW);
         md.tfType = TF_TRIANGULAR_GTF;
         sd->setTransferFunction(md.tf);
@@ -1276,7 +1276,7 @@ namespace sereno
                 writeUint32(data+offset, ownerID);
                 offset+=sizeof(uint32_t);
 
-                INFO << "Sending ADDSUBDATASET Event data. Name : " << sd->getName() << "\n";
+                INFO << "Sending ADDSUBDATASET Event data. Name : " << sd->getName() << " Owner : " << ownerID << "\n";
                 std::shared_ptr<uint8_t> sharedData(data, free);
                 SocketMessage<int> sm(client->socket, sharedData, offset);
                 writeMessage(sm);
@@ -2156,160 +2156,150 @@ namespace sereno
 
             clock_gettime(CLOCK_REALTIME, &beg);
 
-            lockWriteThread();
-            if(getBytesInWriting() < (1<<16))
+            if(m_anchorData.isCompleted())
             {
-                unlockWriteThread();
-                if(m_anchorData.isCompleted())
+                std::lock_guard<std::mutex> lock2(m_datasetMutex);
+                std::lock_guard<std::mutex> lock(m_mapMutex);
+                //Send HEADSETS_STATUS
+                for(auto it : m_clientTable)
                 {
-                    std::lock_guard<std::mutex> lock2(m_datasetMutex);
-                    std::lock_guard<std::mutex> lock(m_mapMutex);
-                    //Send HEADSETS_STATUS
-                    for(auto it : m_clientTable)
+                    if((!it.second->isTablet() && !it.second->isHeadset()) || 
+                        it.second->getBytesInWritting() > (1 << 16))
+                        continue;
+
+                    uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
+                                                     MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 10*sizeof(float)));
+                    uint32_t offset    = 0;
+                    uint32_t nbHeadset = 0;
+
+                    //Type
+                    writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
+                    offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
+#ifdef LOG_UPDATE_HEAD
+#ifdef VFV_LOG_DATA
+                    m_logMutex.lock();
+                    VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
+                    m_log << ",    \"status\" : [";
+                    m_log << std::flush;
+                    bool logAdded = false;
+#endif
+#endif
+                    for(auto& it2 : m_clientTable)
                     {
-                        if(!it.second->isTablet() && !it.second->isHeadset())
-                            continue;
-
-                        uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t) + sizeof(uint32_t) + 
-                                                         MAX_NB_HEADSETS*(7*sizeof(float) + 3*sizeof(uint32_t) + 3*sizeof(uint32_t) + 1 + 10*sizeof(float)));
-                        uint32_t offset    = 0;
-                        uint32_t nbHeadset = 0;
-
-                        //Type
-                        writeUint16(data+offset, VFV_SEND_HEADSETS_STATUS);
-                        offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
-#ifdef LOG_UPDATE_HEAD
-#ifdef VFV_LOG_DATA
-                        m_logMutex.lock();
-                        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
-                        m_log << ",    \"status\" : [";
-                        m_log << std::flush;
-                        bool logAdded = false;
-#endif
-#endif
-                        for(auto& it2 : m_clientTable)
+                        if(it2.second->isHeadset())
                         {
-                            if(it2.second->isHeadset())
-                            {
-                                VFVHeadsetData& headsetData = it2.second->getHeadsetData();
+                            VFVHeadsetData& headsetData = it2.second->getHeadsetData();
 
-                                //ID
-                                writeUint32(data+offset, headsetData.id);
-                                offset += sizeof(uint32_t);
+                            //ID
+                            writeUint32(data+offset, headsetData.id);
+                            offset += sizeof(uint32_t);
 
-                                //Color
-                                writeUint32(data+offset, headsetData.color);
-                                offset += sizeof(uint32_t);
+                            //Color
+                            writeUint32(data+offset, headsetData.color);
+                            offset += sizeof(uint32_t);
 
-                                //Current action
-                                writeUint32(data+offset, headsetData.currentAction);
-                                offset += sizeof(uint32_t);
+                            //Current action
+                            writeUint32(data+offset, headsetData.currentAction);
+                            offset += sizeof(uint32_t);
 
-                                //Position
-                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, headsetData.position[i]);
+                            //Position
+                            for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                writeFloat(data+offset, headsetData.position[i]);
 
-                                //Rotation
-                                for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, headsetData.rotation[i]);
+                            //Rotation
+                            for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
+                                writeFloat(data+offset, headsetData.rotation[i]);
 
-                                //Pointing IT
-                                writeUint32(data+offset, headsetData.pointingData.pointingIT);
-                                offset += sizeof(uint32_t);
+                            //Pointing IT
+                            writeUint32(data+offset, headsetData.pointingData.pointingIT);
+                            offset += sizeof(uint32_t);
 
-                                //Pointing Dataset ID
-                                writeUint32(data+offset, headsetData.pointingData.datasetID);
-                                offset += sizeof(uint32_t);
+                            //Pointing Dataset ID
+                            writeUint32(data+offset, headsetData.pointingData.datasetID);
+                            offset += sizeof(uint32_t);
 
-                                //Pointing SubDataset ID
-                                writeUint32(data+offset, headsetData.pointingData.subDatasetID);
-                                offset += sizeof(uint32_t);
+                            //Pointing SubDataset ID
+                            writeUint32(data+offset, headsetData.pointingData.subDatasetID);
+                            offset += sizeof(uint32_t);
 
-                                //Pointing done in public space?
-                                data[offset] = headsetData.pointingData.pointingInPublic ? 1 : 0;
-                                offset++;
+                            //Pointing done in public space?
+                            data[offset] = headsetData.pointingData.pointingInPublic ? 1 : 0;
+                            offset++;
 
-                                //Pointing local SD position
-                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, headsetData.pointingData.localSDPosition[i]);
+                            //Pointing local SD position
+                            for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                writeFloat(data+offset, headsetData.pointingData.localSDPosition[i]);
 
-                                //Pointing headset starting position
-                                for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
+                            //Pointing headset starting position
+                            for(uint32_t i = 0; i < 3; i++, offset+=sizeof(float))
+                                writeFloat(data+offset, headsetData.pointingData.headsetStartPosition[i]);
 
-                                //Pointing headset starting orientation
-                                for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
-                                    writeFloat(data+offset, headsetData.pointingData.headsetStartOrientation[i]);
+                            //Pointing headset starting orientation
+                            for(uint32_t i = 0; i < 4; i++, offset+=sizeof(float))
+                                writeFloat(data+offset, headsetData.pointingData.headsetStartOrientation[i]);
 
 #ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
-                                if(logAdded)
-                                    m_log << ", ";
+                            if(logAdded)
+                                m_log << ", ";
 
-                                m_log << "{\n"
-                                      << "    \"id\" : " << headsetData.id << ",\n"
-                                      << "    \"color\" : " << headsetData.color << ",\n"
-                                      << "    \"currentAction\" : " << headsetData.currentAction << ",\n"
-                                      << "    \"position\" : [" << headsetData.position[0] << ", " << headsetData.position[1] << ", " << headsetData.position[2] << "],\n"
-                                      << "    \"rotation\" : [" << headsetData.rotation[0] << ", " << headsetData.rotation[1] << ", " << headsetData.rotation[2] << ", " << headsetData.rotation[3] << "],\n"
-                                      << "    \"pointingIT\" : " << headsetData.pointingData.pointingIT << ",\n"
-                                      << "    \"pointingDatasetID\" : " << headsetData.pointingData.datasetID << ",\n"
-                                      << "    \"pointingSubDatasetID\" : " << headsetData.pointingData.subDatasetID << ",\n"
-                                      << "    \"pointingInPublic\" : " << headsetData.pointingData.pointingInPublic << ",\n"
-                                      << "    \"pointingLocalSDPosition\" : [" << headsetData.pointingData.localSDPosition[0] << "," << headsetData.pointingData.localSDPosition[1] << "," << headsetData.pointingData.localSDPosition[2] << "],\n"
-                                      << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "],\n"
-                                      << "    \"pointingHeadsetStartOrientation\" : [" << headsetData.pointingData.headsetStartOrientation[0] << "," << headsetData.pointingData.headsetStartOrientation[1] << "," << headsetData.pointingData.headsetStartOrientation[2] << "," << headsetData.pointingData.headsetStartOrientation[3] << "]\n"
-                                      << "}\n";
-                                logAdded = true;
+                            m_log << "{\n"
+                                  << "    \"id\" : " << headsetData.id << ",\n"
+                                  << "    \"color\" : " << headsetData.color << ",\n"
+                                  << "    \"currentAction\" : " << headsetData.currentAction << ",\n"
+                                  << "    \"position\" : [" << headsetData.position[0] << ", " << headsetData.position[1] << ", " << headsetData.position[2] << "],\n"
+                                  << "    \"rotation\" : [" << headsetData.rotation[0] << ", " << headsetData.rotation[1] << ", " << headsetData.rotation[2] << ", " << headsetData.rotation[3] << "],\n"
+                                  << "    \"pointingIT\" : " << headsetData.pointingData.pointingIT << ",\n"
+                                  << "    \"pointingDatasetID\" : " << headsetData.pointingData.datasetID << ",\n"
+                                  << "    \"pointingSubDatasetID\" : " << headsetData.pointingData.subDatasetID << ",\n"
+                                  << "    \"pointingInPublic\" : " << headsetData.pointingData.pointingInPublic << ",\n"
+                                  << "    \"pointingLocalSDPosition\" : [" << headsetData.pointingData.localSDPosition[0] << "," << headsetData.pointingData.localSDPosition[1] << "," << headsetData.pointingData.localSDPosition[2] << "],\n"
+                                  << "    \"pointingHeadsetStartPosition\" : [" << headsetData.pointingData.headsetStartPosition[0] << "," << headsetData.pointingData.headsetStartPosition[1] << "," << headsetData.pointingData.headsetStartPosition[2] << "],\n"
+                                  << "    \"pointingHeadsetStartOrientation\" : [" << headsetData.pointingData.headsetStartOrientation[0] << "," << headsetData.pointingData.headsetStartOrientation[1] << "," << headsetData.pointingData.headsetStartOrientation[2] << "," << headsetData.pointingData.headsetStartOrientation[3] << "]\n"
+                                  << "}\n";
+                            logAdded = true;
 #endif
 #endif
 
-                                nbHeadset++;
-                            }
-                        }
-
-#ifdef LOG_UPDATE_HEAD
-#ifdef VFV_LOG_DATA
-                        m_log << "]},\n";
-                        m_log << std::flush;
-                        m_logMutex.unlock();
-#endif
-#endif
-
-                        //Write the number of headset to take account of
-                        writeUint32(data+sizeof(uint16_t), nbHeadset);
-
-                        //Send the message to all
-                        std::shared_ptr<uint8_t> sharedData(data, free);
-                        SocketMessage<int> sm(it.first, sharedData, offset);
-                        writeMessage(sm);
-                    }
-                }
-                clock_gettime(CLOCK_REALTIME, &end);
-
-                endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
-
-                //Check owner ending time
-                {
-                    for(auto& it : m_vtkDatasets)
-                    {
-                        for(auto& it2 : it.second.sdMetaData)
-                        {
-                            if(it2.hmdClient != NULL && endTime - it2.lastModification >= MAX_OWNER_TIME)
-                            {
-                                it2.hmdClient = NULL;
-                                it2.lastModification = 0;
-                                sendSubDatasetOwner(&it2);
-                            }
+                            nbHeadset++;
                         }
                     }
+
+#ifdef LOG_UPDATE_HEAD
+#ifdef VFV_LOG_DATA
+                    m_log << "]},\n";
+                    m_log << std::flush;
+                    m_logMutex.unlock();
+#endif
+#endif
+
+                    //Write the number of headset to take account of
+                    writeUint32(data+sizeof(uint16_t), nbHeadset);
+
+                    //Send the message to all
+                    std::shared_ptr<uint8_t> sharedData(data, free);
+                    SocketMessage<int> sm(it.first, sharedData, offset);
+                    writeMessage(sm);
                 }
             }
-            else
+            clock_gettime(CLOCK_REALTIME, &end);
+
+            endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+
+            //Check owner ending time
             {
-                unlockWriteThread();
-                clock_gettime(CLOCK_REALTIME, &end);
-                endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+                for(auto& it : m_vtkDatasets)
+                {
+                    for(auto& it2 : it.second.sdMetaData)
+                    {
+                        if(it2.hmdClient != NULL && endTime - it2.lastModification >= MAX_OWNER_TIME)
+                        {
+                            it2.hmdClient = NULL;
+                            it2.lastModification = 0;
+                            sendSubDatasetOwner(&it2);
+                        }
+                    }
+                }
             }
 
             usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
