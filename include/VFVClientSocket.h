@@ -57,6 +57,7 @@ namespace sereno
         CLEAR_ANNOTATIONS           = 16,
         ADD_SUBDATASET              = 17,
         REMOVE_SUBDATASET           = 18,
+        MAKE_SUBDATASET_PUBLIC      = 19,
         END_MESSAGE_TYPE
     };
 
@@ -141,6 +142,7 @@ namespace sereno
             struct VFVClearAnnotations           clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
             struct VFVAddSubDataset              addSubDataset;    /*!< Add a new default SubDataset*/
             struct VFVRemoveSubDataset           removeSubDataset; /*!< Remove a registered SubDataset*/
+            struct VFVMakeSubDatasetPublic       makeSubDatasetPublic; /*!< Make a SubDataset public*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -235,6 +237,10 @@ namespace sereno
                         case REMOVE_SUBDATASET:
                             removeSubDataset = cpy.removeSubDataset;
                             curMsg = &removeSubDataset;
+                            break;
+                        case MAKE_SUBDATASET_PUBLIC:
+                            makeSubDatasetPublic = cpy.makeSubDatasetPublic;
+                            curMsg = &makeSubDatasetPublic;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -337,6 +343,10 @@ namespace sereno
                     new(&removeSubDataset) VFVRemoveSubDataset;
                     curMsg = &removeSubDataset;
                     break;
+                case MAKE_SUBDATASET_PUBLIC:
+                    new(&makeSubDatasetPublic) VFVMakeSubDatasetPublic;
+                    curMsg = &makeSubDatasetPublic;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -408,6 +418,9 @@ namespace sereno
                     break;
                 case REMOVE_SUBDATASET:
                     removeSubDataset.~VFVRemoveSubDataset();
+                    break;
+                case MAKE_SUBDATASET_PUBLIC:
+                    makeSubDatasetPublic.~VFVMakeSubDatasetPublic();
                     break;
                 case NOTHING:
                     break;

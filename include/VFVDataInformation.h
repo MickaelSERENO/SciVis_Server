@@ -1292,6 +1292,38 @@ namespace sereno
         }
     };
 
+    struct VFVMakeSubDatasetPublic : public VFVDataInformation
+    {
+        int32_t datasetID    = 0;  /*!< The dataset ID*/
+        int32_t subDatasetID = -1; /*!< The subdataset ID*/
+
+        virtual bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        virtual char getTypeAt(uint32_t cursor) const {return 'I';}
+        virtual int32_t getMaxCursor() const {return 1;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "MakeSubDatasetPublic");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << "\n"; 
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
     /* \brief Represents the information about VTK Datasets*/
     struct VFVVTKDatasetInformation : public VFVDataInformation
     {

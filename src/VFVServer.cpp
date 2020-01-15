@@ -367,7 +367,7 @@ namespace sereno
                 _sdMT->hmdClient = client->getTabletData().headset;
 
                 //Send owner to all the clients
-                sendSubDatasetOwner(_sdMT);
+                sendSubDatasetLockOwner(_sdMT);
             }
         }
         return mt;
@@ -711,6 +711,38 @@ namespace sereno
         //Tells all the clients
         for(auto& clt : m_clientTable)
             sendRemoveSubDatasetEvent(clt.second, remove);
+    }
+
+    void VFVServer::onMakeSubDatasetPublic(VFVClientSocket* client, const VFVMakeSubDatasetPublic& makePublic)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        if(client)
+        {
+            //Find the subdataset meta data and update it
+            SubDatasetMetaData* sdMT = NULL;
+            getMetaData(makePublic.datasetID, makePublic.subDatasetID, &sdMT);
+            if(!sdMT)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(makePublic.datasetID, makePublic.subDatasetID)
+                return;
+            }
+
+            VFVClientSocket* headset = getHeadsetFromClient(client);
+
+            //Check about the privacy
+            if(sdMT->owner == NULL || sdMT->owner != headset)
+            {
+                VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, makePublic.datasetID, makePublic.subDatasetID)
+                return;
+            }
+
+            sdMT->owner = NULL;
+
+            //Send to all
+            sendSubDatasetOwner(sdMT);
+        }
     }
 
     void VFVServer::onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& remove)
@@ -1805,6 +1837,51 @@ namespace sereno
         INFO << "Anchor sent to everyone" << std::endl;
     }
 
+    void VFVServer::sendSubDatasetLockOwner(SubDatasetMetaData* metaData)
+    {
+        //Generate the data
+        uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 3*sizeof(uint32_t));
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_SUBDATASET_LOCK_OWNER);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, metaData->datasetID);
+        offset+= sizeof(uint32_t);
+
+        writeUint32(data+offset, metaData->sdID);
+        offset+= sizeof(uint32_t);
+
+        uint32_t id = -1;
+        if(metaData->hmdClient != NULL)
+            id = metaData->hmdClient->getHeadsetData().id;
+        writeUint32(data+offset, id); 
+        offset+= sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        INFO << "Setting lock owner dataset ID " <<  metaData->datasetID << " sub dataset ID " << metaData->sdID << " headset ID" << id << std::endl;
+
+        //Send the data
+        for(auto it : m_clientTable)
+        {
+            SocketMessage<int> sm(it.second->socket, sharedData, offset);
+            writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> logLock(m_logMutex);
+                VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "SubDatasetLockOwner");
+                m_log << ",    \"datasetID\"  : " << metaData->datasetID << ",\n"
+                      << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
+                      << "    \"headsetID\" : " << id << "\n"
+                      << "},\n";
+                m_log << std::flush;
+            }
+#endif
+        }
+    }
+
     void VFVServer::sendSubDatasetOwner(SubDatasetMetaData* metaData)
     {
         //Generate the data
@@ -1821,8 +1898,8 @@ namespace sereno
         offset+= sizeof(uint32_t);
 
         uint32_t id = -1;
-        if(metaData->hmdClient != NULL)
-            id = metaData->hmdClient->getHeadsetData().id;
+        if(metaData->owner != NULL)
+            id = metaData->owner->getHeadsetData().id;
         writeUint32(data+offset, id); 
         offset+= sizeof(uint32_t);
 
@@ -2132,6 +2209,12 @@ namespace sereno
                     break;
                 }
 
+                case MAKE_SUBDATASET_PUBLIC:
+                {
+                    onMakeSubDatasetPublic(client, msg.makeSubDatasetPublic);
+                    break;
+                }
+
                 default:
                     break;
             }
@@ -2296,7 +2379,7 @@ namespace sereno
                         {
                             it2.hmdClient = NULL;
                             it2.lastModification = 0;
-                            sendSubDatasetOwner(&it2);
+                            sendSubDatasetLockOwner(&it2);
                         }
                     }
                 }

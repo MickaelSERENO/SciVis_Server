@@ -42,7 +42,7 @@ namespace sereno
         VFV_SEND_HEADSETS_STATUS         = 5,  /*!< Send all the headsets status except the client receiving the message*/
         VFV_SEND_HEADSET_ANCHOR_SEGMENT  = 6,  /*!< Send anchor segment*/
         VFV_SEND_HEADSET_ANCHOR_EOF      = 7,  /*!< Send anchor end of stream*/
-        VFV_SEND_SUBDATASET_OWNER        = 8,  /*!< Send the new subdataset owner*/
+        VFV_SEND_SUBDATASET_LOCK_OWNER   = 8,  /*!< Send the new subdataset lock owner*/
         VFV_SEND_SCALE_DATASET           = 9,  /*!< Send the scaling status of a dataset*/
         VFV_SEND_TF_DATASET              = 10, /*!< Send the Transfer Function status of a dataset*/
         VFV_SEND_START_ANNOTATION        = 11, /*!< Send the start annotation message (asking to start an annotation) */
@@ -50,6 +50,7 @@ namespace sereno
         VFV_SEND_CLEAR_ANNOTATION        = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
         VFV_SEND_ADD_SUBDATASET          = 14, /*!< Send the "add" subdataset command.*/
         VFV_SEND_DEL_SUBDATASET          = 15, /*!< Send the "delete" subdataset command.*/
+        VFV_SEND_SUBDATASET_OWNER        = 16, /*!< Send the new SubDataset owner command.*/
     };
 
     /* \brief The Class Server for the Vector Field Visualization application */
@@ -150,6 +151,11 @@ namespace sereno
              * \param dataset the dataset ID information */
             void removeSubDataset(const VFVRemoveSubDataset& dataset);
 
+            /* \brief  Make public a known SubDataset
+             * \param client the client making this subdataset public
+             * \param dataset the dataset ID information */
+            void onMakeSubDatasetPublic(VFVClientSocket* client, const VFVMakeSubDatasetPublic& dataset);
+
             /* \brief  Remove a known SubDataset
              * \param client the client asking to remove the subdataset
              * \param dataset the dataset information to remove */
@@ -243,6 +249,10 @@ namespace sereno
 
             /** \brief  Send the anchoring data to all the client connected */
             void sendAnchoring();
+
+            /* \brief Send the subdataset lock owner to all the clients (owner included)
+             * \param data SubDataset meta data containing the new lock owner */
+            void sendSubDatasetLockOwner(SubDatasetMetaData* data);
 
             /* \brief Send the subdataset owner to all the clients (owner included)
              * \param data SubDataset meta data containing the new owner */
