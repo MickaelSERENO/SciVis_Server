@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #ifndef TEST
-#define TEST
+//#define TEST
 #endif
 
 namespace sereno
@@ -142,12 +142,12 @@ namespace sereno
         m_log << std::flush;
 #endif
         addVTKDataset(NULL, vtkInfo);
-#endif
 
         m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
         {
             INFO << "Loaded. Status: " << status << std::endl;
         }, NULL);
+#endif
     }
 
     VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
@@ -2243,6 +2243,7 @@ namespace sereno
             {
                 std::lock_guard<std::mutex> lock2(m_datasetMutex);
                 std::lock_guard<std::mutex> lock(m_mapMutex);
+
                 //Send HEADSETS_STATUS
                 for(auto it : m_clientTable)
                 {
@@ -2343,7 +2344,6 @@ namespace sereno
                             logAdded = true;
 #endif
 #endif
-
                             nbHeadset++;
                         }
                     }
@@ -2355,7 +2355,6 @@ namespace sereno
                     m_logMutex.unlock();
 #endif
 #endif
-
                     //Write the number of headset to take account of
                     writeUint32(data+sizeof(uint16_t), nbHeadset);
 
@@ -2365,12 +2364,14 @@ namespace sereno
                     writeMessage(sm);
                 }
             }
-            clock_gettime(CLOCK_REALTIME, &end);
 
+            clock_gettime(CLOCK_REALTIME, &end);
             endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
 
             //Check owner ending time
             {
+                std::lock_guard<std::mutex> lock2(m_datasetMutex);
+                std::lock_guard<std::mutex> lock(m_mapMutex);
                 for(auto& it : m_vtkDatasets)
                 {
                     for(auto& it2 : it.second.sdMetaData)
@@ -2385,6 +2386,9 @@ namespace sereno
                 }
             }
 
+            //Sleep
+            clock_gettime(CLOCK_REALTIME, &end);
+            endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
             usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
         }
     }
