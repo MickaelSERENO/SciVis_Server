@@ -58,6 +58,7 @@ namespace sereno
         ADD_SUBDATASET              = 17,
         REMOVE_SUBDATASET           = 18,
         MAKE_SUBDATASET_PUBLIC      = 19,
+        DUPLICATE_SUBDATASET        = 20,
         END_MESSAGE_TYPE
     };
 
@@ -142,6 +143,7 @@ namespace sereno
             struct VFVClearAnnotations           clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
             struct VFVAddSubDataset              addSubDataset;    /*!< Add a new default SubDataset*/
             struct VFVRemoveSubDataset           removeSubDataset; /*!< Remove a registered SubDataset*/
+            struct VFVDuplicateSubDataset        duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
             struct VFVMakeSubDatasetPublic       makeSubDatasetPublic; /*!< Make a SubDataset public*/
         };
 
@@ -241,6 +243,10 @@ namespace sereno
                         case MAKE_SUBDATASET_PUBLIC:
                             makeSubDatasetPublic = cpy.makeSubDatasetPublic;
                             curMsg = &makeSubDatasetPublic;
+                            break;
+                        case DUPLICATE_SUBDATASET:
+                            duplicateSubDataset = cpy.duplicateSubDataset;
+                            curMsg = &duplicateSubDataset;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -347,6 +353,10 @@ namespace sereno
                     new(&makeSubDatasetPublic) VFVMakeSubDatasetPublic;
                     curMsg = &makeSubDatasetPublic;
                     break;
+                case DUPLICATE_SUBDATASET:
+                    new(&duplicateSubDataset) VFVDuplicateSubDataset;
+                    curMsg = &duplicateSubDataset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -421,6 +431,9 @@ namespace sereno
                     break;
                 case MAKE_SUBDATASET_PUBLIC:
                     makeSubDatasetPublic.~VFVMakeSubDatasetPublic();
+                    break;
+                case DUPLICATE_SUBDATASET:
+                    duplicateSubDataset.~VFVDuplicateSubDataset();
                     break;
                 case NOTHING:
                     break;

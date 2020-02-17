@@ -113,6 +113,26 @@ namespace sereno
         return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
     }
 
+    TF* cloneTransferFunction(TFType type, TF* tf)
+    {
+        TF* _tf = NULL;
+        switch(type)
+        {
+            case TF_TRIANGULAR_GTF:
+                _tf = new TriangularGTF(*(TriangularGTF*)tf);
+                break;
+            case TF_GTF:
+                _tf = new GTF(*(GTF*)tf);
+                break;
+            default:
+                WARNING << "Did not find TFType " << type << std::endl;
+                break;
+        }
+
+        return _tf;
+    } 
+
+
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
 #ifdef VFV_LOG_DATA
@@ -638,7 +658,7 @@ namespace sereno
         }
     }
 
-    void VFVServer::onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset)
+    SubDataset* VFVServer::onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset)
     {
         INFO << "OnAddSubDataset" << std::endl;
         std::lock_guard<std::mutex> lock(m_datasetMutex);
@@ -646,7 +666,7 @@ namespace sereno
         if(it == m_datasets.end())
         {
             WARNING << "The dataset id 'datasetID' is not found\n";
-            return;
+            return NULL;
         }
 
         //Add a dataset
@@ -655,16 +675,14 @@ namespace sereno
         if(mt == NULL)
         {
             ERROR << "Could not find the Meta Data of Dataset ID: " << dataset.datasetID << std::endl;
-            return;
+            return NULL;
         }
         SubDataset* sd = new SubDataset(d, std::to_string(d->getNbSubDatasets()+1), 0);
         d->addSubDataset(sd);
                 
         SubDatasetMetaData md;
         md.sdID   = sd->getID();
-
-        if(!dataset.isPublic)
-
+        md.datasetID = dataset.datasetID;
         md.owner  = (dataset.isPublic ? NULL : getHeadsetFromClient(client));
         md.tf     = new TriangularGTF(d->getPointFieldDescs().size()+1, RAINBOW);
         md.tfType = TF_TRIANGULAR_GTF;
@@ -677,6 +695,8 @@ namespace sereno
             sendAddSubDataset(clt.second, sd);
             sendSubDatasetStatus(clt.second, sd, dataset.datasetID);
         }
+
+        return sd;
     }
 
     void VFVServer::removeSubDataset(const VFVRemoveSubDataset& remove)
@@ -742,6 +762,65 @@ namespace sereno
 
             //Send to all
             sendSubDatasetOwner(sdMT);
+        }
+    }
+
+    void VFVServer::onDuplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& duplicate)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        //Find the subdataset meta data
+        SubDatasetMetaData* sdMT = NULL;
+        MetaData* mt = getMetaData(duplicate.datasetID, duplicate.subDatasetID, &sdMT);
+        if(!mt)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(duplicate.datasetID, duplicate.subDatasetID)
+            return;
+        }
+
+        if(client)
+        {
+            //Check about the privacy
+            if(sdMT->owner != NULL && sdMT->owner != getHeadsetFromClient(client))
+            {
+                VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, duplicate.datasetID, duplicate.subDatasetID)
+                return;
+            }
+        }
+
+        //Find the SubDataset
+        Dataset* dataset = getDataset(duplicate.datasetID, duplicate.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(duplicate.datasetID, duplicate.subDatasetID)
+            return;
+        }
+        SubDataset* sdToDuplicate = dataset->getSubDataset(duplicate.subDatasetID);
+
+        //Create a SubDataset
+        SubDataset* sd = new SubDataset(dataset, sdToDuplicate->getName(), 0);
+        dataset->addSubDataset(sd);
+
+        //Copy data and Generate the corresponding MetaData
+        sd->setGlobalRotate(sdToDuplicate->getGlobalRotate());
+        sd->setScale(sdToDuplicate->getScale());
+        //WE DO NOT TOUCH THE POSITION!
+                
+        SubDatasetMetaData md;
+        md.sdID   = sd->getID();
+        md.datasetID = duplicate.datasetID;
+        md.tfType = sdMT->tfType;
+        md.tf     = cloneTransferFunction(sdMT->tfType, sdMT->tf);
+        md.owner  = sdMT->owner;
+        sd->setTransferFunction(md.tf);
+        mt->sdMetaData.push_back(md);
+
+        //Send it to all the clients
+        for(auto& clt : m_clientTable)
+        {
+            sendAddSubDataset(clt.second, sd);
+            sendSubDatasetStatus(clt.second, sd, duplicate.datasetID);
         }
     }
 
@@ -2212,6 +2291,12 @@ namespace sereno
                 case MAKE_SUBDATASET_PUBLIC:
                 {
                     onMakeSubDatasetPublic(client, msg.makeSubDatasetPublic);
+                    break;
+                }
+
+                case DUPLICATE_SUBDATASET:
+                {
+                    onDuplicateSubDataset(client, msg.duplicateSubDataset);
                     break;
                 }
 

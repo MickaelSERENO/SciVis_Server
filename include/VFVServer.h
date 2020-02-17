@@ -53,6 +53,12 @@ namespace sereno
         VFV_SEND_SUBDATASET_OWNER        = 16, /*!< Send the new SubDataset owner command.*/
     };
 
+    /** \brief  Clone a Transfer function based on its ype
+     * \param type the transfer function type
+     * \param tf the transfer function to clone
+     * \return the new Transfer Function allocated using new. The caller is responsible to destroy that object*/
+    TF* cloneTransferFunction(TFType type, TF* tf);
+
     /* \brief The Class Server for the Vector Field Visualization application */
     class VFVServer : public Server<VFVClientSocket>
     {
@@ -144,8 +150,10 @@ namespace sereno
 
             /* \brief  Add a SubDataset to a given one
              * \param client the client adding the dataset
-             * \param dataset the dataset information to add*/
-            void onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset);
+             * \param dataset the dataset information to add
+             *
+             * \return the SubDataset added. NULL if error*/
+            SubDataset* onAddSubDataset(VFVClientSocket* client, const VFVAddSubDataset& dataset);
 
             /* \brief  Remove a known subdataset
              * \param dataset the dataset ID information */
@@ -160,6 +168,11 @@ namespace sereno
              * \param client the client asking to remove the subdataset
              * \param dataset the dataset information to remove */
             void onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& dataset);
+
+            /* \brief  Duplicate a known SubDataset
+             * \param client the client asking to duplicate the subdataset
+             * \param dataset the dataset information to duplicate */
+            void onDuplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& dataset);
 
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update
