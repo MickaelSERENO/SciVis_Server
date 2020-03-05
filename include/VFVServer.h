@@ -57,7 +57,7 @@ namespace sereno
      * \param type the transfer function type
      * \param tf the transfer function to clone
      * \return the new Transfer Function allocated using new. The caller is responsible to destroy that object*/
-    TF* cloneTransferFunction(TFType type, TF* tf);
+    TF* cloneTransferFunction(TFType type, std::shared_ptr<const TF> tf);
 
     /* \brief The Class Server for the Vector Field Visualization application */
     class VFVServer : public Server<VFVClientSocket>

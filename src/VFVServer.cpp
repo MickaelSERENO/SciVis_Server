@@ -113,16 +113,16 @@ namespace sereno
         return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
     }
 
-    TF* cloneTransferFunction(TFType type, TF* tf)
+    TF* cloneTransferFunction(TFType type, std::shared_ptr<const TF> tf)
     {
         TF* _tf = NULL;
         switch(type)
         {
             case TF_TRIANGULAR_GTF:
-                _tf = new TriangularGTF(*(TriangularGTF*)tf);
+                _tf = new TriangularGTF(*(const TriangularGTF*)tf.get());
                 break;
             case TF_GTF:
-                _tf = new GTF(*(GTF*)tf);
+                _tf = new GTF(*(const GTF*)tf.get());
                 break;
             default:
                 WARNING << "Did not find TFType " << type << std::endl;
@@ -194,13 +194,11 @@ namespace sereno
         //Delete meta data information
         for(auto& d : m_vtkDatasets)
             for(auto& sd : d.second.sdMetaData)
-                if(sd.tf)
-                    delete sd.tf;
+                sd.tf = NULL;
 
         for(auto& d : m_binaryDatasets)
             for(auto& sd : d.second.sdMetaData)
-                if(sd.tf)
-                    delete sd.tf;
+                sd.tf = NULL;
 
         //delete datasets
         for(auto& d : m_datasets)
@@ -621,7 +619,7 @@ namespace sereno
         {
             SubDatasetMetaData md;
             md.sdID   = vtk->getSubDatasets()[i]->getID();
-            md.tf     = new TriangularGTF(dataset.ptFields.size(), RAINBOW);
+            md.tf     = std::make_shared<TriangularGTF>(dataset.ptFields.size(), RAINBOW);
             md.tfType = TF_TRIANGULAR_GTF;
             vtk->getSubDatasets()[i]->setTransferFunction(md.tf);
             metaData.sdMetaData.push_back(md);
@@ -684,7 +682,7 @@ namespace sereno
         md.sdID   = sd->getID();
         md.datasetID = dataset.datasetID;
         md.owner  = (dataset.isPublic ? NULL : getHeadsetFromClient(client));
-        md.tf     = new TriangularGTF(d->getPointFieldDescs().size()+1, RAINBOW);
+        md.tf     = std::make_shared<TriangularGTF>(d->getPointFieldDescs().size()+1, RAINBOW);
         md.tfType = TF_TRIANGULAR_GTF;
         sd->setTransferFunction(md.tf);
         mt->sdMetaData.push_back(md);
@@ -811,7 +809,7 @@ namespace sereno
         md.sdID   = sd->getID();
         md.datasetID = duplicate.datasetID;
         md.tfType = sdMT->tfType;
-        md.tf     = cloneTransferFunction(sdMT->tfType, sdMT->tf);
+        md.tf     = std::shared_ptr<TF>(cloneTransferFunction(sdMT->tfType, sdMT->tf));
         md.owner  = sdMT->owner;
         sd->setTransferFunction(md.tf);
         mt->sdMetaData.push_back(md);
@@ -991,12 +989,8 @@ namespace sereno
         //First check if the type has changes
         if(tfSD.tfID != sdMT->tfType)
         {
-            //Delete
             if(sdMT->tf != NULL)
-            {
-                delete sdMT->tf;
                 sdMT->tf = NULL;
-            }
 
             sdMT->tfType = (TFType)tfSD.tfID;
 
@@ -1004,10 +998,10 @@ namespace sereno
             switch(sdMT->tfType)
             {
                 case TF_GTF:
-                    sdMT->tf = new GTF(tfSD.gtfData.propData.size(), (ColorMode)tfSD.colorMode);
+                    sdMT->tf = std::make_shared<GTF>(tfSD.gtfData.propData.size(), (ColorMode)tfSD.colorMode);
                     break;
                 case TF_TRIANGULAR_GTF:
-                    sdMT->tf = new TriangularGTF(tfSD.gtfData.propData.size()+1, (ColorMode)tfSD.colorMode);
+                    sdMT->tf = std::make_shared<TriangularGTF>(tfSD.gtfData.propData.size()+1, (ColorMode)tfSD.colorMode);
                     break;
                 default:
                     ERROR << "The Transfer Function type: " << (int)tfSD.tfID << " is unknown. Set the NONE\n";
@@ -1046,14 +1040,14 @@ namespace sereno
                     //Set the center and scaling factors
                     if(sdMT->tfType == TF_GTF)
                     {
-                        ((GTF*)sdMT->tf)->setCenter(centers);
-                        ((GTF*)sdMT->tf)->setScale(scales);
+                        ((GTF*)sdMT->tf.get())->setCenter(centers);
+                        ((GTF*)sdMT->tf.get())->setScale(scales);
                     }
 
                     else if(sdMT->tfType == TF_TRIANGULAR_GTF)
                     {
-                        ((TriangularGTF*)sdMT->tf)->setCenter(centers);
-                        ((TriangularGTF*)sdMT->tf)->setScale(scales);
+                        ((TriangularGTF*)sdMT->tf.get())->setCenter(centers);
+                        ((TriangularGTF*)sdMT->tf.get())->setScale(scales);
                     }
 
                     //Free data
@@ -1716,7 +1710,7 @@ namespace sereno
             {
                 case TF_TRIANGULAR_GTF:
                 {
-                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(sdMT->tf);
+                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(sdMT->tf.get());
                     for(uint32_t j = 0; j < gtf->getDimension()-1; j++)
                     {
                         VFVTransferFunctionSubDataset::GTFPropData propData;
@@ -1731,7 +1725,7 @@ namespace sereno
 
                 case TF_GTF:
                 {
-                    GTF* gtf = reinterpret_cast<GTF*>(sdMT->tf);
+                    GTF* gtf = reinterpret_cast<GTF*>(sdMT->tf.get());
                     for(uint32_t j = 0; j < gtf->getDimension(); j++)
                     {
                         VFVTransferFunctionSubDataset::GTFPropData propData;

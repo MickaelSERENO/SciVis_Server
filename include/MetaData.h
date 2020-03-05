@@ -20,7 +20,7 @@ namespace sereno
         uint64_t         sdID      = 0;        /*!< SubDataset ID*/
         uint64_t         datasetID = 0;        /*!< Dataset ID*/
         TFType           tfType    = TF_NONE;  /*!< The Transfer Function type in use*/
-        TF*              tf        = NULL;     /*!< The Transfer Function being used*/
+        std::shared_ptr<TF> tf     = NULL;     /*!< The Transfer Function being used*/
     };
 
     /*!< Structure representing MetaData associated with the opened Datasets*/
