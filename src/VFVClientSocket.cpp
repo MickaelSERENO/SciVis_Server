@@ -244,6 +244,11 @@ namespace sereno
 
         m_identityType = TABLET;
         m_tablet.handedness = handedness;
+        
+        char* tabletIP = inet_ntoa(sockAddr.sin_addr);
+        INFO << "Tablet IP: " << tabletIP << std::endl;
+        free(tabletIP);
+
         if(headsetIP.size())
         {
             if(!inet_pton(AF_INET, headsetIP.c_str(), &(m_tablet.headsetAddr.sin_addr)))
@@ -267,6 +272,10 @@ namespace sereno
         new (&m_headset) VFVHeadsetData;
         m_headset.id   = nextHeadsetID++;
         m_identityType = HEADSET;
+
+        char* headsetIP = inet_ntoa(sockAddr.sin_addr);
+        INFO << "Headset IP: " << headsetIP << std::endl;
+        free(headsetIP);
         return true;
     }
 
