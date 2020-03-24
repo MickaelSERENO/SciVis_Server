@@ -247,7 +247,6 @@ namespace sereno
         
         char* tabletIP = inet_ntoa(sockAddr.sin_addr);
         INFO << "Tablet IP: " << tabletIP << std::endl;
-        free(tabletIP);
 
         if(headsetIP.size())
         {
@@ -275,7 +274,6 @@ namespace sereno
 
         char* headsetIP = inet_ntoa(sockAddr.sin_addr);
         INFO << "Headset IP: " << headsetIP << std::endl;
-        free(headsetIP);
         return true;
     }
 
