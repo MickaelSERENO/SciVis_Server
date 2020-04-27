@@ -1539,6 +1539,33 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendCurrentAction(VFVClientSocket* client, uint32_t currentActionID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_CURRENT_ACTION); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, currentActionID);
+        offset += sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CurrentAction");
+            m_log << ",    \"actionID\" : " << currentActionID << "\n";
+            VFV_END_TO_JSON(m_log);
+            m_log << std::flush;
+        }
+#endif
+    }
+
     void VFVServer::sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD)
     {
         //Determine the size of the packet
@@ -2246,9 +2273,13 @@ namespace sereno
                         break;
 
                     //Set the current action
-                    std::lock_guard<std::mutex> lock(m_mapMutex);
-                    headset->getHeadsetData().currentAction = (VFVHeadsetCurrentActionType)msg.headsetCurrentAction.action;
-                    INFO << "Current action : " << msg.headsetCurrentAction.action << std::endl;
+                    if(headset != client)
+                    {
+                        std::lock_guard<std::mutex> lock(m_mapMutex);
+                        headset->getHeadsetData().currentAction = (VFVHeadsetCurrentActionType)msg.headsetCurrentAction.action;
+                        sendCurrentAction(headset, headset->getHeadsetData().currentAction);
+                        INFO << "Current action : " << msg.headsetCurrentAction.action << std::endl;
+                    }
                     break;
                 }
 

@@ -51,6 +51,7 @@ namespace sereno
         VFV_SEND_ADD_SUBDATASET          = 14, /*!< Send the "add" subdataset command.*/
         VFV_SEND_DEL_SUBDATASET          = 15, /*!< Send the "delete" subdataset command.*/
         VFV_SEND_SUBDATASET_OWNER        = 16, /*!< Send the new SubDataset owner command.*/
+        VFV_SEND_CURRENT_ACTION          = 17, /*!< Send the current action command.*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -234,6 +235,11 @@ namespace sereno
              * \param client the client to send the information
              * \param tfSD the transfer function information */
             void sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD);
+
+            /* \brief Send the current action message to a given client (will set what currently the headset is supposed to do)
+             * \param client the client to send the information
+             * \param currentActionID the action ID to send */
+            void sendCurrentAction(VFVClientSocket* client, uint32_t currentActionID);
 
             /* \brief  Send the the subdataset status to a client
              * \param client the client to send the data
