@@ -52,6 +52,9 @@ namespace sereno
         VFV_SEND_DEL_SUBDATASET          = 15, /*!< Send the "delete" subdataset command.*/
         VFV_SEND_SUBDATASET_OWNER        = 16, /*!< Send the new SubDataset owner command.*/
         VFV_SEND_CURRENT_ACTION          = 17, /*!< Send the current action command.*/
+        VFV_SEND_LOCATION_TABLET         = 18, /*!< Send the tablet its current location.*/
+        VFV_SEND_LOCATION                = 19, /*!< Send the tablet's virtual location.*/
+        VFV_SEND_LASSO                   = 20, /*!< Send the lasso data.*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -72,6 +75,8 @@ namespace sereno
             void cancel();
             void wait();
             void closeServer();
+
+            void updateLocationTablet(glm::vec3 pos, Quaternionf rot);
 
             /** \brief  The distinguishable color used in this sci vis application */
             static const uint32_t SCIVIS_DISTINGUISHABLE_COLORS[10];
@@ -174,6 +179,17 @@ namespace sereno
              * \param client the client asking to duplicate the subdataset
              * \param dataset the dataset information to duplicate */
             void onDuplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& dataset);
+
+            /* \brief  send a tablet's virtual location to the hololens
+             * \param client the tablet sending the location
+             * \param location the tablet's virtual location */
+            void onLocation(VFVClientSocket* client, const VFVLocation& location);
+
+            /* \brief  send a tablet's lasso to the hololens
+             * \param client the tablet sending the lasso
+             * \param lasso the lasso to send */
+            void onLasso(VFVClientSocket* client, const VFVLasso& lasso);
+
 
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update
@@ -291,6 +307,11 @@ namespace sereno
              * \param client the client to send the message
              * \param clearAnnot the clean annotations command */
             void sendClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnot);
+
+            /* \brief  Send location to all tablets
+             * \param pos Position de la tablette
+             * \param rot Rotation de la tablette*/
+            void sendLocationTablet(glm::vec3 pos, Quaternionf rot);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

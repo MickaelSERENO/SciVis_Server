@@ -59,6 +59,8 @@ namespace sereno
         REMOVE_SUBDATASET           = 18,
         MAKE_SUBDATASET_PUBLIC      = 19,
         DUPLICATE_SUBDATASET        = 20,
+        LOCATION                    = 21,
+        LASSO                       = 22,
         END_MESSAGE_TYPE
     };
 
@@ -70,7 +72,9 @@ namespace sereno
         HEADSET_CURRENT_ACTION_SCALING     = 2,
         HEADSET_CURRENT_ACTION_ROTATING    = 3,
         HEADSET_CURRENT_ACTION_SKETCHING   = 4,
-        HEADSET_CURRENT_ACTION_CREATEANNOT = 5
+        HEADSET_CURRENT_ACTION_CREATEANNOT = 5,
+        HEADSET_CURRENT_ACTION_LASSO       = 6,
+        HEADSET_CURRENT_ACTION_SELECTING   = 7
     };
 
     /** \brief  The different pointing interaction technique supported by this application */
@@ -145,6 +149,8 @@ namespace sereno
             struct VFVRemoveSubDataset           removeSubDataset; /*!< Remove a registered SubDataset*/
             struct VFVDuplicateSubDataset        duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
             struct VFVMakeSubDatasetPublic       makeSubDatasetPublic; /*!< Make a SubDataset public*/
+            struct VFVLocation                   location;         /*!< Update the tablet's virtual location*/
+            struct VFVLasso                      lasso;            /*!< Lasso data*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -247,6 +253,14 @@ namespace sereno
                         case DUPLICATE_SUBDATASET:
                             duplicateSubDataset = cpy.duplicateSubDataset;
                             curMsg = &duplicateSubDataset;
+                            break;
+                        case LOCATION:
+                            location = cpy.location;
+                            curMsg = &location;
+                            break;
+                        case LASSO:
+                            lasso = cpy.lasso;
+                            curMsg = &lasso;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -357,6 +371,14 @@ namespace sereno
                     new(&duplicateSubDataset) VFVDuplicateSubDataset;
                     curMsg = &duplicateSubDataset;
                     break;
+                case LOCATION:
+                    new(&location) VFVLocation;
+                    curMsg = &location;
+                    break;
+                case LASSO:
+                    new(&lasso) VFVLasso;
+                    curMsg = &lasso;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -434,6 +456,12 @@ namespace sereno
                     break;
                 case DUPLICATE_SUBDATASET:
                     duplicateSubDataset.~VFVDuplicateSubDataset();
+                    break;
+                case LOCATION:
+                    location.~VFVLocation();
+                    break;
+                case LASSO:
+                    lasso.~VFVLasso();
                     break;
                 case NOTHING:
                     break;

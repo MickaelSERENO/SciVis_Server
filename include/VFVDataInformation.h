@@ -1367,6 +1367,107 @@ namespace sereno
         }
     };
 
+    struct VFVLocation : public VFVDataInformation
+    {
+        float position[3];
+        float rotation[4];
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 7)
+                return 'f';
+            else
+                return 0;
+            
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor < 3){
+                position[cursor] = value;
+                return true;
+            }
+            else if (cursor < 7)
+            {
+                rotation[cursor-3] = value;
+                return true;
+            }
+            else
+                VFV_DATA_ERROR
+        }
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Location");
+            oss << ",    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
+                << "    \"rotation\" : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
+        int32_t getMaxCursor() const {return 6;}
+    };
+
+    struct VFVLasso : public VFVDataInformation
+    {
+        std::vector<float> data; /*!< The lasso data*/
+        uint32_t size = 0; /*!< Size of the lasso data*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 'I';
+            else if(cursor <= size)
+                return 'f';
+            else
+                return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                size = value;
+                return true;
+            }
+            else
+                VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor > 0 && cursor <= size)
+            {
+                data.push_back(value);
+                return true;
+            }
+            else
+                VFV_DATA_ERROR
+        }
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Lasso");
+            oss << ",    \"size\" : " << size << ",\n"
+                << "    \"data\" : [";
+            for(uint32_t i = 0; i < size; i++)
+            {
+                oss << data[i] << ",";
+            }
+            oss << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
+        int32_t getMaxCursor() const {return size;}
+    };
+
     /* \brief Represents the information about VTK Datasets*/
     struct VFVVTKDatasetInformation : public VFVDataInformation
     {

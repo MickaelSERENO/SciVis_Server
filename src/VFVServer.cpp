@@ -241,6 +241,11 @@ namespace sereno
         }
     }
 
+
+    void VFVServer::updateLocationTablet(glm::vec3 pos, Quaternionf rot){
+        sendLocationTablet(pos, rot);
+    }
+
     void VFVServer::closeClient(SOCKET client)
     {
         auto itClient = m_clientTable.find(client);
@@ -820,6 +825,89 @@ namespace sereno
             sendAddSubDataset(clt.second, sd);
             sendSubDatasetStatus(clt.second, sd, duplicate.datasetID);
         }
+    }
+
+    void VFVServer::onLocation(VFVClientSocket* client, const VFVLocation& location)
+    {
+        INFO << "Location received: "
+             << "Tablet position: " << location.position[0] << " " << location.position[1] << " " << location.position[2] << "; "
+             << "Tablet rotation: " << location.rotation[0] << " " << location.rotation[1] << " " << location.rotation[2] << " " << location.rotation[3] << std::endl;
+        
+        //Generate the data
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        //Message ID
+        writeUint16(data, VFV_SEND_LOCATION);
+        offset += sizeof(uint16_t);
+
+        //Position
+        writeFloat(data+offset, location.position[0]);
+        offset += sizeof(float);
+        writeFloat(data+offset, location.position[1]);
+        offset += sizeof(float);
+        writeFloat(data+offset, location.position[2]);
+        offset += sizeof(float);
+
+        //Rotation
+        writeFloat(data+offset, location.rotation[0]);
+        offset += sizeof(float);
+        writeFloat(data+offset, location.rotation[1]);
+        offset += sizeof(float);
+        writeFloat(data+offset, location.rotation[2]);
+        offset += sizeof(float);
+        writeFloat(data+offset, location.rotation[3]);
+        offset += sizeof(float);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        //Send the data
+        SocketMessage<int> sm(getHeadsetFromClient(client)->socket, sharedData, offset);
+        writeMessage(sm);
+
+    }
+
+    void VFVServer::onLasso(VFVClientSocket* client, const VFVLasso& lasso)
+    {
+        INFO << "Lasso received: size: " << lasso.size << std::endl;
+        /*
+        for(uint32_t i = 0; i < lasso.size; i+=3)
+        {
+            if(i+2 < lasso.size)
+                INFO << lasso.data.at(i) << " " << lasso.data.at(i+1) << " " << lasso.data.at(i+2) << std::endl;
+            else if(i+1 < lasso.size)
+                INFO << lasso.data.at(i) << " " << lasso.data.at(i+1) << std::endl;
+            else
+                INFO << lasso.data.at(i) << std::endl;
+        }
+        */
+
+        //Generate the data
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + lasso.size * sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        //Message ID
+        writeUint16(data, VFV_SEND_LASSO);
+        offset += sizeof(uint16_t);
+
+        //Size
+        writeUint32(data+offset, lasso.size);
+        offset += sizeof(uint32_t);
+
+        //Lasso data
+        for(uint32_t i = 0; i < lasso.size; i++)
+        {
+            writeFloat(data+offset, lasso.data[i]);
+            offset += sizeof(float);
+        }
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        //Send the data
+        SocketMessage<int> sm(getHeadsetFromClient(client)->socket, sharedData, offset);
+        writeMessage(sm);
     }
 
     void VFVServer::onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& remove)
@@ -2132,6 +2220,50 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendLocationTablet(glm::vec3 pos, Quaternionf rot){
+        //Generate the data
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        //Message ID
+        writeUint16(data, VFV_SEND_LOCATION_TABLET);
+        offset += sizeof(uint16_t);
+
+        //Position
+        writeFloat(data+offset, pos.x);
+        offset += sizeof(float);
+        writeFloat(data+offset, pos.y);
+        offset += sizeof(float);
+        writeFloat(data+offset, pos.z);
+        offset += sizeof(float);
+
+        //Rotation
+        writeFloat(data+offset, rot.x);
+        offset += sizeof(float);
+        writeFloat(data+offset, rot.y);
+        offset += sizeof(float);
+        writeFloat(data+offset, rot.z);
+        offset += sizeof(float);
+        writeFloat(data+offset, rot.w);
+        offset += sizeof(float);
+
+        //INFO << "Sending tablet location: "
+        //     << "Tablet position: " << pos.x << " " << pos.y << " " << pos.z << "; "
+        //     << "Tablet rotation: " << rot.x << " " << rot.y << " " << rot.z << " " << rot.w << std::endl;
+        
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        
+        //Send the data
+        for(auto it : m_clientTable)
+        {
+            if(it.second->isTablet()){
+                SocketMessage<int> sm(it.second->socket, sharedData, offset);
+                writeMessage(sm);
+            }
+        }
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -2322,6 +2454,18 @@ namespace sereno
                 case DUPLICATE_SUBDATASET:
                 {
                     onDuplicateSubDataset(client, msg.duplicateSubDataset);
+                    break;
+                }
+
+                case LOCATION:
+                {
+                    onLocation(client, msg.location);
+                    break;
+                }
+
+                case LASSO:
+                {
+                    onLasso(client, msg.lasso);
                     break;
                 }
 
