@@ -242,7 +242,9 @@ namespace sereno
     }
 
 
-    void VFVServer::updateLocationTablet(glm::vec3 pos, Quaternionf rot){
+    void VFVServer::updateLocationTablet(const glm::vec3& pos, const Quaternionf& rot)
+    {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
         sendLocationTablet(pos, rot);
     }
 
@@ -2220,7 +2222,7 @@ namespace sereno
 #endif
     }
 
-    void VFVServer::sendLocationTablet(glm::vec3 pos, Quaternionf rot){
+    void VFVServer::sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot){
         //Generate the data
         uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
         uint8_t* data = (uint8_t*)malloc(dataSize);

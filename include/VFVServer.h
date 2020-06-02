@@ -76,7 +76,7 @@ namespace sereno
             void wait();
             void closeServer();
 
-            void updateLocationTablet(glm::vec3 pos, Quaternionf rot);
+            void updateLocationTablet(const glm::vec3& pos, const Quaternionf& rot);
 
             /** \brief  The distinguishable color used in this sci vis application */
             static const uint32_t SCIVIS_DISTINGUISHABLE_COLORS[10];
@@ -311,7 +311,7 @@ namespace sereno
             /* \brief  Send location to all tablets
              * \param pos Position de la tablette
              * \param rot Rotation de la tablette*/
-            void sendLocationTablet(glm::vec3 pos, Quaternionf rot);
+            void sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
