@@ -76,7 +76,25 @@ namespace sereno
             void wait();
             void closeServer();
 
-            void updateLocationTablet(const glm::vec3& pos, const Quaternionf& rot);
+            /* \brief  Update the tablet Location in the debug mode (e.g., VUFORIA mode)
+             * \param pos the tablet position
+             * \param rot the tablet rotation */
+            void updateLocationTabletDebug(const glm::vec3& pos, const Quaternionf& rot);
+
+            /* \brief Update the tablet position but do not send it yet
+             * \param pos the tablet position
+             * \param rot the tablet rotation
+             * \param tabletID the tablet ID to update */
+            void pushTabletVRPNPosition(const glm::vec3& pos, const Quaternionf& rot, int tabletID);
+
+            /** \brief  Update the headset position but do not send it yet
+             * \param pos the headset position
+             * \param rot the headset rotation
+             * \param tabletID the tabletID bound to this headset */
+            void pushHeadsetVRPNPosition(const glm::vec3& pos, const Quaternionf& rot, int tabletID);
+
+            /** \brief  Commit and send to all the clients all the devices' positions */
+            void commitAllVRPNPositions();
 
             /** \brief  The distinguishable color used in this sci vis application */
             static const uint32_t SCIVIS_DISTINGUISHABLE_COLORS[10];
@@ -310,8 +328,9 @@ namespace sereno
 
             /* \brief  Send location to all tablets
              * \param pos Position de la tablette
-             * \param rot Rotation de la tablette*/
-            void sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot);
+             * \param rot Rotation de la tablette
+             * \param client the client to send the message (should be a tablet)*/
+            void sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot, VFVClientSocket* client);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

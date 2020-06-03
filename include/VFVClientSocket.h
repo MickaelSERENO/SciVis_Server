@@ -560,6 +560,22 @@ namespace sereno
             /** \brief  Get the HeadsetData. Works only if isHeadset returns true!
              * \return the Headset Data*/
             VFVHeadsetData& getHeadsetData() {return m_headset;}
+
+            /* \brief  Set the VRPN registered position
+             * \param pos the new VRPN position */
+            void setVRPNPosition(const glm::vec3& pos) {m_vrpnPos = pos;}
+
+            /* \brief  Set the VRPN registered rotation
+             * \param rot the new VRPN rotation */
+            void setVRPNRotation(const Quaternionf& rot) {m_vrpnRot = rot;}
+
+            /* \brief  Get the VRPN registered position
+             * \return  The VRPN registered position */
+            const glm::vec3&   getVRPNPosition() const {return m_vrpnPos;}
+
+            /* \brief  Get the VRPN registered rotation
+             * \return  The VRPN registered rotation */
+            const Quaternionf& getVRPNRotation() const {return m_vrpnRot;}
         private:
             static uint32_t nextHeadsetID;
 
@@ -568,9 +584,12 @@ namespace sereno
             int32_t                m_cursor;   /*!< Indice cursor (what information ID are we reading at ?)*/
 
             VFVIdentityType        m_identityType = NO_IDENT; /*!< The type of the client (Tablet or headset ?)*/
+
+            glm::vec3   m_vrpnPos; /*!< The VRPN position*/
+            Quaternionf m_vrpnRot; /*!< The VRPN rotation*/
             union
             {
-                VFVTabletData  m_tablet;   /*!< The client is considered a tablet*/
+                VFVTabletData  m_tablet;  /*!< The client is considered a tablet*/
                 VFVHeadsetData m_headset; /*!< The client is considered as a headset*/
             };
 

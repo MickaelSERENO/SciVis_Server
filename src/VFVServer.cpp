@@ -241,11 +241,72 @@ namespace sereno
         }
     }
 
-
-    void VFVServer::updateLocationTablet(const glm::vec3& pos, const Quaternionf& rot)
+    void VFVServer::updateLocationTabletDebug(const glm::vec3& pos, const Quaternionf& rot)
     {
         std::lock_guard<std::mutex> lock(m_mapMutex);
-        sendLocationTablet(pos, rot);
+        for(auto it: m_clientTable)
+            if(it.second->isTablet())
+                sendLocationTablet(pos, rot, it.second);
+    }
+
+    void VFVServer::pushTabletVRPNPosition(const glm::vec3& pos, const Quaternionf& rot, int tabletID)
+    {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        for(auto it : m_clientTable)
+        {
+            VFVClientSocket* clt = it.second;
+            if(clt->isTablet() && clt->getTabletData().number == tabletID)
+            {
+                clt->setVRPNPosition(pos);
+                clt->setVRPNRotation(rot);
+                break;
+            }
+        }
+    }
+
+    void VFVServer::pushHeadsetVRPNPosition(const glm::vec3& pos, const Quaternionf& rot, int tabletID)
+    {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        for(auto it : m_clientTable)
+        {
+            VFVClientSocket* clt = it.second;
+            if(clt->isHeadset() && clt->getHeadsetData().tablet != NULL && 
+               clt->getHeadsetData().tablet->getTabletData().number == tabletID)
+            {
+                clt->setVRPNPosition(pos);
+                clt->setVRPNRotation(rot);
+                break;
+            }
+        }
+    }
+
+    void VFVServer::commitAllVRPNPositions()
+    {
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+
+        //Search for every tablets
+        for(auto it : m_clientTable)
+        {
+            VFVClientSocket* clt = it.second;
+            if(clt->isTablet() && clt->getTabletData().headset != NULL)
+            {
+                //Compute the tablet rotation compare to its bound headset's rotation
+                Quaternionf rotHtoT   = clt->getVRPNRotation() * clt->getTabletData().headset->getVRPNRotation().getInverse();
+                //Change axis orientation due to the VRPN orientation
+                rotHtoT.x *= -1;
+                rotHtoT.z *= -1;
+                Quaternionf tabletRot = rotHtoT * clt->getTabletData().headset->getHeadsetData().rotation;
+
+                //Compute the tablet position
+                glm::vec3 posHtoT   = clt->getTabletData().headset->getVRPNPosition() - clt->getVRPNPosition();
+                posHtoT.x *= -1;
+                posHtoT.z *= -1;
+                glm::vec3 tabletPos = clt->getTabletData().headset->getHeadsetData().position + posHtoT;
+
+                //Send the location
+                sendLocationTablet(tabletPos, tabletRot, clt);
+            }
+        }
     }
 
     void VFVServer::closeClient(SOCKET client)
@@ -2222,7 +2283,8 @@ namespace sereno
 #endif
     }
 
-    void VFVServer::sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot){
+    void VFVServer::sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot, VFVClientSocket* client)
+    {
         //Generate the data
         uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
         uint8_t* data = (uint8_t*)malloc(dataSize);
@@ -2257,13 +2319,8 @@ namespace sereno
         std::shared_ptr<uint8_t> sharedData(data, free);
         
         //Send the data
-        for(auto it : m_clientTable)
-        {
-            if(it.second->isTablet()){
-                SocketMessage<int> sm(it.second->socket, sharedData, offset);
-                writeMessage(sm);
-            }
-        }
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
     }
 
     /*----------------------------------------------------------------------------*/

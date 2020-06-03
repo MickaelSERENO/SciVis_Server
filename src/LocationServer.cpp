@@ -26,7 +26,7 @@ namespace sereno
             //INFO << "Tablet position: " << m_pos.x << " " << m_pos.y << " " << m_pos.z << "; "
             //     << "Tablet rotation: " << m_rot.x << " " << m_rot.y << " " << m_rot.z << " " << m_rot.w << std::endl;
             
-            m_vfvServer->updateLocationTablet(m_pos, m_rot);
+            m_vfvServer->updateLocationTabletDebug(m_pos, m_rot);
         }
     }
 }

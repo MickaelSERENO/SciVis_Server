@@ -15,6 +15,7 @@
 
 using namespace sereno;
 
+//All the "connection" pointers
 static VFVServer* serverPtr = NULL;
 static LocationServer* vuforiaLocationServerPtr = NULL;
 static std::thread* viconServerPtr = NULL;
@@ -22,8 +23,11 @@ static std::thread* viconServerPtr = NULL;
 /** The location mode defined by an environment variable. See TRACKING_VICON and TRACKING_VUFORIA */
 static int locationMode = -1;
 
+/** Should the app closes? Used by external threads */
 static bool closeApp = false;
 
+/* \brief  Function handling the signal "SIGINT"
+ * \param sig the signal received (should always be SIGINT) */
 void inSigInt(int sig)
 {
     if(!closeApp)
@@ -34,14 +38,24 @@ void inSigInt(int sig)
             INFO << "Closing with SIGINT\n";
             serverPtr->cancel();
         }
-
-        //DO NOT CANCEL OTHER SERVER BECAUSE SIGNAL ARE PARALLELIZED
+        //DO NOT CANCEL OTHER SERVER BECAUSE SIGNAL ARE PARALLELIZED. If "ServerPtr" closes, everything else should close as well.
     }
 }
 
+/* \brief  The VRPN callback function regarding trackers
+ * \param userData the user data
+ * \param t information regarding trackers */
 void VRPN_CALLBACK trackerVRPNCallback(void* userData, const vrpn_TRACKERCB t)
 {
-    INFO << "Tracker '" << t.sensor << "' : " << t.pos[0] << "," <<  t.pos[1] << "," << t.pos[2] << std::endl;
+    INFO << "Tracker '" << t.sensor << "'\n"
+         << "pos: " << t.pos[0]  << "," << t.pos[1]  << "," << t.pos[2] 
+         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
+
+    //Push the position and rotation
+    if(t.sensor%2 == 0)
+        serverPtr->pushTabletVRPNPosition (glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), t.sensor/2);
+    else
+        serverPtr->pushHeadsetVRPNPosition(glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), t.sensor/2);
 }
 
 int main(int argc, char** argv)
@@ -63,7 +77,6 @@ int main(int argc, char** argv)
     srand(time(NULL));
     if(getenv("TRACKING_MODE"))
         locationMode = std::atoi(getenv("TRACKING_MODE"));
-
     InternalData::initSingleton();
 
     //Launch the main server
@@ -78,6 +91,7 @@ int main(int argc, char** argv)
         vuforiaLocationServerPtr->launch();
     }
 
+    //Initialize VRPN tracking mode (VICON)
     else if(locationMode == TRACKING_VICON)
     {
         viconServerPtr = new std::thread([&]()
@@ -86,7 +100,12 @@ int main(int argc, char** argv)
             vrpnTracker->register_change_handler(0, trackerVRPNCallback);
             while(!closeApp)
             {
+                //Enter the VRPN main loop
                 vrpnTracker->mainloop();
+
+                //Commit all the positions if the VRPN connection works
+                if(vrpnTracker->connectionPtr() != NULL && vrpnTracker->connectionPtr()->doing_okay() && vrpnTracker->connectionPtr()->connected())
+                    serverPtr->commitAllVRPNPositions();
             }
             delete vrpnTracker;
         });
@@ -117,13 +136,12 @@ int main(int argc, char** argv)
             delete viconServerPtr;
         }
     }
-
     delete server;
 
     //Copy the log file in case of "issue" from the investigators (always ;) )
+    //For that, fork the application to run the "cp" command (more reliable)
     pid_t pid;
     pid = fork();
-
     if(pid == 0)
     {
         char logFile[1024];
