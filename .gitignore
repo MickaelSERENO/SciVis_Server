@@ -9,4 +9,4 @@ compile_commands.json
 install_manifest.txt
 *.pc
 *build
-.vscode/*
+.vscode

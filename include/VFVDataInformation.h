@@ -1468,6 +1468,67 @@ namespace sereno
         int32_t getMaxCursor() const {return size;}
     };
 
+
+    struct VFVTabletScale : public VFVDataInformation
+    {
+        float scale, width, height, posx, posy;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 5)
+                return 'f';
+            else
+                return 0;
+            
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            switch(cursor)
+            {
+                case 0:
+                    scale = value;
+                    return true;
+                    break;
+                case 1:
+                    width = value;
+                    return true;
+                    break;
+                case 2:
+                    height = value;
+                    return true;
+                    break;
+                case 3:
+                    posx = value;
+                    return true;
+                    break;
+                case 4:
+                    posy = value;
+                    return true;
+                    break;
+                default:
+                    VFV_DATA_ERROR
+            }
+        }
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Tablet scale");
+            oss << ",    \"scale\" : " << scale << ",\n"
+                << "    \"width\" : " << width << ",\n"
+                << "    \"height\" : " << height << ",\n"
+                << "    \"posx\" : " << posx << ",\n"
+                << "    \"posy\" : " << posy << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
+        int32_t getMaxCursor() const {return 4;}
+    };
+
     /* \brief Represents the information about VTK Datasets*/
     struct VFVVTKDatasetInformation : public VFVDataInformation
     {

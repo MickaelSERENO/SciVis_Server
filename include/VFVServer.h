@@ -52,9 +52,10 @@ namespace sereno
         VFV_SEND_DEL_SUBDATASET          = 15, /*!< Send the "delete" subdataset command.*/
         VFV_SEND_SUBDATASET_OWNER        = 16, /*!< Send the new SubDataset owner command.*/
         VFV_SEND_CURRENT_ACTION          = 17, /*!< Send the current action command.*/
-        VFV_SEND_LOCATION_TABLET         = 18, /*!< Send the tablet its current location.*/
-        VFV_SEND_LOCATION                = 19, /*!< Send the tablet's virtual location.*/
+        VFV_SEND_LOCATION                = 18, /*!< Send the location to the tablet.*/
+        VFV_SEND_TABLET_LOCATION         = 19, /*!< Send the tablet's virtual location.*/
         VFV_SEND_LASSO                   = 20, /*!< Send the lasso data.*/
+        VFV_SEND_TABLET_SCALE            = 21, /*!< Send the tablet's scale.*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -207,7 +208,11 @@ namespace sereno
              * \param client the tablet sending the lasso
              * \param lasso the lasso to send */
             void onLasso(VFVClientSocket* client, const VFVLasso& lasso);
-
+            
+            /* \brief  set a tablet's virtual scale to the hololens
+             * \param client the tablet sending the lasso
+             * \param scale the tablet scale */
+            void onTabletScale(VFVClientSocket* client, const VFVTabletScale& tabletScale);
 
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update

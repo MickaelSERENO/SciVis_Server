@@ -61,6 +61,7 @@ namespace sereno
         DUPLICATE_SUBDATASET        = 20,
         LOCATION                    = 21,
         LASSO                       = 22,
+        TABLETSCALE                 = 23,
         END_MESSAGE_TYPE
     };
 
@@ -151,6 +152,7 @@ namespace sereno
             struct VFVMakeSubDatasetPublic       makeSubDatasetPublic; /*!< Make a SubDataset public*/
             struct VFVLocation                   location;         /*!< Update the tablet's virtual location*/
             struct VFVLasso                      lasso;            /*!< Lasso data*/
+            struct VFVTabletScale                tabletScale;      /*!< Tablet scale*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -261,6 +263,10 @@ namespace sereno
                         case LASSO:
                             lasso = cpy.lasso;
                             curMsg = &lasso;
+                            break;
+                        case TABLETSCALE:
+                            tabletScale = cpy.tabletScale;
+                            curMsg = &tabletScale;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -379,6 +385,10 @@ namespace sereno
                     new(&lasso) VFVLasso;
                     curMsg = &lasso;
                     break;
+                case TABLETSCALE:
+                    new(&tabletScale) VFVTabletScale;
+                    curMsg = &tabletScale;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -462,6 +472,9 @@ namespace sereno
                     break;
                 case LASSO:
                     lasso.~VFVLasso();
+                    break;
+                case TABLETSCALE:
+                    tabletScale.~VFVTabletScale();
                     break;
                 case NOTHING:
                     break;

@@ -892,43 +892,46 @@ namespace sereno
 
     void VFVServer::onLocation(VFVClientSocket* client, const VFVLocation& location)
     {
-        INFO << "Location received: "
+        INFO << "Tablet location received: "
              << "Tablet position: " << location.position[0] << " " << location.position[1] << " " << location.position[2] << "; "
              << "Tablet rotation: " << location.rotation[0] << " " << location.rotation[1] << " " << location.rotation[2] << " " << location.rotation[3] << std::endl;
         
-        //Generate the data
-        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
-        uint8_t* data = (uint8_t*)malloc(dataSize);
-        uint32_t offset = 0;
+        VFVClientSocket* headset = getHeadsetFromClient(client);
+        if(headset)
+        {
+            //Generate the data
+            uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
+            uint8_t* data = (uint8_t*)malloc(dataSize);
+            uint32_t offset = 0;
 
-        //Message ID
-        writeUint16(data, VFV_SEND_LOCATION);
-        offset += sizeof(uint16_t);
+            //Message ID
+            writeUint16(data, VFV_SEND_TABLET_LOCATION);
+            offset += sizeof(uint16_t);
 
-        //Position
-        writeFloat(data+offset, location.position[0]);
-        offset += sizeof(float);
-        writeFloat(data+offset, location.position[1]);
-        offset += sizeof(float);
-        writeFloat(data+offset, location.position[2]);
-        offset += sizeof(float);
+            //Position
+            writeFloat(data+offset, location.position[0]);
+            offset += sizeof(float);
+            writeFloat(data+offset, location.position[1]);
+            offset += sizeof(float);
+            writeFloat(data+offset, location.position[2]);
+            offset += sizeof(float);
 
-        //Rotation
-        writeFloat(data+offset, location.rotation[0]);
-        offset += sizeof(float);
-        writeFloat(data+offset, location.rotation[1]);
-        offset += sizeof(float);
-        writeFloat(data+offset, location.rotation[2]);
-        offset += sizeof(float);
-        writeFloat(data+offset, location.rotation[3]);
-        offset += sizeof(float);
+            //Rotation
+            writeFloat(data+offset, location.rotation[0]);
+            offset += sizeof(float);
+            writeFloat(data+offset, location.rotation[1]);
+            offset += sizeof(float);
+            writeFloat(data+offset, location.rotation[2]);
+            offset += sizeof(float);
+            writeFloat(data+offset, location.rotation[3]);
+            offset += sizeof(float);
 
-        std::shared_ptr<uint8_t> sharedData(data, free);
+            std::shared_ptr<uint8_t> sharedData(data, free);
 
-        //Send the data
-        SocketMessage<int> sm(getHeadsetFromClient(client)->socket, sharedData, offset);
-        writeMessage(sm);
-
+            //Send the data
+            SocketMessage<int> sm(headset->socket, sharedData, offset);
+            writeMessage(sm);
+        }
     }
 
     void VFVServer::onLasso(VFVClientSocket* client, const VFVLasso& lasso)
@@ -945,32 +948,72 @@ namespace sereno
                 INFO << lasso.data.at(i) << std::endl;
         }
         */
-
-        //Generate the data
-        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + lasso.size * sizeof(float);
-        uint8_t* data = (uint8_t*)malloc(dataSize);
-        uint32_t offset = 0;
-
-        //Message ID
-        writeUint16(data, VFV_SEND_LASSO);
-        offset += sizeof(uint16_t);
-
-        //Size
-        writeUint32(data+offset, lasso.size);
-        offset += sizeof(uint32_t);
-
-        //Lasso data
-        for(uint32_t i = 0; i < lasso.size; i++)
+         
+        VFVClientSocket* headset = getHeadsetFromClient(client);
+        if(headset)
         {
-            writeFloat(data+offset, lasso.data[i]);
-            offset += sizeof(float);
+            //Generate the data
+            uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + lasso.size * sizeof(float);
+            uint8_t* data = (uint8_t*)malloc(dataSize);
+            uint32_t offset = 0;
+
+            //Message ID
+            writeUint16(data, VFV_SEND_LASSO);
+            offset += sizeof(uint16_t);
+
+            //Size
+            writeUint32(data+offset, lasso.size);
+            offset += sizeof(uint32_t);
+
+            //Lasso data
+            for(uint32_t i = 0; i < lasso.size; i++)
+            {
+                writeFloat(data+offset, lasso.data[i]);
+                offset += sizeof(float);
+            }
+
+            std::shared_ptr<uint8_t> sharedData(data, free);
+
+            //Send the data
+            SocketMessage<int> sm(headset->socket, sharedData, offset);
+            writeMessage(sm);
         }
+    }
 
-        std::shared_ptr<uint8_t> sharedData(data, free);
+    void VFVServer::onTabletScale(VFVClientSocket* client, const VFVTabletScale& tabletScale)
+    {
+        INFO << "Tablet scale received: " << tabletScale.scale << std::endl;
+                
+        VFVClientSocket* headset = getHeadsetFromClient(client);
+        if(headset)
+        {
+            //Generate the data
+            uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(float);
+            uint8_t* data = (uint8_t*)malloc(dataSize);
+            uint32_t offset = 0;
 
-        //Send the data
-        SocketMessage<int> sm(getHeadsetFromClient(client)->socket, sharedData, offset);
-        writeMessage(sm);
+            //Message ID
+            writeUint16(data, VFV_SEND_TABLET_SCALE);
+            offset += sizeof(uint16_t);
+
+            //Scale information
+            writeFloat(data+offset, tabletScale.scale);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.width);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.height);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.posx);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.posy);
+            offset += sizeof(float);
+
+            std::shared_ptr<uint8_t> sharedData(data, free);
+
+            //Send the data
+            SocketMessage<int> sm(headset->socket, sharedData, offset);
+            writeMessage(sm);
+        }
     }
 
     void VFVServer::onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& remove)
@@ -2291,7 +2334,7 @@ namespace sereno
         uint32_t offset = 0;
 
         //Message ID
-        writeUint16(data, VFV_SEND_LOCATION_TABLET);
+        writeUint16(data, VFV_SEND_LOCATION);
         offset += sizeof(uint16_t);
 
         //Position
@@ -2525,6 +2568,12 @@ namespace sereno
                 case LASSO:
                 {
                     onLasso(client, msg.lasso);
+                    break;
+                }
+
+                case TABLETSCALE:
+                {
+                    onTabletScale(client, msg.tabletScale);
                     break;
                 }
 
