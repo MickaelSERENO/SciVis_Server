@@ -60,22 +60,24 @@ namespace sereno
         MAKE_SUBDATASET_PUBLIC      = 19,
         DUPLICATE_SUBDATASET        = 20,
         LOCATION                    = 21,
-        LASSO                       = 22,
-        TABLETSCALE                 = 23,
+        TABLETSCALE                 = 22,
+        LASSO                       = 23,
+        CONFIRM_SELECTION           = 24,
         END_MESSAGE_TYPE
     };
 
     /** \brief Enumeration of the client current action */
     enum VFVHeadsetCurrentActionType
     {
-        HEADSET_CURRENT_ACTION_NOTHING     = 0,
-        HEADSET_CURRENT_ACTION_MOVING      = 1,
-        HEADSET_CURRENT_ACTION_SCALING     = 2,
-        HEADSET_CURRENT_ACTION_ROTATING    = 3,
-        HEADSET_CURRENT_ACTION_SKETCHING   = 4,
-        HEADSET_CURRENT_ACTION_CREATEANNOT = 5,
-        HEADSET_CURRENT_ACTION_LASSO       = 6,
-        HEADSET_CURRENT_ACTION_SELECTING   = 7
+        HEADSET_CURRENT_ACTION_NOTHING             = 0,
+        HEADSET_CURRENT_ACTION_MOVING              = 1,
+        HEADSET_CURRENT_ACTION_SCALING             = 2,
+        HEADSET_CURRENT_ACTION_ROTATING            = 3,
+        HEADSET_CURRENT_ACTION_SKETCHING           = 4,
+        HEADSET_CURRENT_ACTION_CREATEANNOT         = 5,
+        HEADSET_CURRENT_ACTION_LASSO               = 6,
+        HEADSET_CURRENT_ACTION_SELECTING           = 7,
+        HEADSET_CURRENT_ACTION_REVIEWING_SELECTION = 8
     };
 
     /** \brief  The different pointing interaction technique supported by this application */
@@ -151,8 +153,9 @@ namespace sereno
             struct VFVDuplicateSubDataset        duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
             struct VFVMakeSubDatasetPublic       makeSubDatasetPublic; /*!< Make a SubDataset public*/
             struct VFVLocation                   location;         /*!< Update the tablet's virtual location*/
-            struct VFVLasso                      lasso;            /*!< Lasso data*/
             struct VFVTabletScale                tabletScale;      /*!< Tablet scale*/
+            struct VFVLasso                      lasso;            /*!< Lasso data*/
+            struct VFVConfirmSelection           confirmSelection; /*!< Confirm selection*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -260,13 +263,17 @@ namespace sereno
                             location = cpy.location;
                             curMsg = &location;
                             break;
+                        case TABLETSCALE:
+                            tabletScale = cpy.tabletScale;
+                            curMsg = &tabletScale;
+                            break;
                         case LASSO:
                             lasso = cpy.lasso;
                             curMsg = &lasso;
                             break;
-                        case TABLETSCALE:
-                            tabletScale = cpy.tabletScale;
-                            curMsg = &tabletScale;
+                        case CONFIRM_SELECTION:
+                            confirmSelection = cpy.confirmSelection;
+                            curMsg = &confirmSelection;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -381,13 +388,17 @@ namespace sereno
                     new(&location) VFVLocation;
                     curMsg = &location;
                     break;
+                case TABLETSCALE:
+                    new(&tabletScale) VFVTabletScale;
+                    curMsg = &tabletScale;
+                    break;
                 case LASSO:
                     new(&lasso) VFVLasso;
                     curMsg = &lasso;
                     break;
-                case TABLETSCALE:
-                    new(&tabletScale) VFVTabletScale;
-                    curMsg = &tabletScale;
+                case CONFIRM_SELECTION:
+                    new(&confirmSelection) VFVConfirmSelection;
+                    curMsg = &confirmSelection;
                     break;
                 case NOTHING:
                     break;
@@ -470,11 +481,14 @@ namespace sereno
                 case LOCATION:
                     location.~VFVLocation();
                     break;
+                case TABLETSCALE:
+                    tabletScale.~VFVTabletScale();
+                    break;
                 case LASSO:
                     lasso.~VFVLasso();
                     break;
-                case TABLETSCALE:
-                    tabletScale.~VFVTabletScale();
+                case CONFIRM_SELECTION:
+                    confirmSelection.~VFVConfirmSelection();
                     break;
                 case NOTHING:
                     break;
