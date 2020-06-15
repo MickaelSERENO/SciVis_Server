@@ -54,8 +54,9 @@ namespace sereno
         VFV_SEND_CURRENT_ACTION          = 17, /*!< Send the current action command.*/
         VFV_SEND_LOCATION                = 18, /*!< Send the location to the tablet.*/
         VFV_SEND_TABLET_LOCATION         = 19, /*!< Send the tablet's virtual location.*/
-        VFV_SEND_LASSO                   = 20, /*!< Send the lasso data.*/
-        VFV_SEND_TABLET_SCALE            = 21, /*!< Send the tablet's scale.*/
+        VFV_SEND_TABLET_SCALE            = 20, /*!< Send the tablet's scale.*/
+        VFV_SEND_LASSO                   = 21, /*!< Send the lasso data.*/
+        VFV_SEND_CONFIRM_SELECTION       = 22, /*!< Confirm a selection.*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -203,16 +204,21 @@ namespace sereno
              * \param client the tablet sending the location
              * \param location the tablet's virtual location */
             void onLocation(VFVClientSocket* client, const VFVLocation& location);
+            
+            /* \brief  set a tablet's virtual scale to the hololens
+             * \param client the tablet sending the scale
+             * \param scale the tablet scale */
+            void onTabletScale(VFVClientSocket* client, const VFVTabletScale& tabletScale);
 
             /* \brief  send a tablet's lasso to the hololens
              * \param client the tablet sending the lasso
              * \param lasso the lasso to send */
             void onLasso(VFVClientSocket* client, const VFVLasso& lasso);
             
-            /* \brief  set a tablet's virtual scale to the hololens
-             * \param client the tablet sending the lasso
-             * \param scale the tablet scale */
-            void onTabletScale(VFVClientSocket* client, const VFVTabletScale& tabletScale);
+            /* \brief  confirm a tablet's selection
+             * \param client the tablet confirming the selection
+             * \param confirmSelection confirmation message */
+            void onConfirmSelection(VFVClientSocket* client, const VFVConfirmSelection& confirmSelection);
 
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update

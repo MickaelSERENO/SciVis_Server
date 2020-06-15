@@ -1411,64 +1411,6 @@ namespace sereno
         int32_t getMaxCursor() const {return 6;}
     };
 
-    struct VFVLasso : public VFVDataInformation
-    {
-        std::vector<float> data; /*!< The lasso data*/
-        uint32_t size = 0; /*!< Size of the lasso data*/
-
-        char getTypeAt(uint32_t cursor) const
-        {
-            if(cursor == 0)
-                return 'I';
-            else if(cursor <= size)
-                return 'f';
-            else
-                return 0;
-        }
-
-        bool pushValue(uint32_t cursor, uint32_t value)
-        {
-            if(cursor == 0)
-            {
-                size = value;
-                return true;
-            }
-            else
-                VFV_DATA_ERROR
-        }
-
-        bool pushValue(uint32_t cursor, float value)
-        {
-            if(cursor > 0 && cursor <= size)
-            {
-                data.push_back(value);
-                return true;
-            }
-            else
-                VFV_DATA_ERROR
-        }
-
-        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
-        {
-            std::ostringstream oss;
-
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Lasso");
-            oss << ",    \"size\" : " << size << ",\n"
-                << "    \"data\" : [";
-            for(uint32_t i = 0; i < size; i++)
-            {
-                oss << data[i] << ",";
-            }
-            oss << "]\n";
-            VFV_END_TO_JSON(oss);
-
-            return oss.str();
-        }
-
-        int32_t getMaxCursor() const {return size;}
-    };
-
-
     struct VFVTabletScale : public VFVDataInformation
     {
         float scale, width, height, posx, posy;
@@ -1527,6 +1469,81 @@ namespace sereno
         }
 
         int32_t getMaxCursor() const {return 4;}
+    };
+
+    struct VFVLasso : public VFVDataInformation
+    {
+        std::vector<float> data; /*!< The lasso data*/
+        uint32_t size = 0; /*!< Size of the lasso data*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 'I';
+            else if(cursor <= size)
+                return 'f';
+            else
+                return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                size = value;
+                return true;
+            }
+            else
+                VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor > 0 && cursor <= size)
+            {
+                data.push_back(value);
+                return true;
+            }
+            else
+                VFV_DATA_ERROR
+        }
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Lasso");
+            oss << ",    \"size\" : " << size << ",\n"
+                << "    \"data\" : [";
+            for(uint32_t i = 0; i < size; i++)
+            {
+                oss << data[i] << ",";
+            }
+            oss << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
+        int32_t getMaxCursor() const {return size;}
+    };
+
+    struct VFVConfirmSelection : public VFVDataInformation
+    {
+        char getTypeAt(uint32_t cursor) const {return 'I';}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Tablet scale");
+            oss << ",\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
+        int32_t getMaxCursor() const {return -1;}
     };
 
     /* \brief Represents the information about VTK Datasets*/

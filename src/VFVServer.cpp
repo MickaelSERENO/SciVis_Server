@@ -934,6 +934,42 @@ namespace sereno
         }
     }
 
+    void VFVServer::onTabletScale(VFVClientSocket* client, const VFVTabletScale& tabletScale)
+    {
+        INFO << "Tablet scale received: " << tabletScale.scale << std::endl;
+                
+        VFVClientSocket* headset = getHeadsetFromClient(client);
+        if(headset)
+        {
+            //Generate the data
+            uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(float);
+            uint8_t* data = (uint8_t*)malloc(dataSize);
+            uint32_t offset = 0;
+
+            //Message ID
+            writeUint16(data, VFV_SEND_TABLET_SCALE);
+            offset += sizeof(uint16_t);
+
+            //Scale information
+            writeFloat(data+offset, tabletScale.scale);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.width);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.height);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.posx);
+            offset += sizeof(float);
+            writeFloat(data+offset, tabletScale.posy);
+            offset += sizeof(float);
+
+            std::shared_ptr<uint8_t> sharedData(data, free);
+
+            //Send the data
+            SocketMessage<int> sm(headset->socket, sharedData, offset);
+            writeMessage(sm);
+        }
+    }
+
     void VFVServer::onLasso(VFVClientSocket* client, const VFVLasso& lasso)
     {
         INFO << "Lasso received: size: " << lasso.size << std::endl;
@@ -980,33 +1016,21 @@ namespace sereno
         }
     }
 
-    void VFVServer::onTabletScale(VFVClientSocket* client, const VFVTabletScale& tabletScale)
+    void VFVServer::onConfirmSelection(VFVClientSocket* client, const VFVConfirmSelection& confirmSelection)
     {
-        INFO << "Tablet scale received: " << tabletScale.scale << std::endl;
+        INFO << "Selection confirmed" << std::endl;
                 
         VFVClientSocket* headset = getHeadsetFromClient(client);
         if(headset)
         {
             //Generate the data
-            uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(float);
+            uint32_t dataSize = sizeof(uint16_t);
             uint8_t* data = (uint8_t*)malloc(dataSize);
             uint32_t offset = 0;
 
             //Message ID
-            writeUint16(data, VFV_SEND_TABLET_SCALE);
+            writeUint16(data, VFV_SEND_CONFIRM_SELECTION);
             offset += sizeof(uint16_t);
-
-            //Scale information
-            writeFloat(data+offset, tabletScale.scale);
-            offset += sizeof(float);
-            writeFloat(data+offset, tabletScale.width);
-            offset += sizeof(float);
-            writeFloat(data+offset, tabletScale.height);
-            offset += sizeof(float);
-            writeFloat(data+offset, tabletScale.posx);
-            offset += sizeof(float);
-            writeFloat(data+offset, tabletScale.posy);
-            offset += sizeof(float);
 
             std::shared_ptr<uint8_t> sharedData(data, free);
 
@@ -2565,15 +2589,21 @@ namespace sereno
                     break;
                 }
 
+                case TABLETSCALE:
+                {
+                    onTabletScale(client, msg.tabletScale);
+                    break;
+                }
+
                 case LASSO:
                 {
                     onLasso(client, msg.lasso);
                     break;
                 }
 
-                case TABLETSCALE:
+                case CONFIRM_SELECTION:
                 {
-                    onTabletScale(client, msg.tabletScale);
+                    onConfirmSelection(client, msg.confirmSelection);
                     break;
                 }
 
