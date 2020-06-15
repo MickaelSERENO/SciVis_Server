@@ -1175,7 +1175,7 @@ namespace sereno
     };
 
     /* \brief Represents the information about binary dataset addition*/
-    struct VFVBinaryDatasetInformation : public VFVDataInformation
+    struct VFVVectorFieldDatasetInformation : public VFVDataInformation
     {
         std::string name; /*!< The name of the dataset*/
 

@@ -131,8 +131,8 @@ namespace sereno
         {
             struct VFVNoDataInformation          noData;        /*!< Structure for message with no internal data*/
             struct VFVIdentTabletInformation     identTablet;   /*!< Ident information of a tablet*/
-            struct VFVBinaryDatasetInformation   binaryDataset; /*!< Binary Dataset information*/
-            struct VFVVTKDatasetInformation      vtkDataset;    /*!< Binary Dataset information*/
+            struct VFVVectorFieldDatasetInformation   binaryDataset; /*!< VectorField Dataset information*/
+            struct VFVVTKDatasetInformation      vtkDataset;    /*!< VectorField Dataset information*/
             struct VFVRotationInformation        rotate;        /*!< The rotate information sent from a tablet*/
             struct VFVUpdateHeadset              headset;       /*!< The headset update data information*/
             struct VFVAnnotation                 annotation;    /*!< The annotation data information*/
@@ -301,7 +301,7 @@ namespace sereno
                     curMsg = &identTablet;
                     break;
                 case ADD_BINARY_DATASET:
-                    new (&binaryDataset) VFVBinaryDatasetInformation;
+                    new (&binaryDataset) VFVVectorFieldDatasetInformation;
                     curMsg = &binaryDataset;
                     break;
                 case ADD_VTK_DATASET:
@@ -411,7 +411,7 @@ namespace sereno
                     identTablet.~VFVIdentTabletInformation();
                     break;
                 case ADD_BINARY_DATASET:
-                    binaryDataset.~VFVBinaryDatasetInformation();
+                    binaryDataset.~VFVVectorFieldDatasetInformation();
                     break;
                 case ADD_VTK_DATASET:
                     vtkDataset.~VFVVTKDatasetInformation();

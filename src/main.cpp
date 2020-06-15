@@ -13,6 +13,9 @@
 #define TRACKING_VICON   2
 #define NB_READ_THREAD   4
 
+#define HOLOLENS_ID 0
+#define TABLET_ID   1
+
 using namespace sereno;
 
 //All the "connection" pointers
@@ -47,8 +50,9 @@ void inSigInt(int sig)
  * \param t information regarding trackers */
 void VRPN_CALLBACK trackerVRPNCallback(void* userData, const vrpn_TRACKERCB t)
 {
-    INFO << "Tracker '" << t.sensor << "'\n"
-         << "pos: " << t.pos[0]  << "," << t.pos[1]  << "," << t.pos[2] 
+    uint32_t deviceID = *(uint32_t*)userData;
+    INFO << "DeviceID: " << deviceID << ' '
+         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
          << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
 
     //Push the position and rotation
@@ -96,18 +100,41 @@ int main(int argc, char** argv)
     {
         viconServerPtr = new std::thread([&]()
         {
-            vrpn_Tracker_Remote* vrpnTracker = new vrpn_Tracker_Remote( "192.168.2.3");
-            vrpnTracker->register_change_handler(0, trackerVRPNCallback);
+            //Device IDs
+            uint32_t holoLensID = HOLOLENS_ID;
+            uint32_t tabletID   = TABLET_ID;
+
+            //HoloLens
+            vrpn_Tracker_Remote* vrpnTrackerHoloLens = new vrpn_Tracker_Remote("Hololens2@192.168.2.3");
+            vrpnTrackerHoloLens->register_change_handler(&holoLensID, trackerVRPNCallback);
+
+            //Multi touch tablet
+            vrpn_Tracker_Remote* vrpnTrackerTablet = new vrpn_Tracker_Remote("GalaxyTabS4@192.168.2.3");
+            vrpnTrackerTablet->register_change_handler(&tabletID, trackerVRPNCallback);
+
+            vrpn_Tracker_Remote* trackers[] = {vrpnTrackerHoloLens, vrpnTrackerTablet};
+
             while(!closeApp)
             {
                 //Enter the VRPN main loop
-                vrpnTracker->mainloop();
+                for(vrpn_Tracker_Remote* it : trackers)
+                {
+                    it->mainloop();
+                    it->mainloop();
+                }
 
                 //Commit all the positions if the VRPN connection works
-                if(vrpnTracker->connectionPtr() != NULL && vrpnTracker->connectionPtr()->doing_okay() && vrpnTracker->connectionPtr()->connected())
-                    serverPtr->commitAllVRPNPositions();
+                for(vrpn_Tracker_Remote* it : trackers)
+                    if(it->connectionPtr() != NULL && it->connectionPtr()->doing_okay() && it->connectionPtr()->connected())
+                    {
+                        INFO << "Commit positions!" << std::endl;
+                        serverPtr->commitAllVRPNPositions();
+                    }
             }
-            delete vrpnTracker;
+
+            //Close every connections
+            for(vrpn_Tracker_Remote* it : trackers)
+                delete it;
         });
     }
 

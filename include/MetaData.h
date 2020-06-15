@@ -51,8 +51,8 @@ namespace sereno
         std::vector<uint32_t> cellFieldValueIndices; /*!< the cell field values to take account of*/
     };
 
-    /** \brief  The Binary MetaData structure, containing metadata of Binary Datasets */
-    struct BinaryMetaData : public MetaData
+    /** \brief  The VectorField MetaData structure, containing metadata of VectorField Datasets */
+    struct VectorFieldMetaData : public MetaData
     {};
 }
 

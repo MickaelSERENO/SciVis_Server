@@ -11,7 +11,7 @@
 #include <float.h>
 #include "Server.h"
 #include "VFVClientSocket.h"
-#include "Datasets/BinaryDataset.h"
+#include "Datasets/VectorFieldDataset.h"
 #include "Datasets/Annotation/Annotation.h"
 #include "MetaData.h"
 #include "AnchorHeadsetData.h"
@@ -352,7 +352,7 @@ namespace sereno
 
             std::stack<uint32_t> m_availableHeadsetColors;       /*!< The available headset colors*/
 
-            std::map<uint32_t, BinaryMetaData> m_binaryDatasets; /*!< The binary datasets opened*/
+            std::map<uint32_t, VectorFieldMetaData> m_binaryDatasets; /*!< The binary datasets opened*/
             std::map<uint32_t, VTKMetaData>    m_vtkDatasets;    /*!< The vtk datasets opened*/
             std::map<uint32_t, Dataset*>       m_datasets;       /*!< The datasets opened*/
 
