@@ -16,6 +16,8 @@
 #define HOLOLENS_ID 0
 #define TABLET_ID   1
 
+#define UPDATE_VRPN_FRAMERATE 20
+
 using namespace sereno;
 
 //All the "connection" pointers
@@ -51,15 +53,15 @@ void inSigInt(int sig)
 void VRPN_CALLBACK trackerVRPNCallback(void* userData, const vrpn_TRACKERCB t)
 {
     uint32_t deviceID = *(uint32_t*)userData;
-    INFO << "DeviceID: " << deviceID << ' '
-         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
-         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
+//    INFO << "DeviceID: " << deviceID << ' '
+//         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
+//         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
 
     //Push the position and rotation
-    if(t.sensor%2 == 0)
-        serverPtr->pushTabletVRPNPosition (glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), t.sensor/2);
+    if(deviceID == TABLET_ID)
+        serverPtr->pushTabletVRPNPosition (glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), 0);
     else
-        serverPtr->pushHeadsetVRPNPosition(glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), t.sensor/2);
+        serverPtr->pushHeadsetVRPNPosition(glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), 0);
 }
 
 int main(int argc, char** argv)
@@ -116,18 +118,27 @@ int main(int argc, char** argv)
 
             while(!closeApp)
             {
+                struct timespec beg;
+                struct timespec end;
+                clock_gettime(CLOCK_REALTIME, &beg);
+
+                uint32_t startTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+
                 //Enter the VRPN main loop
                 for(vrpn_Tracker_Remote* it : trackers)
                 {
                     it->mainloop();
                     it->mainloop();
                 }
+                clock_gettime(CLOCK_REALTIME, &end);
+                uint32_t endTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+
+                usleep(std::max(0.0, 1.e6/UPDATE_VRPN_FRAMERATE - endTime + startTime));
 
                 //Commit all the positions if the VRPN connection works
                 for(vrpn_Tracker_Remote* it : trackers)
                     if(it->connectionPtr() != NULL && it->connectionPtr()->doing_okay() && it->connectionPtr()->connected())
                     {
-                        INFO << "Commit positions!" << std::endl;
                         serverPtr->commitAllVRPNPositions();
                     }
             }

@@ -63,6 +63,7 @@ namespace sereno
         TABLETSCALE                 = 22,
         LASSO                       = 23,
         CONFIRM_SELECTION           = 24,
+        ADD_CLOUD_POINT_DATASET     = 25,
         END_MESSAGE_TYPE
     };
 
@@ -133,8 +134,8 @@ namespace sereno
         {
             struct VFVNoDataInformation          noData;        /*!< Structure for message with no internal data*/
             struct VFVIdentTabletInformation     identTablet;   /*!< Ident information of a tablet*/
-            struct VFVVectorFieldDatasetInformation   binaryDataset; /*!< VectorField Dataset information*/
-            struct VFVVTKDatasetInformation      vtkDataset;    /*!< VectorField Dataset information*/
+            struct VFVBinaryDatasetInformation   binaryDataset; /*!< Binary Dataset information*/
+            struct VFVVTKDatasetInformation      vtkDataset;    /*!< Binary Dataset information*/
             struct VFVRotationInformation        rotate;        /*!< The rotate information sent from a tablet*/
             struct VFVUpdateHeadset              headset;       /*!< The headset update data information*/
             struct VFVAnnotation                 annotation;    /*!< The annotation data information*/
@@ -156,6 +157,7 @@ namespace sereno
             struct VFVTabletScale                tabletScale;      /*!< Tablet scale*/
             struct VFVLasso                      lasso;            /*!< Lasso data*/
             struct VFVConfirmSelection           confirmSelection; /*!< Confirm selection*/
+            struct VFVCloudPointDatasetInformation cloudPointDataset; /*!< Cloud point dataset message*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -275,6 +277,10 @@ namespace sereno
                             confirmSelection = cpy.confirmSelection;
                             curMsg = &confirmSelection;
                             break;
+                        case ADD_CLOUD_POINT_DATASET:
+                            cloudPointDataset = cpy.cloudPointDataset;
+                            curMsg = &cloudPointDataset;
+                            break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
                             break;
@@ -308,7 +314,7 @@ namespace sereno
                     curMsg = &identTablet;
                     break;
                 case ADD_BINARY_DATASET:
-                    new (&binaryDataset) VFVVectorFieldDatasetInformation;
+                    new (&binaryDataset) VFVBinaryDatasetInformation;
                     curMsg = &binaryDataset;
                     break;
                 case ADD_VTK_DATASET:
@@ -400,6 +406,10 @@ namespace sereno
                     new(&confirmSelection) VFVConfirmSelection;
                     curMsg = &confirmSelection;
                     break;
+                case ADD_CLOUD_POINT_DATASET:
+                    new(&cloudPointDataset) VFVCloudPointDatasetInformation;
+                    curMsg = &cloudPointDataset;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -422,7 +432,7 @@ namespace sereno
                     identTablet.~VFVIdentTabletInformation();
                     break;
                 case ADD_BINARY_DATASET:
-                    binaryDataset.~VFVVectorFieldDatasetInformation();
+                    binaryDataset.~VFVBinaryDatasetInformation();
                     break;
                 case ADD_VTK_DATASET:
                     vtkDataset.~VFVVTKDatasetInformation();
@@ -489,6 +499,9 @@ namespace sereno
                     break;
                 case CONFIRM_SELECTION:
                     confirmSelection.~VFVConfirmSelection();
+                    break;
+                case ADD_CLOUD_POINT_DATASET:
+                    cloudPointDataset.~VFVCloudPointDatasetInformation();
                     break;
                 case NOTHING:
                     break;

@@ -6,9 +6,11 @@
 #include "VFVClientSocket.h"
 #include "TransferFunction/TFType.h"
 #include "TransferFunction/TransferFunction.h"
+#include "Datasets/CloudPointDataset.h"
 
 namespace sereno
 {
+    /** \brief  Subdataset meta data */
     struct SubDatasetMetaData
     {
         VFVClientSocket* hmdClient;            /*!< The HMD client locking this subdataset for modification.
@@ -54,6 +56,11 @@ namespace sereno
     /** \brief  The VectorField MetaData structure, containing metadata of VectorField Datasets */
     struct VectorFieldMetaData : public MetaData
     {};
+
+    struct CloudPointMetaData : public MetaData
+    {
+        CloudPointDataset* dataset; /*!< The dataset opened*/
+    };
 }
 
 #endif

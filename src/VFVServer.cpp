@@ -291,16 +291,21 @@ namespace sereno
             if(clt->isTablet() && clt->getTabletData().headset != NULL)
             {
                 //Compute the tablet rotation compare to its bound headset's rotation
-                Quaternionf rotHtoT   = clt->getVRPNRotation() * clt->getTabletData().headset->getVRPNRotation().getInverse();
+                Quaternionf rotHtoT = clt->getTabletData().headset->getVRPNRotation().getInverse() * clt->getVRPNRotation();
                 //Change axis orientation due to the VRPN orientation
+                float tmp = rotHtoT.y;
+                rotHtoT.y = rotHtoT.z;
+                rotHtoT.z = -tmp;
                 rotHtoT.x *= -1;
-                rotHtoT.z *= -1;
-                Quaternionf tabletRot = rotHtoT * clt->getTabletData().headset->getHeadsetData().rotation;
+                Quaternionf tabletRot = clt->getTabletData().headset->getHeadsetData().rotation * rotHtoT;
 
                 //Compute the tablet position
-                glm::vec3 posHtoT   = clt->getTabletData().headset->getVRPNPosition() - clt->getVRPNPosition();
+                glm::vec3 posHtoT   = clt->getVRPNPosition() - clt->getTabletData().headset->getVRPNPosition();
+                //Change axis orientation
+                tmp = posHtoT.y;
+                posHtoT.y = posHtoT.z;
+                posHtoT.z = -tmp;
                 posHtoT.x *= -1;
-                posHtoT.z *= -1;
                 glm::vec3 tabletPos = clt->getTabletData().headset->getHeadsetData().position + posHtoT;
 
                 //Send the location
@@ -421,7 +426,14 @@ namespace sereno
             mt = &it->second;
         }
         else
-            return NULL;
+        {
+            auto it2 = m_cloudPointDatasets.find(datasetID);
+            if(it2 != m_cloudPointDatasets.end())
+            {
+                sdMT = it2->second.getSDMetaDataByID(sdID);
+                mt = &it2->second;
+            }
+        }
 
         if(sdMTPtr)
             *sdMTPtr = sdMT;
@@ -683,7 +695,7 @@ namespace sereno
         metaData.ptFieldValueIndices   = dataset.ptFields;
         metaData.cellFieldValueIndices = dataset.cellFields;
 
-        for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
+        for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++)
         {
             SubDatasetMetaData md;
             md.sdID   = vtk->getSubDatasets()[i]->getID();
@@ -717,6 +729,69 @@ namespace sereno
         //Add a SubDataset if no one is registered yet
         if(vtk->getNbSubDatasets()        == 0 &&
            vtk->getPtFieldValues().size() != 0)
+        {
+            VFVAddSubDataset addSubDataset;
+            addSubDataset.datasetID = metaData.datasetID;
+            onAddSubDataset(NULL, addSubDataset);
+        }
+    }
+
+    void VFVServer::addCloudPointDataset(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset)
+    {
+        if(client != NULL && !client->isTablet())
+        {
+            std::lock_guard<std::mutex> lock(m_mapMutex);
+            VFVSERVER_NOT_A_TABLET
+            return;
+        }
+
+        CloudPointDataset* cloudPoint = new CloudPointDataset(DATASET_DIRECTORY+dataset.name);
+
+        //Update the position
+        for(uint32_t i = 0; i < cloudPoint->getNbSubDatasets(); i++, m_currentSubDataset++)
+        {
+            SubDataset* sd = cloudPoint->getSubDatasets()[i];
+            sd->setPosition(glm::vec3(m_currentSubDataset*2.0f, 0.0f, 0.0f));
+            sd->setScale(glm::vec3(0.5f, 0.5f, 0.5f));
+        }
+
+        CloudPointMetaData metaData;
+        metaData.dataset = cloudPoint;
+        metaData.name    = dataset.name;
+
+        for(uint32_t i = 0; i < cloudPoint->getNbSubDatasets(); i++)
+        {
+            SubDatasetMetaData md;
+            md.sdID   = cloudPoint->getSubDatasets()[i]->getID();
+            md.tf     = std::make_shared<GTF>(1, RAINBOW);
+            md.tfType = TF_GTF;
+            cloudPoint->getSubDatasets()[i]->setTransferFunction(md.tf);
+            metaData.sdMetaData.push_back(md);
+        }
+
+        //Add it to the list
+        {
+            std::lock_guard<std::mutex> lock(m_datasetMutex);
+            metaData.datasetID = m_currentDataset;
+            for(auto& it : metaData.sdMetaData)
+                it.datasetID = m_currentDataset;
+            m_cloudPointDatasets.insert(std::pair<uint32_t, CloudPointMetaData>(m_currentDataset, metaData));
+            m_datasets.insert(std::pair<uint32_t, CloudPointDataset*>(m_currentDataset, cloudPoint));
+            m_currentDataset++;
+        }
+
+        //Send it to the other clients
+        {
+            std::lock_guard<std::mutex> lock2(m_mapMutex);
+            for(auto clt : m_clientTable)
+            {
+                sendAddCloudPointDatasetEvent(clt.second, dataset, metaData.datasetID);
+                sendDatasetStatus(clt.second, cloudPoint, metaData.datasetID);
+            }
+        }
+
+        //Add a SubDataset if no one is registered yet
+        if(cloudPoint->getNbSubDatasets() == 0)
         {
             VFVAddSubDataset addSubDataset;
             addSubDataset.datasetID = metaData.datasetID;
@@ -775,7 +850,7 @@ namespace sereno
         }
         SubDataset* sd = dataset->getSubDataset(remove.subDatasetID);
 
-        auto f = [sd, &remove](MetaData& mtData)
+        auto f = [&remove](MetaData& mtData)
         {
             for(auto it = mtData.sdMetaData.begin(); it != mtData.sdMetaData.end();)
             {
@@ -1558,6 +1633,41 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendAddCloudPointDatasetEvent(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset, uint32_t datasetID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t) + 
+                            sizeof(uint8_t)*dataset.name.size();
+
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+
+        uint32_t offset=0;
+
+        writeUint16(data, VFV_SEND_ADD_CLOUDPOINT_DATASET); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, dataset.name.size()); //Dataset name size
+        offset += sizeof(uint32_t); 
+
+        memcpy(data+offset, dataset.name.data(), dataset.name.size()); //Dataset name
+        offset += dataset.name.size()*sizeof(uint8_t);
+
+        INFO << "Sending ADD CLOUD POINT DATASET Event data. File : " << dataset.name << "\n";
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
     void VFVServer::sendAddSubDataset(VFVClientSocket* client, const SubDataset* sd)
     {
         for(auto it : m_datasets)
@@ -1877,6 +1987,13 @@ namespace sereno
 
             //Send the event
             sendAddVTKDatasetEvent(client, dataset, it.first);
+        }
+
+        for(auto& it : m_cloudPointDatasets)
+        {
+            VFVCloudPointDatasetInformation dataset;
+            dataset.name = it.second.name;
+            sendAddCloudPointDatasetEvent(client, dataset, it.first);
         }
 
         for(auto& it : m_datasets)
@@ -2604,6 +2721,12 @@ namespace sereno
                 case CONFIRM_SELECTION:
                 {
                     onConfirmSelection(client, msg.confirmSelection);
+                    break;
+                }
+
+                case ADD_CLOUD_POINT_DATASET:
+                {
+                    addCloudPointDataset(client, msg.cloudPointDataset);
                     break;
                 }
 

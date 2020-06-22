@@ -57,6 +57,7 @@ namespace sereno
         VFV_SEND_TABLET_SCALE            = 20, /*!< Send the tablet's scale.*/
         VFV_SEND_LASSO                   = 21, /*!< Send the lasso data.*/
         VFV_SEND_CONFIRM_SELECTION       = 22, /*!< Confirm a selection.*/
+        VFV_SEND_ADD_CLOUDPOINT_DATASET  = 23, /*!< Add a cloud point type dataset*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -174,6 +175,11 @@ namespace sereno
              * \param dataset the dataset information to add */
             void addVTKDataset(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset);
 
+            /* \brief  Add a CloudPointDataset to the visualized datasets
+             * \param client the client adding the dataset
+             * \param dataset the dataset information to add */
+            void addCloudPointDataset(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset);
+
             /* \brief  Add a SubDataset to a given one
              * \param client the client adding the dataset
              * \param dataset the dataset information to add
@@ -250,6 +256,12 @@ namespace sereno
              * \param dataset the dataset information 
              * \param datasetID the datasetID*/
             void sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID);
+
+            /* \brief  Send the Add Cloud Point Dataset Event to a given client
+             * \param client the client to send the message
+             * \param dataset the dataset information 
+             * \param datasetID the datasetID*/
+            void sendAddCloudPointDatasetEvent(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset, uint32_t datasetID);
 
             /* \brief Send the AddSubDataset Event to a given client for a given SubDataset
              * \param client the client to send the message
@@ -358,9 +370,10 @@ namespace sereno
 
             std::stack<uint32_t> m_availableHeadsetColors;       /*!< The available headset colors*/
 
-            std::map<uint32_t, VectorFieldMetaData> m_binaryDatasets; /*!< The binary datasets opened*/
-            std::map<uint32_t, VTKMetaData>    m_vtkDatasets;    /*!< The vtk datasets opened*/
-            std::map<uint32_t, Dataset*>       m_datasets;       /*!< The datasets opened*/
+            std::map<uint32_t, VectorFieldMetaData> m_binaryDatasets;     /*!< The binary datasets opened*/
+            std::map<uint32_t, VTKMetaData>         m_vtkDatasets;        /*!< The vtk datasets opened*/
+            std::map<uint32_t, CloudPointMetaData>  m_cloudPointDatasets; /*!< The cloud point datasets opened*/
+            std::map<uint32_t, Dataset*>            m_datasets;           /*!< The datasets opened*/
 
             std::mutex   m_datasetMutex;                         /*!< The mutex handling the datasets*/
             std::thread* m_updateThread  = NULL;                 /*!< The update thread*/

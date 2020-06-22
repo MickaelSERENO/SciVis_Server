@@ -4,10 +4,12 @@
 #include "utils.h"
 #include "visibility.h"
 #include "TransferFunction/TFType.h"
+#include "ColorMode.h"
 #include <string>
 #include <cstdint>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 #define VFV_DATA_ERROR \
 {\
@@ -1175,7 +1177,7 @@ namespace sereno
     };
 
     /* \brief Represents the information about binary dataset addition*/
-    struct VFVVectorFieldDatasetInformation : public VFVDataInformation
+    struct VFVBinaryDatasetInformation : public VFVDataInformation
     {
         std::string name; /*!< The name of the dataset*/
 
@@ -1630,6 +1632,32 @@ namespace sereno
 
             return oss.str();
         }
+    };
+
+    /** \brief  CloudPoint Dataset open command */
+    struct VFVCloudPointDatasetInformation : public VFVDataInformation
+    {
+        std::string name; /*!< The file name to open*/
+        
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 's';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, const std::string& value)
+        {
+            if(cursor == 0)
+            {
+                name = value;
+                return true;
+            }
+
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 0;}
     };
 
     /* \brief Represents the information about the change of color of a dataset represented */
