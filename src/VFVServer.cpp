@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #ifndef TEST
-//#define TEST
+#define TEST
 #endif
 
 namespace sereno
@@ -290,22 +290,35 @@ namespace sereno
             VFVClientSocket* clt = it.second;
             if(clt->isTablet() && clt->getTabletData().headset != NULL)
             {
+                auto changeRot = [](const Quaternionf& r)
+                {
+                    //Change axis orientation due to the VRPN orientation
+                    Quaternionf rot = r;
+                    float tmp = rot.y;
+                    rot.y = rot.z;
+                    rot.z = -tmp;
+                    rot.x *= -1;
+
+                    return rot.getInverse();
+                };
+
                 //Compute the tablet rotation compare to its bound headset's rotation
-                Quaternionf rotHtoT = clt->getTabletData().headset->getVRPNRotation().getInverse() * clt->getVRPNRotation();
-                //Change axis orientation due to the VRPN orientation
-                float tmp = rotHtoT.y;
-                rotHtoT.y = rotHtoT.z;
-                rotHtoT.z = -tmp;
-                rotHtoT.x *= -1;
-                Quaternionf tabletRot = clt->getTabletData().headset->getHeadsetData().rotation * rotHtoT;
+                Quaternionf rotHVicon = clt->getTabletData().headset->getVRPNRotation();
+                Quaternionf rotH      = clt->getTabletData().headset->getHeadsetData().rotation; 
+                Quaternionf tabletRot = rotH * changeRot(rotHVicon.getInverse()*clt->getVRPNRotation());
+//                tabletRot.normalize();
 
                 //Compute the tablet position
                 glm::vec3 posHtoT   = clt->getVRPNPosition() - clt->getTabletData().headset->getVRPNPosition();
+                posHtoT = clt->getTabletData().headset->getVRPNRotation().getInverse() * posHtoT;
                 //Change axis orientation
-                tmp = posHtoT.y;
+                float tmp = posHtoT.y;
                 posHtoT.y = posHtoT.z;
                 posHtoT.z = -tmp;
                 posHtoT.x *= -1;
+
+                posHtoT = rotH*posHtoT;
+
                 glm::vec3 tabletPos = clt->getTabletData().headset->getHeadsetData().position + posHtoT;
 
                 //Send the location

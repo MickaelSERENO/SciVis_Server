@@ -16,7 +16,7 @@
 #define HOLOLENS_ID 0
 #define TABLET_ID   1
 
-#define UPDATE_VRPN_FRAMERATE 20
+#define UPDATE_VRPN_FRAMERATE 30
 
 using namespace sereno;
 
