@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #ifndef TEST
-#define TEST
+//#define TEST
 #endif
 
 namespace sereno
@@ -299,6 +299,8 @@ namespace sereno
                     rot.z = -tmp;
                     rot.x *= -1;
 
+                    //Get the inverse because we translate from left handed to right handed, so the rotation "angle" should also be countered
+                    //See https://stackoverflow.com/questions/18818102/convert-quaternion-representing-rotation-from-one-coordinate-system-to-another
                     return rot.getInverse();
                 };
 
@@ -306,7 +308,6 @@ namespace sereno
                 Quaternionf rotHVicon = clt->getTabletData().headset->getVRPNRotation();
                 Quaternionf rotH      = clt->getTabletData().headset->getHeadsetData().rotation; 
                 Quaternionf tabletRot = rotH * changeRot(rotHVicon.getInverse()*clt->getVRPNRotation());
-//                tabletRot.normalize();
 
                 //Compute the tablet position
                 glm::vec3 posHtoT   = clt->getVRPNPosition() - clt->getTabletData().headset->getVRPNPosition();
