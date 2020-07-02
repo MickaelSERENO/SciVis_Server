@@ -64,6 +64,7 @@ namespace sereno
         LASSO                       = 23,
         CONFIRM_SELECTION           = 24,
         ADD_CLOUD_POINT_DATASET     = 25,
+        ADD_NEW_SELECTION_INPUT     = 26,
         END_MESSAGE_TYPE
     };
 
@@ -158,6 +159,7 @@ namespace sereno
             struct VFVLasso                      lasso;            /*!< Lasso data*/
             struct VFVConfirmSelection           confirmSelection; /*!< Confirm selection*/
             struct VFVCloudPointDatasetInformation cloudPointDataset; /*!< Cloud point dataset message*/
+            struct VFVAddNewSelectionInput       addNewSelectionInput; /*!< Start a new selection input*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -280,6 +282,10 @@ namespace sereno
                         case ADD_CLOUD_POINT_DATASET:
                             cloudPointDataset = cpy.cloudPointDataset;
                             curMsg = &cloudPointDataset;
+                            break;
+                        case ADD_NEW_SELECTION_INPUT:
+                            addNewSelectionInput = cpy.addNewSelectionInput;
+                            curMsg = &addNewSelectionInput;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -410,6 +416,10 @@ namespace sereno
                     new(&cloudPointDataset) VFVCloudPointDatasetInformation;
                     curMsg = &cloudPointDataset;
                     break;
+                case ADD_NEW_SELECTION_INPUT:
+                    new(&addNewSelectionInput) VFVAddNewSelectionInput;
+                    curMsg = &addNewSelectionInput;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -502,6 +512,9 @@ namespace sereno
                     break;
                 case ADD_CLOUD_POINT_DATASET:
                     cloudPointDataset.~VFVCloudPointDatasetInformation();
+                    break;
+                case ADD_NEW_SELECTION_INPUT:
+                    addNewSelectionInput.~VFVAddNewSelectionInput();
                     break;
                 case NOTHING:
                     break;

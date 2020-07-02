@@ -58,6 +58,7 @@ namespace sereno
         VFV_SEND_LASSO                   = 21, /*!< Send the lasso data.*/
         VFV_SEND_CONFIRM_SELECTION       = 22, /*!< Confirm a selection.*/
         VFV_SEND_ADD_CLOUDPOINT_DATASET  = 23, /*!< Add a cloud point type dataset*/
+        VFV_SEND_ADD_NEW_SELECTION_INPUT = 24, /*!< Add a new selection input*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -354,6 +355,11 @@ namespace sereno
              * \param rot Rotation de la tablette
              * \param client the client to send the message (should be a tablet)*/
             void sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot, VFVClientSocket* client);
+
+            /** \brief  Send a addNewSelectionInput
+             * \param client the client to send the message to
+             * \param addInput the message data to send */
+            void sendAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

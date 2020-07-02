@@ -2519,6 +2519,48 @@ namespace sereno
         //Send the data
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "LocationTablet");
+            m_log << ",    \"position\" : [" << pos[0] << ", " << pos[1] << ", " << pos[2] << "],\n"
+                  << "    \"rotation\" : [" << rot[0] << ", " << rot[1] << ", " << rot[2] << ", " << rot[3] << "]\n";
+            VFV_END_TO_JSON(m_log);
+            m_log << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        //Message ID
+        writeUint16(data, VFV_SEND_ADD_NEW_SELECTION_INPUT);
+        offset += sizeof(uint16_t);
+
+        //Boolean operation in use
+        writeUint32(data+offset, addInput.booleanOp);
+        offset += sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        
+        //Send the data
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+        
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << addInput.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+            m_log << ",\n";
+            m_log << std::flush;
+        }
+#endif
     }
 
     /*----------------------------------------------------------------------------*/
@@ -2741,6 +2783,18 @@ namespace sereno
                 case ADD_CLOUD_POINT_DATASET:
                 {
                     addCloudPointDataset(client, msg.cloudPointDataset);
+                    break;
+                }
+
+                case ADD_NEW_SELECTION_INPUT:
+                {
+                    VFVClientSocket* headset = getHeadsetFromClient(client);
+                    if(!headset)
+                        break;
+
+                    //Set the current action
+                    if(headset != client)
+                        sendAddNewSelectionInput(headset, msg.addNewSelectionInput);
                     break;
                 }
 

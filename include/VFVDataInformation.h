@@ -1198,6 +1198,17 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openBinaryDataset");
+            oss << ",    \"name\" : " << name << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
         int32_t getMaxCursor() const {return 0;}
     };
 
@@ -1517,11 +1528,12 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Lasso");
             oss << ",    \"size\" : " << size << ",\n"
                 << "    \"data\" : [";
-            for(uint32_t i = 0; i < size; i++)
+            for(uint32_t i = 0; i < size-1; i++)
             {
                 oss << data[i] << ",";
             }
-            oss << "]\n";
+            if(size > 0)
+                oss << data[size-1] << "]\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
@@ -1530,16 +1542,46 @@ namespace sereno
         int32_t getMaxCursor() const {return size;}
     };
 
+    struct VFVAddNewSelectionInput : public VFVDataInformation
+    {
+        uint32_t booleanOp = 0;
+
+        char getTypeAt(uint32_t cursor) const {return 'I';}
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                booleanOp = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "addNewSelectionInput");
+            oss << ",    \"booleanOp\" : " << booleanOp << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
+        int32_t getMaxCursor() const {return 0;}
+    };
+
     struct VFVConfirmSelection : public VFVDataInformation
     {
-        char getTypeAt(uint32_t cursor) const {return 'I';}
+        char getTypeAt(uint32_t cursor) const {return 0;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Tablet scale");
-            oss << ",\n";
+            oss << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
@@ -1657,60 +1699,18 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            oss << ",    \"name\" : " << name << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+
         int32_t getMaxCursor() const {return 0;}
-    };
-
-    /* \brief Represents the information about the change of color of a dataset represented */
-    struct VFVColorInformation : public VFVDataInformation
-    {
-        uint32_t  datasetID;  /*!< The Dataset ID*/
-        float     min;        /*!< Minimum range (clamping, ratio : 0.0, 1.0)*/
-        float     max;        /*!< Maximum range (clamping, ratio : 0.0, 1.0)*/
-        ColorMode mode;       /*!< The color mode to use*/
-
-        char getTypeAt(uint32_t cursor) const
-        {
-            if(cursor == 1 || cursor == 2)
-                return 'f';
-            else if(cursor == 3)
-                return 'I';
-            else if(cursor == 0)
-                return 'i';
-            return 0;
-        }
-
-        bool pushValue(uint32_t cursor, float value)
-        {
-            if(cursor == 1)
-            {
-                min = value;
-                return true;
-            }
-            else if(cursor == 2)
-            {
-                max = value;
-                return true;
-            }
-
-            VFV_DATA_ERROR
-        }
-
-        bool pushValue(uint32_t cursor, uint32_t value)
-        {
-            if(cursor == 0)
-            {
-                datasetID = value;
-                return true;
-            }
-            else if(cursor == 3)
-            {
-                mode = (ColorMode)value;
-                return true;
-            }
-            VFV_DATA_ERROR
-        }
-
-        int32_t getMaxCursor() const {return 3;}
     };
 }
 
