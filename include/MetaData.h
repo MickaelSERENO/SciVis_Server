@@ -13,8 +13,8 @@ namespace sereno
     /** \brief  Subdataset meta data */
     struct SubDatasetMetaData
     {
-        VFVClientSocket* hmdClient;            /*!< The HMD client locking this subdataset for modification.
-                                                    NULL == no hmd client owning this subdataset*/
+        VFVClientSocket* hmdClient = NULL;            /*!< The HMD client locking this subdataset for modification.
+                                                           NULL == no hmd client owning this subdataset*/
 
         VFVClientSocket* owner = NULL;         /*!< The client owning this SubDataset. No owner == public SubDataset*/
         time_t           lastModification = 0; /*!< The last modification time is us this subdataset received. 

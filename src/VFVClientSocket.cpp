@@ -124,7 +124,18 @@ namespace sereno
                     bool ret = m_curMsg.setType((VFVMessageType)(uint16Buffer.getValue()));
                     uint16Buffer.clear();
                     if(ret)
-                        m_cursor = 0;
+                    {
+                        //Check if this is an "empty" message
+                        if(0 >= m_curMsg.curMsg->getMaxCursor()+1)
+                        {
+                            m_messages.push(m_curMsg);
+                            m_cursor = -1;
+                            m_curMsg.type = NOTHING;
+                        }
+                        else
+                            m_cursor = 0;
+                    }
+
                     else
                     {
                         WARNING << "Wrong type parsed in the client" << std::endl;

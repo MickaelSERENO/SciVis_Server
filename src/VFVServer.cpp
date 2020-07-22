@@ -200,6 +200,10 @@ namespace sereno
             for(auto& sd : d.second.sdMetaData)
                 sd.tf = NULL;
 
+        for(auto& d : m_cloudPointDatasets)
+            for(auto& sd : d.second.sdMetaData)
+                sd.tf = NULL;
+
         //delete datasets
         for(auto& d : m_datasets)
             delete d.second;
@@ -634,6 +638,7 @@ namespace sereno
 
                     INFO << "Send the tablet the binding information\n";
                     sendHeadsetBindingInfo(clt.second); //Send the tablet the binding information
+                    sendHeadsetBindingInfo(client);
 
                     break;
                 }
@@ -879,6 +884,8 @@ namespace sereno
             f(it.second);
         for(auto it : m_vtkDatasets)
             f(it.second);
+        for(auto it : m_cloudPointDatasets)
+            f(it.second);
 
         //Remove the subdataset
         dataset->removeSubDataset(sd);
@@ -981,9 +988,9 @@ namespace sereno
 
     void VFVServer::onLocation(VFVClientSocket* client, const VFVLocation& location)
     {
-        INFO << "Tablet location received: "
-             << "Tablet position: " << location.position[0] << " " << location.position[1] << " " << location.position[2] << "; "
-             << "Tablet rotation: " << location.rotation[0] << " " << location.rotation[1] << " " << location.rotation[2] << " " << location.rotation[3] << std::endl;
+        //INFO << "Tablet location received: "
+        //     << "Tablet position: " << location.position[0] << " " << location.position[1] << " " << location.position[2] << "; "
+        //     << "Tablet rotation: " << location.rotation[0] << " " << location.rotation[1] << " " << location.rotation[2] << " " << location.rotation[3] << std::endl;
         
         VFVClientSocket* headset = getHeadsetFromClient(client);
         if(headset)
@@ -2955,9 +2962,10 @@ namespace sereno
             {
                 std::lock_guard<std::mutex> lock2(m_datasetMutex);
                 std::lock_guard<std::mutex> lock(m_mapMutex);
-                for(auto& it : m_vtkDatasets)
+
+                auto f = [this, endTime](MetaData& mt)
                 {
-                    for(auto& it2 : it.second.sdMetaData)
+                    for(auto& it2 : mt.sdMetaData)
                     {
                         if(it2.hmdClient != NULL && endTime - it2.lastModification >= MAX_OWNER_TIME)
                         {
@@ -2966,7 +2974,16 @@ namespace sereno
                             sendSubDatasetLockOwner(&it2);
                         }
                     }
-                }
+                };
+
+                for(auto& it : m_vtkDatasets)
+                    f(it.second);
+
+                for(auto& it : m_binaryDatasets)
+                    f(it.second);
+
+                for(auto& it : m_cloudPointDatasets)
+                    f(it.second);
             }
 
             //Sleep

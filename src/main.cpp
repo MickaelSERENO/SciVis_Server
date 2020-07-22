@@ -16,8 +16,6 @@
 #define HOLOLENS_ID 0
 #define TABLET_ID   1
 
-#define UPDATE_VRPN_FRAMERATE 30
-
 using namespace sereno;
 
 //All the "connection" pointers
@@ -128,12 +126,9 @@ int main(int argc, char** argv)
                 for(vrpn_Tracker_Remote* it : trackers)
                 {
                     it->mainloop();
-                    it->mainloop();
                 }
                 clock_gettime(CLOCK_REALTIME, &end);
                 uint32_t endTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
-
-                usleep(std::max(0.0, 1.e6/UPDATE_VRPN_FRAMERATE - endTime + startTime));
 
                 //Commit all the positions if the VRPN connection works
                 for(vrpn_Tracker_Remote* it : trackers)
@@ -141,6 +136,7 @@ int main(int argc, char** argv)
                     {
                         serverPtr->commitAllVRPNPositions();
                     }
+                usleep(std::max(0.0, 1.e6/UPDATE_VRPN_FRAMERATE - endTime + startTime));
             }
 
             //Close every connections
