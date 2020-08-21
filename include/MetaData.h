@@ -23,6 +23,8 @@ namespace sereno
         uint64_t         datasetID = 0;        /*!< Dataset ID*/
         TFType           tfType    = TF_NONE;  /*!< The Transfer Function type in use*/
         std::shared_ptr<TF> tf     = NULL;     /*!< The Transfer Function being used*/
+
+        bool             mapVisibility = true; /*!< The tatus about the map visibility*/
     };
 
     /*!< Structure representing MetaData associated with the opened Datasets*/

@@ -1136,6 +1136,45 @@ namespace sereno
         }
     }
 
+    void VFVServer::onToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        Dataset* dataset = getDataset(visibility.datasetID, visibility.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(visibility.datasetID, visibility.subDatasetID)
+            return;
+        }
+
+        //Find the subdataset meta data and update it
+        SubDatasetMetaData* sdMT = NULL;
+        MetaData* mt = NULL;
+        if(client)
+            mt = updateMetaDataModification(client, visibility.datasetID, visibility.subDatasetID, &sdMT);
+        else
+            mt = getMetaData(visibility.datasetID, visibility.subDatasetID, &sdMT);
+
+        if(!mt)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(visibility.datasetID, visibility.subDatasetID)
+            return;
+        }
+
+        //Check about the privacy
+        if(!canModifySubDataset(client, sdMT))
+        {
+            VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, visibility.datasetID, visibility.subDatasetID)
+            return;
+        }
+
+        sdMT->mapVisibility = visibility.visibility;
+
+        for(auto& clt: m_clientTable)
+            sendToggleMapVisibility(clt.second, visibility);
+    }
+
     void VFVServer::onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& remove)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
@@ -2242,10 +2281,21 @@ namespace sereno
 
     void VFVServer::sendAnchoring(VFVClientSocket* client)
     {
-        if(!m_anchorData.isCompleted() || !client->isHeadset())
+        if(!m_anchorData.isCompleted())
+        {
+            WARNING << "Cannot send the anchoring data: the anchoring data is not complete yet\n";
             return;
+        }
+        if(!client->isHeadset())
+        {
+            WARNING << "Cannot send the anchoring data. The client is not an headset\n";
+            return;
+        }
         if(client->getHeadsetData().anchoringSent)
+        {
+            WARNING << "Cannot send the anchoring data. The client already has the anchoring data sent\n";
             return;
+        }
 
         //Send segment by segment
         for(auto& itSegment : m_anchorData.getSegmentData())
@@ -2570,6 +2620,44 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + sizeof(uint8_t);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        //Message ID
+        writeUint16(data, VFV_SEND_TOGGLE_MAP_VISIBILITY);
+        offset += sizeof(uint16_t);
+
+        //Dataset ID
+        writeUint32(data+offset, visibility.datasetID);
+        offset += sizeof(uint32_t);
+
+        //SubDataset ID
+        writeUint32(data+offset, visibility.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        //Visibility status
+        data[offset] = visibility.visibility ? 1 : 0;
+        offset++;
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        
+        //Send the data
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+        
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << visibility.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+            m_log << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -2802,6 +2890,12 @@ namespace sereno
                     //Set the current action
                     if(headset != client)
                         sendAddNewSelectionInput(headset, msg.addNewSelectionInput);
+                    break;
+                }
+
+                case TOGGLE_MAP_VISIBILITY:
+                {
+                    onToggleMapVisibility(client, msg.toggleMapVisibility);
                     break;
                 }
 

@@ -65,6 +65,7 @@ namespace sereno
         CONFIRM_SELECTION           = 24,
         ADD_CLOUD_POINT_DATASET     = 25,
         ADD_NEW_SELECTION_INPUT     = 26,
+        TOGGLE_MAP_VISIBILITY                  = 27,
         END_MESSAGE_TYPE
     };
 
@@ -160,6 +161,7 @@ namespace sereno
             struct VFVConfirmSelection           confirmSelection; /*!< Confirm selection*/
             struct VFVCloudPointDatasetInformation cloudPointDataset; /*!< Cloud point dataset message*/
             struct VFVAddNewSelectionInput       addNewSelectionInput; /*!< Start a new selection input*/
+            struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -286,6 +288,10 @@ namespace sereno
                         case ADD_NEW_SELECTION_INPUT:
                             addNewSelectionInput = cpy.addNewSelectionInput;
                             curMsg = &addNewSelectionInput;
+                            break;
+                        case TOGGLE_MAP_VISIBILITY:
+                            toggleMapVisibility = cpy.toggleMapVisibility;
+                            curMsg = &toggleMapVisibility;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -420,6 +426,10 @@ namespace sereno
                     new(&addNewSelectionInput) VFVAddNewSelectionInput;
                     curMsg = &addNewSelectionInput;
                     break;
+                case TOGGLE_MAP_VISIBILITY:
+                    new(&toggleMapVisibility) VFVToggleMapVisibility;
+                    curMsg = &toggleMapVisibility;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -515,6 +525,9 @@ namespace sereno
                     break;
                 case ADD_NEW_SELECTION_INPUT:
                     addNewSelectionInput.~VFVAddNewSelectionInput();
+                    break;
+                case TOGGLE_MAP_VISIBILITY:
+                    toggleMapVisibility.~VFVToggleMapVisibility();
                     break;
                 case NOTHING:
                     break;

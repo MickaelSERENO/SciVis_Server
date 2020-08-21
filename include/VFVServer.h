@@ -59,6 +59,7 @@ namespace sereno
         VFV_SEND_CONFIRM_SELECTION       = 22, /*!< Confirm a selection.*/
         VFV_SEND_ADD_CLOUDPOINT_DATASET  = 23, /*!< Add a cloud point type dataset*/
         VFV_SEND_ADD_NEW_SELECTION_INPUT = 24, /*!< Add a new selection input*/
+        VFV_SEND_TOGGLE_MAP_VISIBILITY   = 25, /*!< Toggle the map visibility of a given subdataset*/
     };
 
     /** \brief  Clone a Transfer function based on its ype
@@ -227,6 +228,11 @@ namespace sereno
              * \param confirmSelection confirmation message */
             void onConfirmSelection(VFVClientSocket* client, const VFVConfirmSelection& confirmSelection);
 
+            /* \brief  CHange the map visibility of a given subdataset
+             * \param client the client asking to change the map visibility
+             * \param mapVisibility IDs and visibility parameters*/
+            void onToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& mapVisibility);
+
             /* \brief  Update the headset "client" into the server's internal data
              * \param client the client pushing the new values to update
              * \param headset the values to push */
@@ -360,6 +366,11 @@ namespace sereno
              * \param client the client to send the message to
              * \param addInput the message data to send */
             void sendAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput);
+
+            /** \brief  Send a toggleMapVisibility message
+             * \param client the client to send the message to
+             * \param visibility the message data to send */
+            void sendToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
