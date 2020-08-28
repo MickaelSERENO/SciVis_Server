@@ -845,7 +845,8 @@ namespace sereno
             MergeTFData mergeTFData;
         };
 
-        VFVTransferFunctionSubDataset();
+        VFVTransferFunctionSubDataset()
+        {}
 
         VFVTransferFunctionSubDataset(const VFVTransferFunctionSubDataset& cpy)
         {
@@ -871,6 +872,10 @@ namespace sereno
                     default:
                         break;
                 }
+                datasetID = cpy.datasetID;
+                subDatasetID = cpy.subDatasetID;
+                headsetID = cpy.headsetID;
+                colorMode = cpy.colorMode;
             }
 
             return *this;
@@ -913,7 +918,7 @@ namespace sereno
                         if(cursor == 4)
                             return 'f'; //t
 
-                        uint32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter
+                        int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter
                         if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                             return mergeTFData.tf1->getTypeAt(tfMsgCursor);
                         else
@@ -967,7 +972,7 @@ namespace sereno
                     }
                     case TF_MERGE:
                     {
-                        uint32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
+                        int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
                         if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                             return mergeTFData.tf1->pushValue(tfMsgCursor, value);
                         else
@@ -1001,7 +1006,7 @@ namespace sereno
                     if(cursor == 4)
                         VFV_DATA_ERROR
 
-                    uint32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
+                    int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
                     if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                         return mergeTFData.tf1->pushValue(tfMsgCursor, value);
                     else
@@ -1050,7 +1055,7 @@ namespace sereno
                     if(cursor == 4)
                         mergeTFData.t = value;
 
-                    uint32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
+                    int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
                     if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                         return mergeTFData.tf1->pushValue(tfMsgCursor, value);
                     else
@@ -1078,45 +1083,44 @@ namespace sereno
             }
         }
 
-        private: 
-            void deleteTFData()
+        void deleteTFData()
+        {
+            switch((TFType)tfID)
             {
-                switch((TFType)tfID)
-                {
-                    case TF_GTF:
-                    case TF_TRIANGULAR_GTF:
-                        gtfData.~GTFData();
-                        break;
+                case TF_GTF:
+                case TF_TRIANGULAR_GTF:
+                    gtfData.~GTFData();
+                    break;
 
-                    case TF_MERGE:
-                        mergeTFData.~MergeTFData();
-                        break;
+                case TF_MERGE:
+                    mergeTFData.~MergeTFData();
+                    break;
 
-                    default:
-                        break;
-                }
+                default:
+                    break;
             }
+        }
 
-            void changeTFType(uint8_t type)
+        void changeTFType(uint8_t type)
+        {
+            deleteTFData();
+
+            tfID = type;
+            switch((TFType)tfID)
             {
-                deleteTFData();
+                case TF_GTF:
+                case TF_TRIANGULAR_GTF:
+                    new(&gtfData) GTFData;
+                    break;
 
-                tfID = type;
-                switch((TFType)tfID)
-                {
-                    case TF_GTF:
-                    case TF_TRIANGULAR_GTF:
-                        new(&gtfData) GTFData;
-                        break;
+                case TF_MERGE:
+                    new(&mergeTFData) MergeTFData;
+                    break;
 
-                    case TF_MERGE:
-                        new(&mergeTFData) MergeTFData;
-                        break;
-
-                    default:
-                        break;
-                }
+                default:
+                    break;
             }
+        }
     };
 
     /** \brief  Structure containing information for dataset scaling */

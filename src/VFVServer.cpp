@@ -2222,7 +2222,8 @@ namespace sereno
         VFVTransferFunctionSubDataset tf;
         tf.datasetID    = datasetID;
         tf.subDatasetID = sd->getID();
-        tf.tfID         = sdMT->tf->getType();
+        tf.changeTFType(sdMT->tf->getType());
+
         if(sdMT->tf != NULL)
         {
             tf.colorMode    = sdMT->tf->getTF()->getColorMode();
