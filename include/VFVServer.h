@@ -62,11 +62,10 @@ namespace sereno
         VFV_SEND_TOGGLE_MAP_VISIBILITY   = 25, /*!< Toggle the map visibility of a given subdataset*/
     };
 
-    /** \brief  Clone a Transfer function based on its ype
-     * \param type the transfer function type
+    /** \brief  Clone a Transfer function based on its type
      * \param tf the transfer function to clone
      * \return the new Transfer Function allocated using new. The caller is responsible to destroy that object*/
-    TF* cloneTransferFunction(TFType type, std::shared_ptr<const TF> tf);
+    SubDatasetTFMetaData* cloneTransferFunction(std::shared_ptr<const SubDatasetTFMetaData> tf);
 
     /* \brief The Class Server for the Vector Field Visualization application */
     class VFVServer : public Server<VFVClientSocket>
@@ -207,6 +206,11 @@ namespace sereno
              * \param client the client asking to duplicate the subdataset
              * \param dataset the dataset information to duplicate */
             void onDuplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& dataset);
+
+            /* \brief  Merge two known SubDatasets
+             * \param client the client asking to merge the subdatasets
+             * \param dataset the datasets information to merge */
+            void onMergeSubDatasets(VFVClientSocket* client, const VFVMergeSubDatasets& merge);
 
             /* \brief  send a tablet's virtual location to the hololens
              * \param client the tablet sending the location

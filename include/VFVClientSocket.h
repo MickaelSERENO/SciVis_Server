@@ -65,7 +65,8 @@ namespace sereno
         CONFIRM_SELECTION           = 24,
         ADD_CLOUD_POINT_DATASET     = 25,
         ADD_NEW_SELECTION_INPUT     = 26,
-        TOGGLE_MAP_VISIBILITY                  = 27,
+        TOGGLE_MAP_VISIBILITY       = 27,
+        MERGE_SUBDATASETS           = 28,
         END_MESSAGE_TYPE
     };
 
@@ -162,6 +163,7 @@ namespace sereno
             struct VFVCloudPointDatasetInformation cloudPointDataset; /*!< Cloud point dataset message*/
             struct VFVAddNewSelectionInput       addNewSelectionInput; /*!< Start a new selection input*/
             struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
+            struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -292,6 +294,10 @@ namespace sereno
                         case TOGGLE_MAP_VISIBILITY:
                             toggleMapVisibility = cpy.toggleMapVisibility;
                             curMsg = &toggleMapVisibility;
+                            break;
+                        case MERGE_SUBDATASETS:
+                            mergeSubDatasets = cpy.mergeSubDatasets;
+                            curMsg = &mergeSubDatasets;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -430,6 +436,10 @@ namespace sereno
                     new(&toggleMapVisibility) VFVToggleMapVisibility;
                     curMsg = &toggleMapVisibility;
                     break;
+                case MERGE_SUBDATASETS:
+                    new(&mergeSubDatasets) VFVMergeSubDatasets;
+                    curMsg = &mergeSubDatasets;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -528,6 +538,9 @@ namespace sereno
                     break;
                 case TOGGLE_MAP_VISIBILITY:
                     toggleMapVisibility.~VFVToggleMapVisibility();
+                    break;
+                case MERGE_SUBDATASETS:
+                    mergeSubDatasets.~VFVMergeSubDatasets();
                     break;
                 case NOTHING:
                     break;

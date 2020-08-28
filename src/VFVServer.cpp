@@ -1,6 +1,7 @@
 #include "VFVServer.h"
 #include "TransferFunction/GTF.h"
 #include "TransferFunction/TriangularGTF.h"
+#include "TransferFunction/MergeTF.h"
 #include <random>
 #include <algorithm>
 
@@ -113,23 +114,25 @@ namespace sereno
         return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
     }
 
-    TF* cloneTransferFunction(TFType type, std::shared_ptr<const TF> tf)
+    SubDatasetTFMetaData* cloneTransferFunction(std::shared_ptr<SubDatasetTFMetaData> tf)
     {
         TF* _tf = NULL;
-        switch(type)
+        switch(tf->getType())
         {
             case TF_TRIANGULAR_GTF:
-                _tf = new TriangularGTF(*(const TriangularGTF*)tf.get());
+                _tf = new TriangularGTF(*(const TriangularGTF*)tf->getTF().get());
                 break;
             case TF_GTF:
-                _tf = new GTF(*(const GTF*)tf.get());
+                _tf = new GTF(*(const GTF*)tf->getTF().get());
                 break;
             default:
-                WARNING << "Did not find TFType " << type << std::endl;
+                WARNING << "Did not find TFType " << tf->getType() << std::endl;
                 break;
         }
 
-        return _tf;
+        SubDatasetTFMetaData* tfMD = new SubDatasetTFMetaData(tf->getType(), std::shared_ptr<TF>(_tf));
+
+        return tfMD;
     } 
 
 
@@ -718,9 +721,10 @@ namespace sereno
         {
             SubDatasetMetaData md;
             md.sdID   = vtk->getSubDatasets()[i]->getID();
-            md.tf     = std::make_shared<TriangularGTF>(dataset.ptFields.size(), RAINBOW);
-            md.tfType = TF_TRIANGULAR_GTF;
-            vtk->getSubDatasets()[i]->setTransferFunction(md.tf);
+
+            SubDatasetTFMetaData* tfMD = new SubDatasetTFMetaData(TF_TRIANGULAR_GTF, std::make_shared<TriangularGTF>(dataset.ptFields.size()+1, RAINBOW));
+            md.tf     = std::shared_ptr<SubDatasetTFMetaData>(tfMD);
+            vtk->getSubDatasets()[i]->setTransferFunction(md.tf->getTF());
             metaData.sdMetaData.push_back(md);
         }
 
@@ -782,9 +786,9 @@ namespace sereno
         {
             SubDatasetMetaData md;
             md.sdID   = cloudPoint->getSubDatasets()[i]->getID();
-            md.tf     = std::make_shared<GTF>(1, RAINBOW);
-            md.tfType = TF_GTF;
-            cloudPoint->getSubDatasets()[i]->setTransferFunction(md.tf);
+            SubDatasetTFMetaData* tfMD = new SubDatasetTFMetaData(TF_GTF, std::make_shared<GTF>(1, RAINBOW));
+            md.tf     = std::shared_ptr<SubDatasetTFMetaData>(tfMD);
+            cloudPoint->getSubDatasets()[i]->setTransferFunction(md.tf->getTF());
             metaData.sdMetaData.push_back(md);
         }
 
@@ -844,9 +848,10 @@ namespace sereno
         md.sdID   = sd->getID();
         md.datasetID = dataset.datasetID;
         md.owner  = (dataset.isPublic ? NULL : getHeadsetFromClient(client));
-        md.tf     = std::make_shared<TriangularGTF>(d->getPointFieldDescs().size()+1, RAINBOW);
-        md.tfType = TF_TRIANGULAR_GTF;
-        sd->setTransferFunction(md.tf);
+
+        SubDatasetTFMetaData* tfMD = new SubDatasetTFMetaData(TF_TRIANGULAR_GTF, std::make_shared<TriangularGTF>(d->getPointFieldDescs().size()+1, RAINBOW));
+        md.tf     = std::shared_ptr<SubDatasetTFMetaData>(tfMD);
+        sd->setTransferFunction(md.tf->getTF());
         mt->sdMetaData.push_back(md);
 
         std::lock_guard<std::mutex> lock2(m_mapMutex);
@@ -972,10 +977,9 @@ namespace sereno
         SubDatasetMetaData md;
         md.sdID   = sd->getID();
         md.datasetID = duplicate.datasetID;
-        md.tfType = sdMT->tfType;
-        md.tf     = std::shared_ptr<TF>(cloneTransferFunction(sdMT->tfType, sdMT->tf));
+        md.tf     = std::shared_ptr<SubDatasetTFMetaData>(cloneTransferFunction(sdMT->tf));
         md.owner  = sdMT->owner;
-        sd->setTransferFunction(md.tf);
+        sd->setTransferFunction(md.tf->getTF());
         mt->sdMetaData.push_back(md);
 
         //Send it to all the clients
@@ -983,6 +987,95 @@ namespace sereno
         {
             sendAddSubDataset(clt.second, sd);
             sendSubDatasetStatus(clt.second, sd, duplicate.datasetID);
+        }
+    }
+
+    void VFVServer::onMergeSubDatasets(VFVClientSocket* client, const VFVMergeSubDatasets& merge)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        //Find the subdatasets meta data
+        //SD1
+        SubDatasetMetaData* sd1MT = NULL;
+        MetaData* mt1 = getMetaData(merge.datasetID, merge.sd1ID, &sd1MT);
+        if(!mt1)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(merge.datasetID, merge.sd1ID)
+            return;
+        }
+
+        if(client)
+        {
+            //Check about the privacy
+            if(sd1MT->owner != NULL && sd1MT->owner != getHeadsetFromClient(client))
+            {
+                VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, merge.datasetID, merge.sd1ID)
+                return;
+            }
+        }
+
+        //SD2
+        SubDatasetMetaData* sd2MT = NULL;
+        MetaData* mt2 = getMetaData(merge.datasetID, merge.sd2ID, &sd2MT);
+        if(!mt2)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(merge.datasetID, merge.sd2ID)
+            return;
+        }
+
+        if(client)
+        {
+            //Check about the privacy
+            if(sd2MT->owner != NULL && sd2MT->owner != sd1MT->owner)
+            {
+                VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, merge.datasetID, merge.sd2ID)
+                return;
+            }
+        }
+
+        //Find the SubDatasets
+        Dataset* dataset = getDataset(merge.datasetID, merge.sd1ID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(merge.datasetID, merge.sd1ID)
+            return;
+        }
+        SubDataset* sd1 = dataset->getSubDataset(merge.sd1ID);
+        SubDataset* sd2 = dataset->getSubDataset(merge.sd2ID);
+
+        if(sd2 == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(merge.datasetID, merge.sd2ID)
+            return;
+        }
+
+        //Create a SubDataset
+        SubDataset* sd = new SubDataset(dataset, sd1->getName() + "-" + sd2->getName(), 0);
+        dataset->addSubDataset(sd);
+
+        //Clone the transfer functions
+        SubDatasetTFMetaData* clonedSD1TF = cloneTransferFunction(sd1MT->tf);
+        SubDatasetTFMetaData* clonedSD2TF = cloneTransferFunction(sd2MT->tf);
+
+        //Handle the metaData
+        SubDatasetTFMetaData* tfMD = new SubDatasetTFMetaData(TF_MERGE, std::shared_ptr<TF>(new MergeTF(clonedSD1TF->getTF(), clonedSD2TF->getTF())));
+        tfMD->getMergeTFMetaData().tf1 = std::shared_ptr<SubDatasetTFMetaData>(clonedSD1TF);
+        tfMD->getMergeTFMetaData().tf2 = std::shared_ptr<SubDatasetTFMetaData>(clonedSD2TF);
+
+        SubDatasetMetaData md;
+        md.sdID   = sd->getID();
+        md.datasetID = merge.datasetID;
+        md.tf     = std::shared_ptr<SubDatasetTFMetaData>(tfMD); 
+        md.owner  = sd1MT->owner;
+        sd->setTransferFunction(md.tf->getTF());
+        mt1->sdMetaData.push_back(md);
+
+        //Send it to all the clients
+        for(auto& clt : m_clientTable)
+        {
+            sendAddSubDataset(clt.second, sd);
+            sendSubDatasetStatus(clt.second, sd, merge.datasetID);
         }
     }
 
@@ -1120,13 +1213,21 @@ namespace sereno
         if(headset)
         {
             //Generate the data
-            uint32_t dataSize = sizeof(uint16_t);
+            uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t);
             uint8_t* data = (uint8_t*)malloc(dataSize);
             uint32_t offset = 0;
 
             //Message ID
             writeUint16(data, VFV_SEND_CONFIRM_SELECTION);
             offset += sizeof(uint16_t);
+            
+            //DatasetID
+            writeUint32(data+offset, confirmSelection.datasetID);
+            offset += sizeof(uint32_t);
+
+            //SubDatasetID
+            writeUint32(data+offset, confirmSelection.subDatasetID);
+            offset += sizeof(uint32_t);
 
             std::shared_ptr<uint8_t> sharedData(data, free);
 
@@ -1340,50 +1441,47 @@ namespace sereno
         //Now, update the transfer function
         //
         //First check if the type has changes
-        if(tfSD.tfID != sdMT->tfType)
+        if(tfSD.tfID != sdMT->tf->getType())
         {
-            if(sdMT->tf != NULL)
-                sdMT->tf = NULL;
-
-            sdMT->tfType = (TFType)tfSD.tfID;
+            sdMT->tf->setType((TFType)tfSD.tfID);
 
             //Reallocate
-            switch(sdMT->tfType)
+            switch(sdMT->tf->getType())
             {
                 case TF_GTF:
-                    sdMT->tf = std::make_shared<GTF>(tfSD.gtfData.propData.size(), (ColorMode)tfSD.colorMode);
+                    sdMT->tf->setTF(std::make_shared<GTF>(tfSD.gtfData.propData.size(), (ColorMode)tfSD.colorMode));
                     break;
                 case TF_TRIANGULAR_GTF:
-                    sdMT->tf = std::make_shared<TriangularGTF>(tfSD.gtfData.propData.size()+1, (ColorMode)tfSD.colorMode);
+                    sdMT->tf->setTF(std::make_shared<TriangularGTF>(tfSD.gtfData.propData.size()+1, (ColorMode)tfSD.colorMode));
                     break;
                 default:
                     ERROR << "The Transfer Function type: " << (int)tfSD.tfID << " is unknown. Set the NONE\n";
-                    sdMT->tfType = TF_NONE;
-                    sdMT->tf     = NULL;
+                    sdMT->tf->setType(TF_NONE);
+                    sdMT->tf->setTF(nullptr);
                     break;
-                sd->setTransferFunction(sdMT->tf);
+                sd->setTransferFunction(sdMT->tf->getTF());
             }
         }
         else
-            sdMT->tf->setColorMode((ColorMode)tfSD.colorMode);
+            sdMT->tf->getTF()->setColorMode((ColorMode)tfSD.colorMode);
 
         //Update the corresponding one
-        if(sdMT->tfType != TF_NONE)
+        if(sdMT->tf->getType() != TF_NONE)
         {
-            switch(sdMT->tfType)
+            switch(sdMT->tf->getType())
             {
                 case TF_GTF:
                 case TF_TRIANGULAR_GTF:
                 {
                     //Get the ordered array of centers and scaling
-                    float* centers = (float*)malloc(sizeof(float)*sdMT->tf->getDimension());
-                    float* scales  = (float*)malloc(sizeof(float)*sdMT->tf->getDimension());
+                    float* centers = (float*)malloc(sizeof(float)*sdMT->tf->getTF()->getDimension());
+                    float* scales  = (float*)malloc(sizeof(float)*sdMT->tf->getTF()->getDimension());
 
                     for(uint32_t i = 0; i < tfSD.gtfData.propData.size(); i++)
                     {
                         //Look for corresponding ID...
                         uint32_t tfID = sd->getParent()->getTFIndiceFromPointFieldID(tfSD.gtfData.propData[i].propID);
-                        if(tfID != (uint32_t)-1 && tfID < sdMT->tf->getDimension())
+                        if(tfID != (uint32_t)-1 && tfID < sdMT->tf->getTF()->getDimension())
                         {
                             centers[tfID] = tfSD.gtfData.propData[i].center;
                             scales[tfID]  = tfSD.gtfData.propData[i].scale;
@@ -1391,16 +1489,16 @@ namespace sereno
                     }
 
                     //Set the center and scaling factors
-                    if(sdMT->tfType == TF_GTF)
+                    if(sdMT->tf->getType() == TF_GTF)
                     {
-                        ((GTF*)sdMT->tf.get())->setCenter(centers);
-                        ((GTF*)sdMT->tf.get())->setScale(scales);
+                        ((GTF*)sdMT->tf->getTF().get())->setCenter(centers);
+                        ((GTF*)sdMT->tf->getTF().get())->setScale(scales);
                     }
 
-                    else if(sdMT->tfType == TF_TRIANGULAR_GTF)
+                    else if(sdMT->tf->getType() == TF_TRIANGULAR_GTF)
                     {
-                        ((TriangularGTF*)sdMT->tf.get())->setCenter(centers);
-                        ((TriangularGTF*)sdMT->tf.get())->setScale(scales);
+                        ((TriangularGTF*)sdMT->tf->getTF().get())->setCenter(centers);
+                        ((TriangularGTF*)sdMT->tf->getTF().get())->setScale(scales);
                     }
 
                     //Free data
@@ -1409,7 +1507,7 @@ namespace sereno
                     break;
                 }
                 default: //Should never come here
-                    ERROR << "Missing the handle for one Transfer Function Type: " << sdMT->tfType << std::endl;
+                    ERROR << "Missing the handle for one Transfer Function Type: " << sdMT->tf->getType() << std::endl;
                     break;
             }
         }
@@ -2124,15 +2222,15 @@ namespace sereno
         VFVTransferFunctionSubDataset tf;
         tf.datasetID    = datasetID;
         tf.subDatasetID = sd->getID();
-        tf.tfID         = sdMT->tfType;
+        tf.tfID         = sdMT->tf->getType();
         if(sdMT->tf != NULL)
         {
-            tf.colorMode    = sdMT->tf->getColorMode();
+            tf.colorMode    = sdMT->tf->getTF()->getColorMode();
             switch(tf.tfID)
             {
                 case TF_TRIANGULAR_GTF:
                 {
-                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(sdMT->tf.get());
+                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(sdMT->tf->getTF().get());
                     for(uint32_t j = 0; j < gtf->getDimension()-1; j++)
                     {
                         VFVTransferFunctionSubDataset::GTFPropData propData;
@@ -2147,7 +2245,7 @@ namespace sereno
 
                 case TF_GTF:
                 {
-                    GTF* gtf = reinterpret_cast<GTF*>(sdMT->tf.get());
+                    GTF* gtf = reinterpret_cast<GTF*>(sdMT->tf->getTF().get());
                     for(uint32_t j = 0; j < gtf->getDimension(); j++)
                     {
                         VFVTransferFunctionSubDataset::GTFPropData propData;
@@ -2162,6 +2260,13 @@ namespace sereno
             }
         }
         sendTransferFunctionDataset(client, tf);
+
+        //Send map visibility
+        VFVToggleMapVisibility map;
+        map.datasetID = datasetID;
+        map.subDatasetID = sd->getID();
+        map.visibility = sdMT->mapVisibility;
+        sendToggleMapVisibility(client, map);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)

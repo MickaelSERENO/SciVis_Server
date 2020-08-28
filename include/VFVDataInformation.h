@@ -1574,20 +1574,35 @@ namespace sereno
 
     struct VFVConfirmSelection : public VFVDataInformation
     {
-        char getTypeAt(uint32_t cursor) const {return 0;}
+        int32_t datasetID    = 0;  /*!< The dataset ID*/
+        int32_t subDatasetID = -1; /*!< The subdataset ID*/
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        char getTypeAt(uint32_t cursor) const {return 'I';}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Tablet scale");
-            oss << "\n";
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "DuplicateSubDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"subDatasetID\" : " << subDatasetID << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
         }
 
-        int32_t getMaxCursor() const {return -1;}
+        int32_t getMaxCursor() const {return 1;}
     };
 
     /* \brief Represents the information about VTK Datasets*/
@@ -1758,6 +1773,48 @@ namespace sereno
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
                 << "    \"visibility\" : " << (visibility ? "true" : "false") << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVMergeSubDatasets : public VFVDataInformation
+    {
+        uint32_t datasetID;
+        uint32_t sd1ID;
+        uint32_t sd2ID;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor <= 2)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                sd1ID = value;
+            else if(cursor == 2)
+                sd2ID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 2;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"sd1ID\" : " << sd1ID << ",\n" 
+                << "    \"sd2ID\" : " << (sd2ID ? "true" : "false") << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();

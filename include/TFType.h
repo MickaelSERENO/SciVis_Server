@@ -7,6 +7,7 @@ namespace sereno
     {
         GTF            = 0,
         TRIANGULAR_GTF = 1,
+        MERGE          = 2,
     };
 }
 
