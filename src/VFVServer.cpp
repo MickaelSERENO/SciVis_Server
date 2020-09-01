@@ -114,6 +114,65 @@ namespace sereno
         return std::string(headsetIP) + ':' + (isHeadset ? "Headset" : (isTablet ? "Tablet" : "Unknown"));
     }
 
+    static VFVTransferFunctionSubDataset generateTFMessage(uint32_t datasetID, const SubDataset* sd, std::shared_ptr<SubDatasetTFMetaData> tfMT)
+    {
+        VFVTransferFunctionSubDataset tf;
+        tf.datasetID    = datasetID;
+        tf.subDatasetID = sd->getID();
+        tf.changeTFType(tfMT->getType());
+
+        if(tfMT != NULL)
+        {
+            tf.colorMode    = tfMT->getTF()->getColorMode();
+            switch(tf.tfID)
+            {
+                case TF_TRIANGULAR_GTF:
+                {
+                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(tfMT->getTF().get());
+                    for(uint32_t j = 0; j < gtf->getDimension()-1; j++)
+                    {
+                        VFVTransferFunctionSubDataset::GTFPropData propData;
+                        propData.propID = sd->getParent()->getPointFieldDescs()[j].id;
+                        propData.center = gtf->getCenter()[j];
+                        propData.scale  = gtf->getScale()[j];
+
+                        tf.gtfData.propData.push_back(propData);
+                    }
+                    break;
+                }
+
+                case TF_GTF:
+                {
+                    GTF* gtf = reinterpret_cast<GTF*>(tfMT->getTF().get());
+                    for(uint32_t j = 0; j < gtf->getDimension(); j++)
+                    {
+                        VFVTransferFunctionSubDataset::GTFPropData propData;
+                        propData.propID = sd->getParent()->getPointFieldDescs()[j].id;
+                        propData.center = gtf->getCenter()[j];
+                        propData.scale  = gtf->getScale()[j];
+
+                        tf.gtfData.propData.push_back(propData);
+                    }
+                    break;
+                }
+
+                case TF_MERGE:
+                {
+                    MergeTF* merge = reinterpret_cast<MergeTF*>(tfMT->getTF().get());
+                    tf.mergeTFData.t   = merge->getInterpolationParameter();
+                    tf.mergeTFData.tf1 = std::make_shared<VFVTransferFunctionSubDataset>(generateTFMessage(datasetID, sd, tfMT->getMergeTFMetaData().tf1));
+                    tf.mergeTFData.tf2 = std::make_shared<VFVTransferFunctionSubDataset>(generateTFMessage(datasetID, sd, tfMT->getMergeTFMetaData().tf2));
+                    break;
+                }
+            }
+        }
+
+        return tf;
+    }
+
+    /* \brief  Clone a TransferData to another
+     * \param tf the transfer data meta data to clone
+     * \return   a new transferdata meta data with a new transfer data*/
     SubDatasetTFMetaData* cloneTransferFunction(std::shared_ptr<SubDatasetTFMetaData> tf)
     {
         TF* _tf = NULL;
@@ -2219,48 +2278,7 @@ namespace sereno
             ERROR << "Could not fetch SubDatasetMetaData of " << datasetID << ':' << sd->getID() << std::endl;
             return;
         }
-        VFVTransferFunctionSubDataset tf;
-        tf.datasetID    = datasetID;
-        tf.subDatasetID = sd->getID();
-        tf.changeTFType(sdMT->tf->getType());
-
-        if(sdMT->tf != NULL)
-        {
-            tf.colorMode    = sdMT->tf->getTF()->getColorMode();
-            switch(tf.tfID)
-            {
-                case TF_TRIANGULAR_GTF:
-                {
-                    TriangularGTF* gtf = reinterpret_cast<TriangularGTF*>(sdMT->tf->getTF().get());
-                    for(uint32_t j = 0; j < gtf->getDimension()-1; j++)
-                    {
-                        VFVTransferFunctionSubDataset::GTFPropData propData;
-                        propData.propID = sd->getParent()->getPointFieldDescs()[j].id;
-                        propData.center = gtf->getCenter()[j];
-                        propData.scale  = gtf->getScale()[j];
-
-                        tf.gtfData.propData.push_back(propData);
-                    }
-                    break;
-                }
-
-                case TF_GTF:
-                {
-                    GTF* gtf = reinterpret_cast<GTF*>(sdMT->tf->getTF().get());
-                    for(uint32_t j = 0; j < gtf->getDimension(); j++)
-                    {
-                        VFVTransferFunctionSubDataset::GTFPropData propData;
-                        propData.propID = sd->getParent()->getPointFieldDescs()[j].id;
-                        propData.center = gtf->getCenter()[j];
-                        propData.scale  = gtf->getScale()[j];
-
-                        tf.gtfData.propData.push_back(propData);
-                    }
-                    break;
-                }
-            }
-        }
-        sendTransferFunctionDataset(client, tf);
+        sendTransferFunctionDataset(client, generateTFMessage(datasetID, sd, sdMT->tf));
 
         //Send map visibility
         VFVToggleMapVisibility map;
