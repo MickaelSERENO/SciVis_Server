@@ -1021,14 +1021,12 @@ namespace sereno
 
         bool pushValue(uint32_t cursor, float value)
         {
-            if(cursor <= 3)
-                VFV_DATA_ERROR
             switch((TFType)tfID)
             {
                 case TF_GTF:
                 case TF_TRIANGULAR_GTF:
                 {
-                    if(cursor == 4)
+                    if(cursor <= 4)
                         VFV_DATA_ERROR
 
                     uint32_t id     = (cursor-5)/3;
@@ -1053,7 +1051,10 @@ namespace sereno
                 case TF_MERGE:
                 {
                     if(cursor == 4)
+                    {
                         mergeTFData.t = value;
+                        return true;
+                    }
 
                     int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
                     if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
@@ -1065,6 +1066,7 @@ namespace sereno
                 default:
                     VFV_DATA_ERROR
             }
+            VFV_DATA_ERROR
         }
 
         int32_t getMaxCursor() const 
