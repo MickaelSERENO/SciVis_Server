@@ -67,6 +67,7 @@ namespace sereno
         ADD_NEW_SELECTION_INPUT     = 26,
         TOGGLE_MAP_VISIBILITY       = 27,
         MERGE_SUBDATASETS           = 28,
+        END_OF_TB_TRIAL             = 29,
         END_MESSAGE_TYPE
     };
 
@@ -164,6 +165,7 @@ namespace sereno
             struct VFVAddNewSelectionInput       addNewSelectionInput; /*!< Start a new selection input*/
             struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
             struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
+            struct VFVEndOfTBTrial               endOfTBTrial;        /*!< End of TangibleBrush trial*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -298,6 +300,10 @@ namespace sereno
                         case MERGE_SUBDATASETS:
                             mergeSubDatasets = cpy.mergeSubDatasets;
                             curMsg = &mergeSubDatasets;
+                            break;
+                        case END_OF_TB_TRIAL:
+                            endOfTBTrial = cpy.endOfTBTrial;
+                            curMsg = &endOfTBTrial;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -440,6 +446,10 @@ namespace sereno
                     new(&mergeSubDatasets) VFVMergeSubDatasets;
                     curMsg = &mergeSubDatasets;
                     break;
+                case END_OF_TB_TRIAL:
+                    new(&endOfTBTrial) VFVEndOfTBTrial;
+                    curMsg = &endOfTBTrial;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -541,6 +551,9 @@ namespace sereno
                     break;
                 case MERGE_SUBDATASETS:
                     mergeSubDatasets.~VFVMergeSubDatasets();
+                    break;
+                case END_OF_TB_TRIAL:
+                    endOfTBTrial.~VFVEndOfTBTrial();
                     break;
                 case NOTHING:
                     break;

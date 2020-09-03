@@ -1290,6 +1290,15 @@ namespace sereno
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockJson(m_logMutex);
+                m_log << location.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+                m_log << ",\n";
+                m_log << std::flush;
+            }
+#endif
         }
     }
 
@@ -1326,6 +1335,15 @@ namespace sereno
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockJson(m_logMutex);
+                m_log << tabletScale.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+                m_log << ",\n";
+                m_log << std::flush;
+            }
+#endif
         }
     }
 
@@ -1372,6 +1390,15 @@ namespace sereno
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockJson(m_logMutex);
+                m_log << lasso.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+                m_log << ",\n";
+                m_log << std::flush;
+            }
+#endif
         }
     }
 
@@ -1404,6 +1431,15 @@ namespace sereno
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockJson(m_logMutex);
+                m_log << confirmSelection.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+                m_log << ",\n";
+                m_log << std::flush;
+            }
+#endif
         }
     }
 

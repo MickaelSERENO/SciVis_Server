@@ -1386,7 +1386,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openBinaryDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "OpenBinaryDataset");
             oss << ",    \"name\" : " << name << "\n";
             VFV_END_TO_JSON(oss);
 
@@ -1597,7 +1597,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Location");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "TabletLocation");
             oss << ",    \"position\" : [" << position[0] << "," << position[1] << "," << position[2] << "],\n"
                 << "    \"rotation\" : [" << rotation[0] << "," << rotation[1] << "," << rotation[2] << "," << rotation[3] << "]\n";
             VFV_END_TO_JSON(oss);
@@ -1654,7 +1654,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Tablet scale");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "TabletScale");
             oss << ",    \"scale\" : " << scale << ",\n"
                 << "    \"width\" : " << width << ",\n"
                 << "    \"height\" : " << height << ",\n"
@@ -1778,7 +1778,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "DuplicateSubDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ConfirmSelection");
             oss << ",    \"datasetID\" : " << datasetID << ",\n" 
                 << "    \"subDatasetID\" : " << subDatasetID << "\n";
             VFV_END_TO_JSON(oss);
@@ -1902,7 +1902,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "OpenCloudPointDataset");
             oss << ",    \"name\" : " << name << "\n";
             VFV_END_TO_JSON(oss);
 
@@ -1953,7 +1953,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ToggleMapVisibility");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
                 << "    \"visibility\" : " << (visibility ? "true" : "false") << "\n";
@@ -1995,10 +1995,63 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "MergeSubDatasets");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"sd1ID\" : " << sd1ID << ",\n" 
                 << "    \"sd2ID\" : " << (sd2ID ? "true" : "false") << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVEndOfTBTrial : public VFVDataInformation
+    {
+        uint32_t truePositive;
+        uint32_t falsePositive;
+        uint32_t trueNegative;
+        uint32_t falseNegative;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor <= 3)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            switch(cursor)
+            {
+                case 0:
+                    truePositive = value;
+                    break;
+                case 1:
+                    falsePositive = value;
+                    break;
+                case 2:
+                    trueNegative = value;
+                    break;
+                case 3:
+                    falseNegative = value;
+                    break;
+                default:
+                    VFV_DATA_ERROR
+            }
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 3;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "EndOfTBTrial");
+            oss << ",    \"truePositive\" : " << truePositive << ",\n"
+                << ",    \"falsePositive\" : " << falsePositive << ",\n"
+                << ",    \"trueNegative\" : " << trueNegative << ",\n"
+                << ",    \"falseNegative\" : " << falseNegative << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
