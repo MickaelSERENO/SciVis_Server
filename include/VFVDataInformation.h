@@ -1746,7 +1746,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "addNewSelectionInput");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddNewSelectionInput");
             oss << ",    \"booleanOp\" : " << booleanOp << "\n";
             VFV_END_TO_JSON(oss);
 
@@ -1902,7 +1902,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "OpenCloudPointDataset");
             oss << ",    \"name\" : " << name << "\n";
             VFV_END_TO_JSON(oss);
 
@@ -1953,7 +1953,7 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ToggleMapVisibility");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n" 
                 << "    \"visibility\" : " << (visibility ? "true" : "false") << "\n";
@@ -1995,10 +1995,48 @@ namespace sereno
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "openCloudPointDataset");
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "MergeSubDatasets");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"sd1ID\" : " << sd1ID << ",\n" 
                 << "    \"sd2ID\" : " << (sd2ID ? "true" : "false") << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVResetVolumetricSelection : public VFVDataInformation
+    {
+        uint32_t datasetID;
+        uint32_t subDatasetID;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0 || cursor == 1)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 1;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "ResetVolumetricSelection");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();

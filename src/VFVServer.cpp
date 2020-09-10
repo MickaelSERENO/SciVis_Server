@@ -1794,7 +1794,6 @@ namespace sereno
             return;
         }
 
-
         //Check about the privacy
         if(!canModifySubDataset(client, sdMT))
         {
@@ -1808,6 +1807,31 @@ namespace sereno
 
         for(auto& clt : m_clientTable)
             sendClearAnnotations(clt.second, clearAnnots);
+    }
+
+    void VFVServer::onResetVolumetricSelection(VFVClientSocket* client, const VFVResetVolumetricSelection& reset)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
+
+        //Check that the dataset exists
+        if(getDataset(reset.datasetID, reset.subDatasetID) == nullptr)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(reset.datasetID, reset.subDatasetID)
+            return;
+        }
+
+        //Get the headset asking for this piece of information
+        VFVClientSocket* hmdClient = getHeadsetFromClient(client);
+        int headsetID = -1;
+        if(hmdClient == NULL)
+        {
+            WARNING << "Not connected to a headset yet..." << std::endl;
+        }
+        headsetID = hmdClient->getHeadsetData().id;
+
+        for(auto& clt : m_clientTable)
+            sendResetVolumetricSelection(clt.second, reset.datasetID, reset.subDatasetID, headsetID);
     }
 
     /*----------------------------------------------------------------------------*/
@@ -2868,6 +2892,44 @@ namespace sereno
 #endif
     }
 
+
+    void VFVServer::sendResetVolumetricSelection(VFVClientSocket* client, int datasetID, int sdID, int headsetID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_RESET_VOLUMETRIC_SELECTION);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, sdID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, headsetID);
+        offset += sizeof(uint32_t);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        //Send the data
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+        
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendResetVolumetricSelection");
+            m_log << ",    \"datasetID\" : " << datasetID << ",\n"
+                  << "    \"subDatasetID\" : " << sdID << ",\n"
+                  << "    \"headsetID\" : " << headsetID << "\n";
+            VFV_END_TO_JSON(m_log);
+            m_log << ",\n" << std::flush;
+        }
+#endif
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -3112,6 +3174,12 @@ namespace sereno
                 case MERGE_SUBDATASETS:
                 {
                     onMergeSubDatasets(client, msg.mergeSubDatasets);
+                    break;
+                }
+
+                case RESET_VOLUMETRIC_SELECTION:
+                {
+                    onResetVolumetricSelection(client, msg.resetVolumetricSelection);
                     break;
                 }
 

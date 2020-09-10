@@ -67,6 +67,7 @@ namespace sereno
         ADD_NEW_SELECTION_INPUT     = 26,
         TOGGLE_MAP_VISIBILITY       = 27,
         MERGE_SUBDATASETS           = 28,
+        RESET_VOLUMETRIC_SELECTION  = 29,
         END_MESSAGE_TYPE
     };
 
@@ -164,6 +165,7 @@ namespace sereno
             struct VFVAddNewSelectionInput       addNewSelectionInput; /*!< Start a new selection input*/
             struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
             struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
+            struct VFVResetVolumetricSelection   resetVolumetricSelection; /*!< Reset the volumetric selection */
         };
 
         VFVMessage() : type(NOTHING)
@@ -298,6 +300,10 @@ namespace sereno
                         case MERGE_SUBDATASETS:
                             mergeSubDatasets = cpy.mergeSubDatasets;
                             curMsg = &mergeSubDatasets;
+                            break;
+                        case RESET_VOLUMETRIC_SELECTION:
+                            resetVolumetricSelection = cpy.resetVolumetricSelection;
+                            curMsg = &resetVolumetricSelection;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -440,6 +446,10 @@ namespace sereno
                     new(&mergeSubDatasets) VFVMergeSubDatasets;
                     curMsg = &mergeSubDatasets;
                     break;
+                case RESET_VOLUMETRIC_SELECTION:
+                    new(&resetVolumetricSelection) VFVResetVolumetricSelection;
+                    curMsg = &resetVolumetricSelection;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -541,6 +551,9 @@ namespace sereno
                     break;
                 case MERGE_SUBDATASETS:
                     mergeSubDatasets.~VFVMergeSubDatasets();
+                    break;
+                case RESET_VOLUMETRIC_SELECTION:
+                    resetVolumetricSelection.~VFVResetVolumetricSelection();
                     break;
                 case NOTHING:
                     break;
