@@ -68,6 +68,7 @@ namespace sereno
         TOGGLE_MAP_VISIBILITY       = 27,
         MERGE_SUBDATASETS           = 28,
         RESET_VOLUMETRIC_SELECTION  = 29,
+        END_OF_TB_TRIAL             = 30,
         END_MESSAGE_TYPE
     };
 
@@ -166,6 +167,7 @@ namespace sereno
             struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
             struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
             struct VFVResetVolumetricSelection   resetVolumetricSelection; /*!< Reset the volumetric selection */
+            struct VFVEndOfTBTrial               endOfTBTrial;        /*!< End of TangibleBrush trial*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -304,6 +306,10 @@ namespace sereno
                         case RESET_VOLUMETRIC_SELECTION:
                             resetVolumetricSelection = cpy.resetVolumetricSelection;
                             curMsg = &resetVolumetricSelection;
+                            break;
+                        case END_OF_TB_TRIAL:
+                            endOfTBTrial = cpy.endOfTBTrial;
+                            curMsg = &endOfTBTrial;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -450,6 +456,10 @@ namespace sereno
                     new(&resetVolumetricSelection) VFVResetVolumetricSelection;
                     curMsg = &resetVolumetricSelection;
                     break;
+                case END_OF_TB_TRIAL:
+                    new(&endOfTBTrial) VFVEndOfTBTrial;
+                    curMsg = &endOfTBTrial;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -554,6 +564,9 @@ namespace sereno
                     break;
                 case RESET_VOLUMETRIC_SELECTION:
                     resetVolumetricSelection.~VFVResetVolumetricSelection();
+                    break;
+                case END_OF_TB_TRIAL:
+                    endOfTBTrial.~VFVEndOfTBTrial();
                     break;
                 case NOTHING:
                     break;
