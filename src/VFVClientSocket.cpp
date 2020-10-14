@@ -298,6 +298,92 @@ namespace sereno
         return true;
     }
 
+    void VFVHeadsetData::setCurrentAction(VFVHeadsetCurrentActionType action)
+    {
+        currentAction = action;
+
+        //Clear volumetric selection data
+        if(action != HEADSET_CURRENT_ACTION_LASSO || action != HEADSET_CURRENT_ACTION_REVIEWING_SELECTION || action != HEADSET_CURRENT_ACTION_SELECTING)
+        {
+            volumetricData.meshes.clear();
+            volumetricData.lasso.clear();
+        }
+    }
+
+    void VFVVolumetricData::pushLocation(const VFVLassoPosition& loc)
+    {
+        lassoPos = loc;
+
+        //Nothing to generate
+        if(meshes.empty() || lasso.size() < 3)
+           return; 
+
+        VFVTangibleBrushMesh& mesh = meshes.back();
+        mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[0].x * lassoScale, 0.0f, mesh.lasso[0].y * lassoScale));
+        for(size_t i = 1; i < mesh.lasso.size(); i++)
+            mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[i].x * lassoScale, 0.0f, mesh.lasso[i].y * lassoScale));
+
+        if(mesh.points.size() > mesh.lasso.size())
+        {
+            const uint32_t posID = mesh.points.size() - mesh.lasso.size();
+            const uint32_t oldID = posID - mesh.lasso.size();
+
+            for(size_t i = 1; i < mesh.lasso.size(); i++)
+            {
+                //side 1 triangle 1
+                mesh.triangles.push_back(posID + i - 1);
+                mesh.triangles.push_back(posID + i);
+                mesh.triangles.push_back(oldID + i - 1);
+
+                //side 1 triangle 2
+                mesh.triangles.push_back(posID + i);
+                mesh.triangles.push_back(oldID + i);
+                mesh.triangles.push_back(oldID + i - 1);
+            }
+
+            //side 1 triangle 1
+            mesh.triangles.push_back(posID + mesh.lasso.size() - 1);
+            mesh.triangles.push_back(posID);
+            mesh.triangles.push_back(posID - 1);
+
+            //side 1 triangle 1
+            mesh.triangles.push_back(posID);
+            mesh.triangles.push_back(oldID);
+            mesh.triangles.push_back(posID - 1);
+        }
+    }
+
+    void VFVTangibleBrushMesh::close()
+    {
+        //Could not close the mesh
+        if(lasso.size() < 3 || lasso.size() || isClosed)
+            return;
+
+        std::vector<int> tri = triangulate(lasso);
+
+        //Close the closest face
+        for(int i : tri)
+            triangles.push_back(i);
+
+        //Close the furthest face
+        for(int i : tri)
+            triangles.push_back(i+points.size()-lasso.size());
+
+        isClosed = true;
+    }
+
+    void VFVVolumetricData::closeCurrentMesh()
+    {
+        if(meshes.size())
+            meshes.back().close();
+    }
+
+    void VFVVolumetricData::pushMesh(BooleanSelectionOp op)
+    {
+        closeCurrentMesh();
+        meshes.emplace_back(lasso, op); 
+    }
+
 #undef ERROR_VALUE
 #undef PUSH_STRING
 #undef PUSH_UINT32

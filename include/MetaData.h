@@ -3,6 +3,7 @@
 
 #include <string>
 #include "Datasets/VTKDataset.h"
+#include "Datasets/VectorFieldDataset.h"
 #include "VFVClientSocket.h"
 #include "TransferFunction/TFType.h"
 #include "TransferFunction/TransferFunction.h"
@@ -156,7 +157,9 @@ namespace sereno
 
     /** \brief  The VectorField MetaData structure, containing metadata of VectorField Datasets */
     struct VectorFieldMetaData : public MetaData
-    {};
+    {
+        VectorFieldDataset* dataset; /*!< The dataset opened*/
+    };
 
     struct CloudPointMetaData : public MetaData
     {
