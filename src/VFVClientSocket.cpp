@@ -303,7 +303,7 @@ namespace sereno
         currentAction = action;
 
         //Clear volumetric selection data
-        if(action != HEADSET_CURRENT_ACTION_LASSO || action != HEADSET_CURRENT_ACTION_REVIEWING_SELECTION || action != HEADSET_CURRENT_ACTION_SELECTING)
+        if(!isInVolumetricSelection())
         {
             volumetricData.meshes.clear();
             volumetricData.lasso.clear();
@@ -315,15 +315,15 @@ namespace sereno
         lassoPos = loc;
 
         //Nothing to generate
-        if(meshes.empty() || lasso.size() < 3)
+        if(meshes.empty() || meshes.back().lasso.size() < 3)
            return; 
 
         VFVTangibleBrushMesh& mesh = meshes.back();
-        mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[0].x * lassoScale, 0.0f, mesh.lasso[0].y * lassoScale));
-        for(size_t i = 1; i < mesh.lasso.size(); i++)
-            mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[i].x * lassoScale, 0.0f, mesh.lasso[i].y * lassoScale));
 
-        if(mesh.points.size() > mesh.lasso.size())
+        for(size_t i = 0; i < mesh.lasso.size(); i++)
+            mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[i].x * lassoScale.x, 0.0f, mesh.lasso[i].y * lassoScale.z));
+
+        if(mesh.points.size() >= 2*mesh.lasso.size())
         {
             const uint32_t posID = mesh.points.size() - mesh.lasso.size();
             const uint32_t oldID = posID - mesh.lasso.size();
@@ -342,11 +342,11 @@ namespace sereno
             }
 
             //side 1 triangle 1
-            mesh.triangles.push_back(posID + mesh.lasso.size() - 1);
+            mesh.triangles.push_back(mesh.points.size() - 1);
             mesh.triangles.push_back(posID);
             mesh.triangles.push_back(posID - 1);
 
-            //side 1 triangle 1
+            //side 1 triangle 2
             mesh.triangles.push_back(posID);
             mesh.triangles.push_back(oldID);
             mesh.triangles.push_back(posID - 1);
@@ -356,7 +356,7 @@ namespace sereno
     void VFVTangibleBrushMesh::close()
     {
         //Could not close the mesh
-        if(lasso.size() < 3 || lasso.size() || isClosed)
+        if(lasso.size() < 3 || isClosed)
             return;
 
         std::vector<int> tri = triangulate(lasso);

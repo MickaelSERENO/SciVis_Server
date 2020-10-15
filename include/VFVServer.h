@@ -242,6 +242,11 @@ namespace sereno
              * \param client the tablet sending the lasso
              * \param lasso the lasso to send */
             void onLasso(VFVClientSocket* client, const VFVLasso& lasso);
+
+            /** \brief  FUnction handling the add new selection input message
+             * \param client the client sending the message
+             * \param msg the message parsed */
+            void onAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput);
             
             /* \brief  confirm a tablet's selection
              * \param client the tablet confirming the selection

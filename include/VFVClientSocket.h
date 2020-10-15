@@ -616,7 +616,7 @@ namespace sereno
     {
         std::vector<glm::vec2>            lasso;      /*!< The drawn lasso*/
         VFVLassoPosition                  lassoPos;   /*!< The current lasso position*/
-        float                             lassoScale; /*!< The current lasso scale factor*/
+        glm::vec3                         lassoScale; /*!< The current lasso scale factor*/
         std::vector<VFVTangibleBrushMesh> meshes;     /*!< The volumetric meshes created by extrusion*/
 
         /** \brief  Close the mesh <mesh> using the lasso information
