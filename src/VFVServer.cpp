@@ -328,6 +328,17 @@ namespace sereno
         VFVCloudPointDatasetInformation cloudInfo;
         cloudInfo.name="1.cp";
         addCloudPointDataset(NULL, cloudInfo);
+
+        //Simulate a volumetric selection
+        VFVVolumetricData volData;
+        for(uint32_t i = 0; i < 32; i++)
+            volData.lasso.push_back(glm::vec2(cos(2*3.14*i/32.0), sin(2*3.14*i/32.0)));
+        volData.pushMesh(SELECTION_OP_UNION);
+        volData.lassoScale = glm::vec3(1.0f, 1.0f, 1.0f);
+        volData.pushLocation({glm::vec3(0.0f, 0.0f, 0.0f), Quaternionf()});
+        volData.pushLocation({glm::vec3(0.0f, 1.0f, 1.0f), Quaternionf()});
+        volData.closeCurrentMesh();
+        applyVolumetricSelection_cloudPoint(volData.meshes.back(), m_datasets[0]->getSubDataset(0));
 #endif
     }
 
@@ -957,7 +968,10 @@ namespace sereno
 
         CloudPointDataset* cloudPoint = new CloudPointDataset(DATASET_DIRECTORY+dataset.name);
 
-        cloudPoint->loadValues(NULL, NULL);
+        //We do need to load t at this stage
+        std::thread* t = cloudPoint->loadValues(NULL, NULL);
+        if(t && t->joinable()) 
+            t->join();
 
         //Update the position
         for(uint32_t i = 0; i < cloudPoint->getNbSubDatasets(); i++, m_currentSubDataset++)
@@ -1332,7 +1346,7 @@ namespace sereno
         VFVClientSocket* headset = getHeadsetFromClient(client);
         if(headset)
         {
-            headset->getHeadsetData().volumetricData.lassoScale = glm::vec3(tabletScale.scale * tabletScale.width/2.0f, 1.0f, tabletScale.scale * tabletScale.height/2.0f);
+            headset->getHeadsetData().volumetricData.lassoScale = glm::vec3(tabletScale.scale * tabletScale.width/2.0f, tabletScale.scale, tabletScale.scale * tabletScale.height/2.0f);
 
             //Generate the data
             uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(float);
