@@ -312,7 +312,8 @@ namespace sereno
         for(size_t i = 0; i < sd->getVolumetricMaskSize(); i++, offset++)
             volData[offset] = sd->getVolumetricMask()[i];
 
-        volData[offset++] = sd->isVolumetricMaskEnabled(); 
+        volData[offset] = sd->isVolumetricMaskEnabled(); 
+        offset++;
 
         std::shared_ptr<uint8_t> sharedVolData(volData, free);
 
@@ -364,13 +365,14 @@ namespace sereno
         //Simulate a volumetric selection
 //        VFVVolumetricData volData;
 //        for(uint32_t i = 0; i < 32; i++)
-//            volData.lasso.push_back(glm::vec2(cos(2*3.14*i/32.0), sin(2*3.14*i/32.0)));
+//            volData.lasso.push_back(glm::vec2(cos(3.14*i/32.0), sin(3.14*i/32.0)));
 //        volData.pushMesh(SELECTION_OP_UNION);
 //        volData.lassoScale = glm::vec3(1.0f, 1.0f, 1.0f);
 //        volData.pushLocation({glm::vec3(0.0f, 0.0f, 0.0f), Quaternionf()});
 //        volData.pushLocation({glm::vec3(0.0f, 1.0f, 1.0f), Quaternionf()});
 //        volData.closeCurrentMesh();
 //        applyVolumetricSelection_cloudPoint(volData.meshes.back(), m_datasets[0]->getSubDataset(0));
+//        m_datasets[0]->getSubDataset(0)->enableVolumetricMask(true);
 #endif
     }
 
@@ -2439,6 +2441,7 @@ namespace sereno
 
     void VFVServer::sendVolumetricMaskDataset(VFVClientSocket* client, std::shared_ptr<uint8_t> sharedVolData, size_t size)
     {
+        INFO << "Sending volumetric mask data. Data size: " << size << std::endl;
         SocketMessage<int> sm(client->socket, sharedVolData, size);
         writeMessage(sm);
     }
@@ -2546,7 +2549,8 @@ namespace sereno
 
         //The volumetric mask
         size_t dataSize;
-        sendVolumetricMaskDataset(client, generateVolumetricMaskEvent(sd, datasetID, &dataSize), dataSize);
+        auto data = generateVolumetricMaskEvent(sd, datasetID, &dataSize);
+        sendVolumetricMaskDataset(client, data, dataSize);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
