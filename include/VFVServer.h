@@ -330,6 +330,12 @@ namespace sereno
              * \param tfSD the transfer function information */
             void sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD);
 
+            /** \brief  Send the volumetric mask to a client
+             * \param client the client to send the information
+             * \param data the volumetric data byte array. See generateVolumetricMaskEvent function
+             * \param size the size of the data array*/
+            void sendVolumetricMaskDataset(VFVClientSocket* client, std::shared_ptr<uint8_t> data, size_t size);
+
             /* \brief Send the current action message to a given client (will set what currently the headset is supposed to do)
              * \param client the client to send the information
              * \param currentActionID the action ID to send */

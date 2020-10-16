@@ -320,25 +320,25 @@ namespace sereno
 
         VFVTangibleBrushMesh& mesh = meshes.back();
 
+        const uint32_t posID = mesh.points.size();
         for(size_t i = 0; i < mesh.lasso.size(); i++)
             mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[i].x * lassoScale.x, 0.0f, mesh.lasso[i].y * lassoScale.z));
 
         if(mesh.points.size() >= 2*mesh.lasso.size())
         {
-            const uint32_t posID = mesh.points.size() - mesh.lasso.size();
             const uint32_t oldID = posID - mesh.lasso.size();
 
-            for(size_t i = 1; i < mesh.lasso.size(); i++)
+            for(size_t i = 0; i < mesh.lasso.size()-1; i++)
             {
                 //side 1 triangle 1
-                mesh.triangles.push_back(posID + i - 1);
                 mesh.triangles.push_back(posID + i);
-                mesh.triangles.push_back(oldID + i - 1);
+                mesh.triangles.push_back(posID + i + 1);
+                mesh.triangles.push_back(oldID + i);
 
                 //side 1 triangle 2
-                mesh.triangles.push_back(posID + i);
+                mesh.triangles.push_back(posID + i + 1);
+                mesh.triangles.push_back(oldID + i + 1);
                 mesh.triangles.push_back(oldID + i);
-                mesh.triangles.push_back(oldID + i - 1);
             }
 
             //side 1 triangle 1
