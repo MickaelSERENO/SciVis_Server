@@ -435,8 +435,8 @@ namespace sereno
         m_computeCond.notify_all();
         if(m_updateThread && m_updateThread->joinable())
             pthread_cancel(m_updateThread->native_handle());
-        if(m_computeThread && m_computeThread->joinable())
-            pthread_cancel(m_computeThread->native_handle());
+//        if(m_computeThread && m_computeThread->joinable())
+//            pthread_cancel(m_computeThread->native_handle());
     }
 
     void VFVServer::wait()

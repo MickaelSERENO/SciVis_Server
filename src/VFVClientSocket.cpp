@@ -322,7 +322,7 @@ namespace sereno
 
         const uint32_t posID = mesh.points.size();
         for(size_t i = 0; i < mesh.lasso.size(); i++)
-            mesh.points.push_back(loc.position + loc.rotation * glm::vec3(mesh.lasso[i].x * lassoScale.x, 0.0f, mesh.lasso[i].y * lassoScale.z));
+            mesh.points.push_back(loc.position + loc.rotation*glm::vec3(mesh.lasso[i].x*lassoScale.x, 0.0f, mesh.lasso[i].y*lassoScale.z));
 
         if(mesh.points.size() >= 2*mesh.lasso.size())
         {
