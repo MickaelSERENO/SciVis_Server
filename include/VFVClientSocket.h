@@ -19,6 +19,8 @@
 #include "Types/ServerType.h"
 #include "writeData.h"
 #include "Quaternion.h"
+#include "VolumetricSelection.h"
+#include "Triangulor.h"
 
 #define CLIENT_PORT 8000
 
@@ -603,6 +605,49 @@ namespace sereno
         Quaternionf   headsetStartOrientation;          /*!< The headset starting orientation when the pointing interaction technique started*/
     };
 
+    /** \brief  The lasso position of the tablet */
+    struct VFVLassoPosition
+    {
+        glm::vec3   position; /*!< The position*/
+        Quaternionf rotation; /*!< The rotation*/
+    };
+
+    /** \brief  The tangible brush mesh data */
+    struct VFVTangibleBrushMesh : public VolumetricMesh
+    {
+        std::vector<glm::vec2> lasso; /*!< The lasso associated to this mesh*/
+        bool isClosed = false; /*!< Is this mesh closed?*/
+
+        VFVTangibleBrushMesh(const std::vector<glm::vec2>& _lasso, BooleanSelectionOp _op = SELECTION_OP_NONE) : VolumetricMesh(_op), lasso(_lasso) {};
+
+        /** \brief  Close this mesh */
+        void close();
+    };
+
+    /** \brief  The volumetric data of the associated headset */
+    struct VFVVolumetricData
+    {
+        std::vector<glm::vec2>            lasso;      /*!< The drawn lasso*/
+        VFVLassoPosition                  lassoPos;   /*!< The current lasso position*/
+        glm::vec3                         lassoScale; /*!< The current lasso scale factor*/
+        std::vector<VFVTangibleBrushMesh> meshes;     /*!< The volumetric meshes created by extrusion*/
+
+        /** \brief  Close the mesh <mesh> using the lasso information
+         * \param mesh the mesh to close */
+        void closeMesh(VFVTangibleBrushMesh& mesh);
+
+        /** \brief  Close the current mesh we are working on */
+        void closeCurrentMesh();
+
+        /** \brief  Push a new mesh to consider for the volumetric selection
+         * \param op the boolean operation to apply for this mesh */
+        void pushMesh(BooleanSelectionOp op);
+
+        /** \brief  Push a new effective location of the multi-touch tablet to extrude the current mesh
+         * \param loc the new position of the associated multi-touch tablet */
+        void pushLocation(const VFVLassoPosition& loc);
+    };
+
     /** \brief  Headset data structure */
     struct VFVHeadsetData
     {
@@ -615,6 +660,19 @@ namespace sereno
         VFVHeadsetCurrentActionType currentAction = HEADSET_CURRENT_ACTION_NOTHING; /*!< What is the tablet current action?*/
 
         VFVHeadsetPointingData      pointingData; /*!< The pointing data of the headset*/
+
+        VFVVolumetricData           volumetricData; /*!< Current spatial selection data*/
+
+        /** \brief  Set the current action of this headset
+         * \param action the current action of the headset */
+        void setCurrentAction(VFVHeadsetCurrentActionType action);
+
+        /** \brief  Is this headset performing a volumetric selection?
+         * \return  true if yes, false otherwise */
+        bool isInVolumetricSelection()
+        {
+            return currentAction == HEADSET_CURRENT_ACTION_LASSO || currentAction == HEADSET_CURRENT_ACTION_SELECTING || currentAction == HEADSET_CURRENT_ACTION_REVIEWING_SELECTION;
+        }
     };
 
     /* \brief VFVClientSocket class. Represent a Client for VFV Application */

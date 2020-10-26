@@ -289,6 +289,39 @@ namespace sereno
         return tfMD;
     } 
 
+    static std::shared_ptr<uint8_t> generateVolumetricMaskEvent(const SubDataset* sd, uint32_t datasetID, size_t* dataSize=NULL)
+    {
+        size_t volDataSize = 2 + 2*4 + 4 + sd->getVolumetricMaskSize() + 1;
+        uint8_t* volData   = (uint8_t*)malloc(volDataSize);
+        size_t offset = 0;
+
+        writeUint16(volData + offset, VFV_SEND_VOLUMETRIC_MASK);
+        offset += sizeof(uint16_t);
+
+        //DatasetID
+        writeUint32(volData+offset, datasetID);
+        offset += sizeof(uint32_t);
+
+        //SubDatasetID
+        writeUint32(volData+offset, sd->getID());
+        offset += sizeof(uint32_t);
+
+        //Mask byte array
+        writeUint32(volData+offset, sd->getVolumetricMaskSize());
+        offset += sizeof(uint32_t);
+        for(size_t i = 0; i < sd->getVolumetricMaskSize(); i++, offset++)
+            volData[offset] = sd->getVolumetricMask()[i];
+
+        volData[offset] = sd->isVolumetricMaskEnabled(); 
+        offset++;
+
+        std::shared_ptr<uint8_t> sharedVolData(volData, free);
+
+        if(dataSize)
+            *dataSize = offset;
+        return sharedVolData;
+    }
+
 
     VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
     {
@@ -318,33 +351,36 @@ namespace sereno
         m_log << ",\n";
         m_log << std::flush;
 #endif
-        addVTKDataset(NULL, vtkInfo);
+//        addVTKDataset(NULL, vtkInfo);
+//
+//        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
+//        {
+//            INFO << "Loaded. Status: " << status << std::endl;
+//        }, NULL);
 
-        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
-        {
-            INFO << "Loaded. Status: " << status << std::endl;
-        }, NULL);
+        VFVCloudPointDatasetInformation cloudInfo;
+        cloudInfo.name="1.cp";
+        addCloudPointDataset(NULL, cloudInfo);
 
-        VFVAddSubDataset sd1;
-        sd1.datasetID = 0;
-        onAddSubDataset(NULL, sd1);
-
-        VFVAddSubDataset sd2;
-        sd2.datasetID = 0;
-        onAddSubDataset(NULL, sd2);
-
-        VFVMergeSubDatasets merge;
-        merge.datasetID = 0;
-        merge.sd1ID = 0;
-        merge.sd2ID = 1;
-        onMergeSubDatasets(NULL, merge);
+        //Simulate a volumetric selection
+//        VFVVolumetricData volData;
+//        for(uint32_t i = 0; i < 32; i++)
+//            volData.lasso.push_back(glm::vec2(cos(3.14*i/32.0), sin(3.14*i/32.0)));
+//        volData.pushMesh(SELECTION_OP_UNION);
+//        volData.lassoScale = glm::vec3(1.0f, 1.0f, 1.0f);
+//        volData.pushLocation({glm::vec3(0.0f, 0.0f, 0.0f), Quaternionf()});
+//        volData.pushLocation({glm::vec3(0.0f, 1.0f, 1.0f), Quaternionf()});
+//        volData.closeCurrentMesh();
+//        applyVolumetricSelection_cloudPoint(volData.meshes.back(), m_datasets[0]->getSubDataset(0));
+//        m_datasets[0]->getSubDataset(0)->enableVolumetricMask(true);
 #endif
     }
 
     VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
     {
         m_updateThread     = mvt.m_updateThread;
-        mvt.m_updateThread = NULL;
+        m_computeThread    = mvt.m_computeThread;
+        mvt.m_updateThread = mvt.m_computeThread = NULL;
     }
 
     VFVServer::~VFVServer()
@@ -387,7 +423,8 @@ namespace sereno
             m_availableHeadsetColors.push(SCIVIS_DISTINGUISHABLE_COLORS[i]);
 
         bool ret = Server::launch();
-        m_updateThread = new std::thread(&VFVServer::updateThread, this);
+        m_updateThread  = new std::thread(&VFVServer::updateThread, this);
+        m_computeThread = new std::thread(&VFVServer::computeThread, this);
 
         return ret;
     }
@@ -395,8 +432,11 @@ namespace sereno
     void VFVServer::cancel()
     {
         Server::cancel();
+        m_computeCond.notify_all();
         if(m_updateThread && m_updateThread->joinable())
             pthread_cancel(m_updateThread->native_handle());
+//        if(m_computeThread && m_computeThread->joinable())
+//            pthread_cancel(m_computeThread->native_handle());
     }
 
     void VFVServer::wait()
@@ -404,6 +444,8 @@ namespace sereno
         Server::wait();
         if(m_updateThread && m_updateThread->joinable())
             m_updateThread->join();
+        if(m_computeThread && m_computeThread->joinable())
+            m_computeThread->join();
     }
 
     void VFVServer::closeServer()
@@ -413,6 +455,11 @@ namespace sereno
         {
             delete m_updateThread;
             m_updateThread = 0;
+        }
+        if(m_computeThread != NULL)
+        {
+            delete m_computeThread;
+            m_computeThread = 0;
         }
     }
 
@@ -628,6 +675,23 @@ namespace sereno
             *sdMTPtr = sdMT;
 
         return mt;
+    }
+
+    DatasetType VFVServer::getDatasetType(const Dataset* d) const
+    {
+        for(auto& it : m_vtkDatasets)
+            if(it.second.dataset == d)
+                return DATASET_TYPE_VTK;
+
+        for(auto& it : m_binaryDatasets)
+            if(it.second.dataset == d)
+                return DATASET_TYPE_VECTOR_FIELD;
+
+        for(auto& it : m_cloudPointDatasets)
+            if(it.second.dataset == d)
+                return DATASET_TYPE_CLOUD_POINT;
+
+        return DATASET_TYPE_NOT_FOUND;
     }
 
     MetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMT)
@@ -937,6 +1001,11 @@ namespace sereno
         }
 
         CloudPointDataset* cloudPoint = new CloudPointDataset(DATASET_DIRECTORY+dataset.name);
+
+        //We do need to load t at this stage
+        std::thread* t = cloudPoint->loadValues(NULL, NULL);
+        if(t && t->joinable()) 
+            t->join();
 
         //Update the position
         for(uint32_t i = 0; i < cloudPoint->getNbSubDatasets(); i++, m_currentSubDataset++)
@@ -1251,13 +1320,21 @@ namespace sereno
 
     void VFVServer::onLocation(VFVClientSocket* client, const VFVLocation& location)
     {
-        //INFO << "Tablet location received: "
-        //     << "Tablet position: " << location.position[0] << " " << location.position[1] << " " << location.position[2] << "; "
-        //     << "Tablet rotation: " << location.rotation[0] << " " << location.rotation[1] << " " << location.rotation[2] << " " << location.rotation[3] << std::endl;
-        
+        std::lock_guard<std::mutex> lock(m_mapMutex);
         VFVClientSocket* headset = getHeadsetFromClient(client);
+
         if(headset)
         {
+            //Check the mesh
+            if(headset->getHeadsetData().isInVolumetricSelection())
+            {
+                headset->getHeadsetData().volumetricData.pushLocation(
+                    {
+                        glm::vec3(location.position[0], location.position[1], location.position[2]),
+                        Quaternionf(location.rotation[1], location.rotation[2], location.rotation[3], location.rotation[0])
+                    });
+            }
+
             //Generate the data
             uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(float) + 4*sizeof(float);
             uint8_t* data = (uint8_t*)malloc(dataSize);
@@ -1287,6 +1364,9 @@ namespace sereno
 
             std::shared_ptr<uint8_t> sharedData(data, free);
 
+
+            INFO << "Send OnLocation message\n";
+
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
@@ -1309,6 +1389,8 @@ namespace sereno
         VFVClientSocket* headset = getHeadsetFromClient(client);
         if(headset)
         {
+            headset->getHeadsetData().volumetricData.lassoScale = glm::vec3(tabletScale.scale * tabletScale.width/2.0f, tabletScale.scale, tabletScale.scale * tabletScale.height/2.0f);
+
             //Generate the data
             uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(float);
             uint8_t* data = (uint8_t*)malloc(dataSize);
@@ -1350,22 +1432,19 @@ namespace sereno
     void VFVServer::onLasso(VFVClientSocket* client, const VFVLasso& lasso)
     {
         INFO << "Lasso received: size: " << lasso.size << std::endl;
-        /*
-        for(uint32_t i = 0; i < lasso.size; i+=3)
-        {
-            if(i+2 < lasso.size)
-                INFO << lasso.data.at(i) << " " << lasso.data.at(i+1) << " " << lasso.data.at(i+2) << std::endl;
-            else if(i+1 < lasso.size)
-                INFO << lasso.data.at(i) << " " << lasso.data.at(i+1) << std::endl;
-            else
-                INFO << lasso.data.at(i) << std::endl;
-        }
-        */
+        if(lasso.size % 3 != 0)
+            WARNING << "The lasso is not valid. Assert fail: lasso.size % 3 == 0" << std::endl;
          
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
         VFVClientSocket* headset = getHeadsetFromClient(client);
         if(headset)
         {
-            //Generate the data
+            //Store the new lasso
+            headset->getHeadsetData().volumetricData.lasso.clear();
+            for(int32_t i = 0; i < (int32_t)lasso.size-2; i+=3)
+                headset->getHeadsetData().volumetricData.lasso.push_back(glm::vec2(lasso.data[i], lasso.data[i+1])); 
+
+            //And send it to the headset
             uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + lasso.size * sizeof(float);
             uint8_t* data = (uint8_t*)malloc(dataSize);
             uint32_t offset = 0;
@@ -1406,13 +1485,54 @@ namespace sereno
     {
         INFO << "Selection confirmed" << std::endl;
                 
+        std::lock_guard<std::mutex> lockDataset(m_datasetMutex);
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+
         VFVClientSocket* headset = getHeadsetFromClient(client);
         if(headset)
         {
-            //Generate the data
+            /*----------------------------------------------------------------------------*/
+            /*-----------------------Apply the volumetric selection-----------------------*/
+            /*----------------------------------------------------------------------------*/
+            headset->getHeadsetData().volumetricData.closeCurrentMesh();
+
+            //Get the subdataset and the associated dataset
+            Dataset* dataset = getDataset(confirmSelection.datasetID, confirmSelection.subDatasetID);
+            if(dataset == NULL)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(confirmSelection.datasetID, confirmSelection.subDatasetID)
+                return;
+            }
+            SubDataset* sd = dataset->getSubDataset(confirmSelection.subDatasetID);
+
+            //Get the type of the dataset
+            void(*applyFunc)(const VolumetricMesh&, SubDataset*) = nullptr;
+            switch(getDatasetType(dataset))
+            {
+                case DATASET_TYPE_VTK:
+                    applyFunc = &applyVolumetricSelection_vtk;
+                    break;
+
+                case DATASET_TYPE_CLOUD_POINT:
+                    applyFunc = &applyVolumetricSelection_cloudPoint;
+                    break;
+
+                default:
+                    break;
+            }
+
+            //Apply the correct function
+            for(auto& mesh : headset->getHeadsetData().volumetricData.meshes)
+                applyFunc(mesh, sd);
+
+            sd->enableVolumetricMask(true);
+
+            /*----------------------------------------------------------------------------*/
+            /*---------------------Send the confirm selection message---------------------*/
+            /*----------------------------------------------------------------------------*/
             uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t);
             uint8_t* data = (uint8_t*)malloc(dataSize);
-            uint32_t offset = 0;
+            size_t offset = 0;
 
             //Message ID
             writeUint16(data, VFV_SEND_CONFIRM_SELECTION);
@@ -1440,7 +1560,29 @@ namespace sereno
                 m_log << std::flush;
             }
 #endif
+            /*----------------------------------------------------------------------------*/
+            /*----------------------Send the volumetric mask as well----------------------*/
+            /*----------------------------------------------------------------------------*/
+
+            std::shared_ptr<uint8_t> sharedVolData = generateVolumetricMaskEvent(sd, confirmSelection.datasetID, &offset);
+
+            for(auto it : m_clientTable)
+                sendVolumetricMaskDataset(it.second, sharedVolData, offset);
         }
+    }
+
+    void VFVServer::onAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput)
+    {
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        VFVClientSocket* headset = getHeadsetFromClient(client);
+        if(!headset)
+            return;
+
+        headset->getHeadsetData().volumetricData.pushMesh((BooleanSelectionOp)addInput.booleanOp);
+
+        //Set the current action
+        sendAddNewSelectionInput(headset, addInput);
     }
 
     void VFVServer::onToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility)
@@ -2332,6 +2474,13 @@ namespace sereno
 #endif
     }
 
+    void VFVServer::sendVolumetricMaskDataset(VFVClientSocket* client, std::shared_ptr<uint8_t> sharedVolData, size_t size)
+    {
+        INFO << "Sending volumetric mask data. Data size: " << size << std::endl;
+        SocketMessage<int> sm(client->socket, sharedVolData, size);
+        writeMessage(sm);
+    }
+
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
         //Send binding information
@@ -2432,6 +2581,11 @@ namespace sereno
         map.subDatasetID = sd->getID();
         map.visibility = sdMT->mapVisibility;
         sendToggleMapVisibility(client, map);
+
+        //The volumetric mask
+        size_t dataSize;
+        auto data = generateVolumetricMaskEvent(sd, datasetID, &dataSize);
+        sendVolumetricMaskDataset(client, data, dataSize);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
@@ -2828,18 +2982,18 @@ namespace sereno
         offset += sizeof(float);
 
         //Rotation
+        writeFloat(data+offset, rot.w);
+        offset += sizeof(float);
         writeFloat(data+offset, rot.x);
         offset += sizeof(float);
         writeFloat(data+offset, rot.y);
         offset += sizeof(float);
         writeFloat(data+offset, rot.z);
         offset += sizeof(float);
-        writeFloat(data+offset, rot.w);
-        offset += sizeof(float);
 
         //INFO << "Sending tablet location: "
         //     << "Tablet position: " << pos.x << " " << pos.y << " " << pos.z << "; "
-        //     << "Tablet rotation: " << rot.x << " " << rot.y << " " << rot.z << " " << rot.w << std::endl;
+        //     << "Tablet rotation: " << rot.w << " " << rot.x << " " << rot.y << " " << rot.z << std::endl;
         
         std::shared_ptr<uint8_t> sharedData(data, free);
         
@@ -3102,6 +3256,7 @@ namespace sereno
                 case HEADSET_CURRENT_ACTION:
                 {
                     //Look for the headset to modify
+                    std::lock_guard<std::mutex> lock(m_mapMutex);
                     VFVClientSocket* headset = getHeadsetFromClient(client);
                     if(!headset)
                         break;
@@ -3109,8 +3264,7 @@ namespace sereno
                     //Set the current action
                     if(headset != client)
                     {
-                        std::lock_guard<std::mutex> lock(m_mapMutex);
-                        headset->getHeadsetData().currentAction = (VFVHeadsetCurrentActionType)msg.headsetCurrentAction.action;
+                        headset->getHeadsetData().setCurrentAction((VFVHeadsetCurrentActionType)msg.headsetCurrentAction.action);
                         sendCurrentAction(headset, headset->getHeadsetData().currentAction);
                         INFO << "Current action : " << msg.headsetCurrentAction.action << std::endl;
                     }
@@ -3191,13 +3345,7 @@ namespace sereno
 
                 case ADD_NEW_SELECTION_INPUT:
                 {
-                    VFVClientSocket* headset = getHeadsetFromClient(client);
-                    if(!headset)
-                        break;
-
-                    //Set the current action
-                    if(headset != client)
-                        sendAddNewSelectionInput(headset, msg.addNewSelectionInput);
+                    onAddNewSelectionInput(client, msg.addNewSelectionInput);
                     break;
                 }
 
@@ -3404,6 +3552,37 @@ namespace sereno
             clock_gettime(CLOCK_REALTIME, &end);
             endTime = end.tv_nsec*1.e-3 + end.tv_sec*1.e6;
             usleep(std::max(0.0, 1.e6/UPDATE_THREAD_FRAMERATE - endTime + (beg.tv_nsec*1.e-3 + beg.tv_sec*1.e6)));
+        }
+    }
+
+    void VFVServer::pushHeavy(const std::function<void(void)>& f)
+    {
+        std::unique_lock<std::mutex> lock(m_computeTasksMutex);
+        std::condition_variable cv;
+
+        while(cv.wait_for(lock, std::chrono::microseconds(1), [&](){return m_computeTasks.size() < 10;}));
+        m_computeTasks.push(f);
+    }
+
+    void VFVServer::computeThread()
+    {
+        while(!m_closeThread)
+        {
+            std::unique_lock<std::mutex> lock(m_computeMutex);
+            m_computeCond.wait(lock, [&]() {return m_closeThread || !m_computeTasks.empty();});
+
+            m_computeTasksMutex.lock();
+            if(m_computeTasks.empty())
+            {
+                m_computeTasksMutex.unlock();
+                continue;
+            }
+
+            auto f = m_computeTasks.front();
+            m_computeTasks.pop();
+            m_computeTasksMutex.unlock();
+
+            f();
         }
     }
 }

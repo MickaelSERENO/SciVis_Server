@@ -60,7 +60,17 @@ namespace sereno
         VFV_SEND_ADD_CLOUDPOINT_DATASET     = 23, /*!< Add a cloud point type dataset*/
         VFV_SEND_ADD_NEW_SELECTION_INPUT    = 24, /*!< Add a new selection input*/
         VFV_SEND_TOGGLE_MAP_VISIBILITY      = 25, /*!< Toggle the map visibility of a given subdataset*/
-        VFV_SEND_RESET_VOLUMETRIC_SELECTION = 26, /*!< Reset the volumetric selection of a particular subdataset*/
+        VFV_SEND_VOLUMETRIC_MASK            = 26, /*!< Send SubDataset computed volumetric mask*/
+        VFV_SEND_RESET_VOLUMETRIC_SELECTION = 27, /*!< Reset the volumetric selection of a particular subdataset*/
+    };
+
+    /** \brief  The types of existing dataset this server handles */
+    enum DatasetType
+    {
+        DATASET_TYPE_NOT_FOUND    = -1,
+        DATASET_TYPE_VTK          = 0,
+        DATASET_TYPE_VECTOR_FIELD = 1,
+        DATASET_TYPE_CLOUD_POINT  = 2,
     };
 
     /** \brief  Clone a Transfer function based on its type
@@ -104,6 +114,11 @@ namespace sereno
             /** \brief  The distinguishable color used in this sci vis application */
             static const uint32_t SCIVIS_DISTINGUISHABLE_COLORS[10];
         protected:
+
+            /** \brief  Get the type of a given dataset if registered
+             * \param dataset the dataset to evaluate
+             * \return   the type of the dataset */
+            DatasetType getDatasetType(const Dataset* dataset) const;
 
             void closeClient(SOCKET client);
 
@@ -227,6 +242,11 @@ namespace sereno
              * \param client the tablet sending the lasso
              * \param lasso the lasso to send */
             void onLasso(VFVClientSocket* client, const VFVLasso& lasso);
+
+            /** \brief  FUnction handling the add new selection input message
+             * \param client the client sending the message
+             * \param msg the message parsed */
+            void onAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput);
             
             /* \brief  confirm a tablet's selection
              * \param client the tablet confirming the selection
@@ -309,6 +329,12 @@ namespace sereno
              * \param client the client to send the information
              * \param tfSD the transfer function information */
             void sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD);
+
+            /** \brief  Send the volumetric mask to a client
+             * \param client the client to send the information
+             * \param data the volumetric data byte array. See generateVolumetricMaskEvent function
+             * \param size the size of the data array*/
+            void sendVolumetricMaskDataset(VFVClientSocket* client, std::shared_ptr<uint8_t> data, size_t size);
 
             /* \brief Send the current action message to a given client (will set what currently the headset is supposed to do)
              * \param client the client to send the information
@@ -400,6 +426,13 @@ namespace sereno
             /** \brief Main thread running for updating other devices*/
             void updateThread();
 
+            /** \brief  Push a heavy computation function
+             * \param f the function to call in a separate thread */
+            void pushHeavy(const std::function<void(void)>& f);
+
+            /** \brief  The thread running for heavy computation */
+            void computeThread();
+
             /*----------------------------------------------------------------------------*/
             /*---------------------------------ATTRIBUTES---------------------------------*/
             /*----------------------------------------------------------------------------*/
@@ -420,6 +453,12 @@ namespace sereno
 
             VFVClientSocket*  m_headsetAnchorClient = NULL;      /*!< The client sending the anchor. If the client is NULL, m_anchorData has to be redone*/
             AnchorHeadsetData m_anchorData;                      /*!< The anchor data registered*/
+
+            std::mutex                  m_computeMutex;           /*!< Mutex for m_computeThread*/
+            std::mutex                  m_computeTasksMutex;      /*!< Mutex for m_computeTasks*/
+            std::condition_variable     m_computeCond;            /*!< The condition variable associated to the compute thread*/
+            std::thread*                m_computeThread;          /*!< Thread handling heavy computation*/
+            std::queue<std::function<void(void)>> m_computeTasks; /*!< The tasks to run by the compute Thread*/
 
 #ifdef VFV_LOG_DATA
             std::mutex    m_logMutex; /*!< The log file mutex */
