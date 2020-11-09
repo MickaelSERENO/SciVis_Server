@@ -4,6 +4,8 @@
 #include "TransferFunction/MergeTF.h"
 #include <random>
 #include <algorithm>
+#include <iostream>
+#include <filesystem>
 
 #ifndef TEST
 #define TEST
@@ -351,16 +353,16 @@ namespace sereno
         m_log << ",\n";
         m_log << std::flush;
 #endif
-//        addVTKDataset(NULL, vtkInfo);
-//
-//        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
-//        {
-//            INFO << "Loaded. Status: " << status << std::endl;
-//        }, NULL);
+        addVTKDataset(NULL, vtkInfo);
 
-        VFVCloudPointDatasetInformation cloudInfo;
-        cloudInfo.name="1.cp";
-        addCloudPointDataset(NULL, cloudInfo);
+        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
+        {
+            INFO << "Loaded. Status: " << status << std::endl;
+        }, NULL);
+
+//        VFVCloudPointDatasetInformation cloudInfo;
+//        cloudInfo.name="1.cp";
+//        addCloudPointDataset(NULL, cloudInfo);
 
         //Simulate a volumetric selection
 //        VFVVolumetricData volData;
@@ -934,6 +936,43 @@ namespace sereno
         //Create the dataset
         std::shared_ptr<VTKParser> sharedParser(parser);
         VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
+
+        //Search for other VTK subfiles part of this serie (time serie data)
+        std::vector<std::string> suffixes;
+        for(const auto& entry : std::filesystem::directory_iterator(DATASET_DIRECTORY))
+        {
+            std::string timePath = entry.path().filename().string();
+            if(timePath.rfind(dataset.name, 0) == 0 && timePath.size() > dataset.name.size()+1)
+            {
+                std::string suffix = timePath.substr(dataset.name.size()+1);
+                for(char c : suffix)
+                {
+                    if(c < '0' || c > '9')
+                        goto endFor;
+                }
+                suffixes.push_back(suffix);
+endFor:;
+            }
+        }
+
+        //Sort the suffixes
+        if(suffixes.size())
+        {
+            std::sort(suffixes.begin(), suffixes.end());
+            for(const auto& s : suffixes)
+            {
+                VTKParser* suffixParser = new VTKParser(DATASET_DIRECTORY+dataset.name+"."+s);
+                if(!parser->parse())
+                {
+                    ERROR << "Could not parse the VTK Dataset " << dataset.name + "." + s << std::endl;
+                    delete suffixParser;
+                    continue;
+                }
+
+                std::shared_ptr<VTKParser> sharedSuffixParser(suffixParser);
+                vtk->addTimestep(sharedSuffixParser);
+            }
+        }
 
         //Update the position
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)

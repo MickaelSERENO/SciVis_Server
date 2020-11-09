@@ -14,7 +14,8 @@ set(VRPN_LIB_DIR     "" CACHE PATH "Path to the VRPN lib directory")
 set(QUAT_LIB_DIR     "" CACHE PATH "Path to the QUAT lib directory used by VRPN")
 set(RELEASE               FALSE                                   CACHE BOOL "Compiling in release mode.")
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(RELEASE)
 	MESSAGE(STATUS "Compiling in release mode")
@@ -23,7 +24,7 @@ if(RELEASE)
 else()
 	MESSAGE(STATUS "Compiling in Debug mode")
 	set(CMAKE_BUILD_TYPE "Debug")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -std=c++17")
 endif()
 
 SET(WARNING_FLAGS "" CACHE STRING "The warning flags")
