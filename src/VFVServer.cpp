@@ -962,7 +962,7 @@ endFor:;
             for(const auto& s : suffixes)
             {
                 VTKParser* suffixParser = new VTKParser(DATASET_DIRECTORY+dataset.name+"."+s);
-                if(!parser->parse())
+                if(!suffixParser->parse())
                 {
                     ERROR << "Could not parse the VTK Dataset " << dataset.name + "." + s << std::endl;
                     delete suffixParser;
