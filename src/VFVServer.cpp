@@ -2366,12 +2366,12 @@ endFor:;
             case TF_GTF:
             case TF_TRIANGULAR_GTF:
             {
-                size = sizeof(uint32_t)+ (sizeof(uint32_t) + 2*sizeof(float))*tfSD.gtfData.propData.size();
+                size = sizeof(uint32_t) + (sizeof(uint32_t) + 2*sizeof(float))*tfSD.gtfData.propData.size();
                 break;
             }
             case TF_MERGE:
             {
-                size = sizeof(float) + getTransferFunctionSize(*tfSD.mergeTFData.tf1.get()) + getTransferFunctionSize(*tfSD.mergeTFData.tf2.get()) + 4*sizeof(uint8_t); //4 == colorMode + type
+                size = sizeof(float) + getTransferFunctionSize(*tfSD.mergeTFData.tf1.get()) + getTransferFunctionSize(*tfSD.mergeTFData.tf2.get()) + 4*sizeof(uint8_t) + 2*sizeof(float); //4 == colorMode + type, 2*sizeof(float) == timesteps
                 break;
             }
             default:
@@ -2416,6 +2416,8 @@ endFor:;
                 offset++;
                 data[offset] = tfSD.mergeTFData.tf1->colorMode;
                 offset++;
+                writeFloat(data+offset, tfSD.mergeTFData.tf1->timestep);
+                offset += sizeof(float);
                 offset = fillTransferFunctionMessage(data, offset, *tfSD.mergeTFData.tf1.get());
 
                 //TF2
@@ -2423,6 +2425,8 @@ endFor:;
                 offset++;
                 data[offset] = tfSD.mergeTFData.tf2->colorMode;
                 offset++;
+                writeFloat(data+offset, tfSD.mergeTFData.tf2->timestep);
+                offset += sizeof(float);
                 offset = fillTransferFunctionMessage(data, offset, *tfSD.mergeTFData.tf2.get());
 
                 break;
@@ -2438,7 +2442,7 @@ endFor:;
     void VFVServer::sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD)
     {
         //Determine the size of the packet
-        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 2*sizeof(uint8_t) + getTransferFunctionSize(tfSD);
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 2*sizeof(uint8_t) + sizeof(float) + getTransferFunctionSize(tfSD);
 
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset = 0;
@@ -2460,6 +2464,9 @@ endFor:;
 
         data[offset] = tfSD.colorMode; //The color mode
         offset++;
+
+        writeFloat(data+offset, tfSD.timestep); //the timestep
+        offset += sizeof(float);
 
         //Fill tf-specific data
         offset = fillTransferFunctionMessage(data, offset, tfSD);
