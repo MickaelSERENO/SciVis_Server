@@ -128,6 +128,7 @@ namespace sereno
         tf.datasetID    = datasetID;
         tf.subDatasetID = sd->getID();
         tf.changeTFType(tfMT->getType());
+        tf.timestep     = tfMT->getTF()->getCurrentTimestep();
 
         if(tfMT != NULL)
         {
@@ -249,6 +250,7 @@ namespace sereno
                 ERROR << "The Transfer Function type: " << (int)tfSD.tfID << " is unknown. Set to TF_NONE\n";
                 break;
         }
+        tfMD->getTF()->setCurrentTimestep(tfSD.timestep);
         //sd->setTransferFunction(sdMT->tf->getTF());
 
         return tfMD;
@@ -344,7 +346,7 @@ namespace sereno
 #ifdef TEST
         //Add the dataset the users will play with
         VFVVTKDatasetInformation vtkInfo;
-        vtkInfo.name = "Agulhas_10_resampled.vtk";
+        vtkInfo.name = "history.vtk";
         vtkInfo.nbPtFields = 1;
         vtkInfo.ptFields.push_back(1);
 
@@ -2467,6 +2469,8 @@ endFor:;
 
         writeFloat(data+offset, tfSD.timestep); //the timestep
         offset += sizeof(float);
+
+        INFO << "Timestep: " << tfSD.timestep << std::endl;
 
         //Fill tf-specific data
         offset = fillTransferFunctionMessage(data, offset, tfSD);

@@ -877,6 +877,7 @@ namespace sereno
                 subDatasetID = cpy.subDatasetID;
                 headsetID = cpy.headsetID;
                 colorMode = cpy.colorMode;
+                timestep  = cpy.timestep;
             }
 
             return *this;
