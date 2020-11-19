@@ -4,6 +4,8 @@
 #include "TransferFunction/MergeTF.h"
 #include <random>
 #include <algorithm>
+#include <iostream>
+#include <filesystem>
 
 #ifndef TEST
 #define TEST
@@ -126,6 +128,7 @@ namespace sereno
         tf.datasetID    = datasetID;
         tf.subDatasetID = sd->getID();
         tf.changeTFType(tfMT->getType());
+        tf.timestep     = tfMT->getTF()->getCurrentTimestep();
 
         if(tfMT != NULL)
         {
@@ -247,6 +250,7 @@ namespace sereno
                 ERROR << "The Transfer Function type: " << (int)tfSD.tfID << " is unknown. Set to TF_NONE\n";
                 break;
         }
+        tfMD->getTF()->setCurrentTimestep(tfSD.timestep);
         //sd->setTransferFunction(sdMT->tf->getTF());
 
         return tfMD;
@@ -342,7 +346,7 @@ namespace sereno
 #ifdef TEST
         //Add the dataset the users will play with
         VFVVTKDatasetInformation vtkInfo;
-        vtkInfo.name = "Agulhas_10_resampled.vtk";
+        vtkInfo.name = "history.vtk";
         vtkInfo.nbPtFields = 1;
         vtkInfo.ptFields.push_back(1);
 
@@ -351,16 +355,16 @@ namespace sereno
         m_log << ",\n";
         m_log << std::flush;
 #endif
-//        addVTKDataset(NULL, vtkInfo);
-//
-//        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
-//        {
-//            INFO << "Loaded. Status: " << status << std::endl;
-//        }, NULL);
+        addVTKDataset(NULL, vtkInfo);
 
-        VFVCloudPointDatasetInformation cloudInfo;
-        cloudInfo.name="1.cp";
-        addCloudPointDataset(NULL, cloudInfo);
+        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
+        {
+            INFO << "Loaded. Status: " << status << std::endl;
+        }, NULL);
+
+//        VFVCloudPointDatasetInformation cloudInfo;
+//        cloudInfo.name="1.cp";
+//        addCloudPointDataset(NULL, cloudInfo);
 
         //Simulate a volumetric selection
 //        VFVVolumetricData volData;
@@ -934,6 +938,43 @@ namespace sereno
         //Create the dataset
         std::shared_ptr<VTKParser> sharedParser(parser);
         VTKDataset* vtk = new VTKDataset(sharedParser, ptFieldValues, cellFieldValues);
+
+        //Search for other VTK subfiles part of this serie (time serie data)
+        std::vector<std::string> suffixes;
+        for(const auto& entry : std::filesystem::directory_iterator(DATASET_DIRECTORY))
+        {
+            std::string timePath = entry.path().filename().string();
+            if(timePath.rfind(dataset.name, 0) == 0 && timePath.size() > dataset.name.size()+1)
+            {
+                std::string suffix = timePath.substr(dataset.name.size()+1);
+                for(char c : suffix)
+                {
+                    if(c < '0' || c > '9')
+                        goto endFor;
+                }
+                suffixes.push_back(suffix);
+endFor:;
+            }
+        }
+
+        //Sort the suffixes
+        if(suffixes.size())
+        {
+            std::sort(suffixes.begin(), suffixes.end());
+            for(const auto& s : suffixes)
+            {
+                VTKParser* suffixParser = new VTKParser(DATASET_DIRECTORY+dataset.name+"."+s);
+                if(!suffixParser->parse())
+                {
+                    ERROR << "Could not parse the VTK Dataset " << dataset.name + "." + s << std::endl;
+                    delete suffixParser;
+                    continue;
+                }
+
+                std::shared_ptr<VTKParser> sharedSuffixParser(suffixParser);
+                vtk->addTimestep(sharedSuffixParser);
+            }
+        }
 
         //Update the position
         for(uint32_t i = 0; i < vtk->getNbSubDatasets(); i++, m_currentSubDataset++)
@@ -2362,12 +2403,12 @@ namespace sereno
             case TF_GTF:
             case TF_TRIANGULAR_GTF:
             {
-                size = sizeof(uint32_t)+ (sizeof(uint32_t) + 2*sizeof(float))*tfSD.gtfData.propData.size();
+                size = sizeof(uint32_t) + (sizeof(uint32_t) + 2*sizeof(float))*tfSD.gtfData.propData.size();
                 break;
             }
             case TF_MERGE:
             {
-                size = sizeof(float) + getTransferFunctionSize(*tfSD.mergeTFData.tf1.get()) + getTransferFunctionSize(*tfSD.mergeTFData.tf2.get()) + 4*sizeof(uint8_t); //4 == colorMode + type
+                size = sizeof(float) + getTransferFunctionSize(*tfSD.mergeTFData.tf1.get()) + getTransferFunctionSize(*tfSD.mergeTFData.tf2.get()) + 4*sizeof(uint8_t) + 2*sizeof(float); //4 == colorMode + type, 2*sizeof(float) == timesteps
                 break;
             }
             default:
@@ -2412,6 +2453,8 @@ namespace sereno
                 offset++;
                 data[offset] = tfSD.mergeTFData.tf1->colorMode;
                 offset++;
+                writeFloat(data+offset, tfSD.mergeTFData.tf1->timestep);
+                offset += sizeof(float);
                 offset = fillTransferFunctionMessage(data, offset, *tfSD.mergeTFData.tf1.get());
 
                 //TF2
@@ -2419,6 +2462,8 @@ namespace sereno
                 offset++;
                 data[offset] = tfSD.mergeTFData.tf2->colorMode;
                 offset++;
+                writeFloat(data+offset, tfSD.mergeTFData.tf2->timestep);
+                offset += sizeof(float);
                 offset = fillTransferFunctionMessage(data, offset, *tfSD.mergeTFData.tf2.get());
 
                 break;
@@ -2434,7 +2479,7 @@ namespace sereno
     void VFVServer::sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD)
     {
         //Determine the size of the packet
-        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 2*sizeof(uint8_t) + getTransferFunctionSize(tfSD);
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 2*sizeof(uint8_t) + sizeof(float) + getTransferFunctionSize(tfSD);
 
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset = 0;
@@ -2456,6 +2501,11 @@ namespace sereno
 
         data[offset] = tfSD.colorMode; //The color mode
         offset++;
+
+        writeFloat(data+offset, tfSD.timestep); //the timestep
+        offset += sizeof(float);
+
+        INFO << "Timestep: " << tfSD.timestep << std::endl;
 
         //Fill tf-specific data
         offset = fillTransferFunctionMessage(data, offset, tfSD);

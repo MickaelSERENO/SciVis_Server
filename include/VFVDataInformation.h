@@ -838,6 +838,7 @@ namespace sereno
         int32_t  headsetID = -1; /*!< The headset ID performing the rotation. -1 if not initialized.*/
         uint8_t  tfID = -1;      /*!< The transfer function ID*/
         uint8_t  colorMode;      /*!< The color mode to apply*/ 
+        float    timestep;       /*!< The timestep cursor*/
 
         union
         {
@@ -876,6 +877,7 @@ namespace sereno
                 subDatasetID = cpy.subDatasetID;
                 headsetID = cpy.headsetID;
                 colorMode = cpy.colorMode;
+                timestep  = cpy.timestep;
             }
 
             return *this;
@@ -895,6 +897,8 @@ namespace sereno
                 return 'b';
             else if(cursor == 3) //The color mode
                 return 'b';
+            else if(cursor == 4) //the timestep
+                return 'f';
             else
             {
                 switch((TFType)tfID)
@@ -902,23 +906,23 @@ namespace sereno
                     case TF_GTF:
                     case TF_TRIANGULAR_GTF:
                     {
-                        if(cursor == 4) //nbProps
+                        if(cursor == 5) //nbProps
                             return 'I';
 
-                        if((cursor-5)/3 > gtfData.propData.size()) //Check the size
+                        if((cursor-6)/3 > gtfData.propData.size()) //Check the size
                             return 0;
 
-                        uint32_t offset = (cursor-5)%3;
+                        uint32_t offset = (cursor-6)%3;
                         if(offset == 0) //propID
                             return 'I';
                         return 'f'; //center, scale
                     }
                     case TF_MERGE:
                     {
-                        if(cursor == 4)
+                        if(cursor == 5)
                             return 'f'; //t
 
-                        int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter
+                        int32_t tfMsgCursor = cursor-4; //-4: we remove tfID, colorMode, the timestep, and the 't' parameter
                         if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                             return mergeTFData.tf1->getTypeAt(tfMsgCursor);
                         else
@@ -951,15 +955,15 @@ namespace sereno
                     case TF_GTF:
                     case TF_TRIANGULAR_GTF:
                     {
-                        if(cursor == 4)
+                        if(cursor == 5)
                         {
                             gtfData.propData.resize(value);
                             return true;
                         }
                         else
                         {
-                            uint32_t id     = (cursor-5)/3;
-                            uint32_t offset = (cursor-5)%3;
+                            uint32_t id     = (cursor-6)/3;
+                            uint32_t offset = (cursor-6)%3;
                             if(id > gtfData.propData.size())
                                 VFV_DATA_ERROR
 
@@ -972,7 +976,7 @@ namespace sereno
                     }
                     case TF_MERGE:
                     {
-                        int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
+                        int32_t tfMsgCursor = cursor-4; //-4: we remove tfID, colorMode, the timestep, and the 't' parameter that we read as a MergeTF object
                         if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                             return mergeTFData.tf1->pushValue(tfMsgCursor, value);
                         else
@@ -1003,10 +1007,10 @@ namespace sereno
             {
                 case TF_MERGE:
                 {
-                    if(cursor == 4)
+                    if(cursor == 5)
                         VFV_DATA_ERROR
 
-                    int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
+                    int32_t tfMsgCursor = cursor-4; //-4: we remove tfID, colorMode, the timestep, and the 't' parameter that we read as a MergeTF object
                     if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                         return mergeTFData.tf1->pushValue(tfMsgCursor, value);
                     else
@@ -1021,16 +1025,22 @@ namespace sereno
 
         bool pushValue(uint32_t cursor, float value)
         {
+            if(cursor == 4)
+            {
+                timestep = value;
+                return true;
+            }
+
             switch((TFType)tfID)
             {
                 case TF_GTF:
                 case TF_TRIANGULAR_GTF:
                 {
-                    if(cursor <= 4)
+                    if(cursor <= 5)
                         VFV_DATA_ERROR
 
-                    uint32_t id     = (cursor-5)/3;
-                    uint32_t offset = (cursor-5)%3;
+                    uint32_t id     = (cursor-6)/3;
+                    uint32_t offset = (cursor-6)%3;
                     if(id > gtfData.propData.size())
                         VFV_DATA_ERROR
 
@@ -1050,13 +1060,13 @@ namespace sereno
 
                 case TF_MERGE:
                 {
-                    if(cursor == 4)
+                    if(cursor == 5)
                     {
                         mergeTFData.t = value;
                         return true;
                     }
 
-                    int32_t tfMsgCursor = cursor-3; //-3: we remove tfID, colorMode, and the 't' parameter that we read as a MergeTF object
+                    int32_t tfMsgCursor = cursor-4; //-4: we remove tfID, colorMode, the timestep, and the 't' parameter that we read as a MergeTF object
                     if(tfMsgCursor <= mergeTFData.tf1->getMaxCursor())
                         return mergeTFData.tf1->pushValue(tfMsgCursor, value);
                     else
@@ -1075,13 +1085,13 @@ namespace sereno
             {
                 case TF_GTF:
                 case TF_TRIANGULAR_GTF:
-                    return 4+gtfData.propData.size()*3;
+                    return 5+gtfData.propData.size()*3;
                 
                 case TF_MERGE:
-                    return 4+mergeTFData.tf1->getMaxCursor()+mergeTFData.tf2->getMaxCursor()-2; //-2 and not -4 because getMaxCursor is <= and not <
+                    return 5+mergeTFData.tf1->getMaxCursor()+mergeTFData.tf2->getMaxCursor()-2; //-2 and not -4 because getMaxCursor is <= and not <
 
                 default:
-                    return 3;
+                    return 4;
             }
         }
 
