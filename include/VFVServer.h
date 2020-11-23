@@ -19,6 +19,9 @@
 
 namespace sereno
 {
+    #define MAX_NB_TB_SUB_TRIALS 3
+    #define MAX_NB_TB_TRIALS     3
+
     /* \brief  Does a string ends with another string value?
      *
      * \param value the string value to evaluate
@@ -62,6 +65,7 @@ namespace sereno
         VFV_SEND_TOGGLE_MAP_VISIBILITY      = 25, /*!< Toggle the map visibility of a given subdataset*/
         VFV_SEND_VOLUMETRIC_MASK            = 26, /*!< Send SubDataset computed volumetric mask*/
         VFV_SEND_RESET_VOLUMETRIC_SELECTION = 27, /*!< Reset the volumetric selection of a particular subdataset*/
+        VFV_SEND_CURRENT_TRIAL_DATA         = 28, /*!< The current trial data information*/
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -73,6 +77,14 @@ namespace sereno
         DATASET_TYPE_CLOUD_POINT  = 2,
     };
 
+    enum TangibleMode
+    {
+        ABSOLUTE = 0,
+        RELATIVE_ALIGNED = 1,
+        RELATIVE_FULL    = 2,
+        END_TANGIBLE_MODE
+    };
+
     /** \brief  Clone a Transfer function based on its type
      * \param tf the transfer function to clone
      * \return the new Transfer Function allocated using new. The caller is responsible to destroy that object*/
@@ -82,7 +94,7 @@ namespace sereno
     class VFVServer : public Server<VFVClientSocket>
     {
         public:
-            VFVServer(uint32_t nbThread, uint32_t port);
+            VFVServer(uint32_t nbThread, uint32_t port, int32_t participantID=-1);
             VFVServer(VFVServer&& mvt);
             ~VFVServer();
 
@@ -156,6 +168,10 @@ namespace sereno
 
             /* \brief  Ask for a new anchor headset */
             void askNewAnchor();
+
+            /** \brief  Launch the next tangible brush trial
+             * \param firstLaunch is it the first launch? Call this function with "true" only once! */
+            void launchNextTBTrial(bool firstLaunch=false);
 
             /* \brief  Login the tablet "client"
              * \param client the client logged as a tablet
@@ -283,6 +299,11 @@ namespace sereno
              * \param reset the reset data*/
             void onResetVolumetricSelection(VFVClientSocket* client, const VFVResetVolumetricSelection& reset);
 
+            /** \brief  Handle the END_OF_TB_TRIAL message asked by the user
+             * \param client the user asking to finish the current trial
+             * \param endTrial the trial message */
+            void onEndTBTrial(VFVClientSocket* client, const VFVEndOfTBTrial& endTrial);
+
             /* \brief  Send an empty message
              * \param client the client to send the message
              * \param type the type of the message*/
@@ -408,14 +429,16 @@ namespace sereno
              * \param visibility the message data to send */
             void sendToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility);
 
-            /**
-             * \brief  Send the reset volumetric selection message
+            /** \brief  Send the reset volumetric selection message
              * \param client the client to send the message to
              * \param datasetID the dataset ID to reset the selection
              * \param sdID the visualization subdataset ID to reset the visualization from
-             * \param headsetID the headset ID asking to reset it
-             */
+             * \param headsetID the headset ID asking to reset it */
             void sendResetVolumetricSelection(VFVClientSocket* client, int datasetID, int sdID, int headsetID);
+
+            /** \brief  Send current trial information to a given client. The data are those that this server has stored
+             * \param client the client to send the information */
+            void sendCurrentTrialData(VFVClientSocket* client);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
@@ -464,6 +487,18 @@ namespace sereno
             std::mutex    m_logMutex; /*!< The log file mutex */
             std::ofstream m_log;      /*!< The output log file recording every messages received and sent*/
 #endif
+
+
+            /*----------------------------------------------------------------------------*/
+            /*---------------------------Users study variables----------------------------*/
+            /*----------------------------------------------------------------------------*/
+
+            int32_t  m_participantID;      /*!< The participant ID*/
+            uint32_t m_techniqueID = 0;    /*!< The current technique ID */
+            uint32_t m_trialID     = 0;    /*!< The current trial ID (considering the dataset)*/
+            uint32_t m_subTrialID  = 0;    /*!< The current subtrial ID in the current dataset (trialID). This is to couple with m_inTraining to know either we are in a training or not*/
+            bool     m_inTraining  = true; /*!< Are we in the training session?*/
+
             //Mutex load order:
             //datasetMutex, mapMutex, logMutex
     };

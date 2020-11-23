@@ -8,7 +8,7 @@
 #include <filesystem>
 
 #ifndef TEST
-#define TEST
+//#define TEST
 #endif
 
 namespace sereno
@@ -327,18 +327,19 @@ namespace sereno
     }
 
 
-    VFVServer::VFVServer(uint32_t nbThread, uint32_t port) : Server(nbThread, port)
+    VFVServer::VFVServer(uint32_t nbThread, uint32_t port, int32_t participantID) : Server(nbThread, port), m_participantID(participantID)
     {
 #ifdef VFV_LOG_DATA
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log.open("log.json", std::ios::out | std::ios::trunc);
+            m_log.open("log"+std::to_string(participantID)+".json", std::ios::out | std::ios::trunc);
 
             m_log << "{\n"
                   << "    \"data\" : [\n";
 
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
-            m_log << "},\n";
+            m_log << "\"participantID\" : " << participantID << std::endl 
+                  << "},\n";
             m_log << std::flush;
         }
 #endif
@@ -361,10 +362,21 @@ namespace sereno
         {
             INFO << "Loaded. Status: " << status << std::endl;
         }, NULL);
+#endif
 
-//        VFVCloudPointDatasetInformation cloudInfo;
-//        cloudInfo.name="1.cp";
-//        addCloudPointDataset(NULL, cloudInfo);
+        //Open all the datasets necessary for this study
+        for(auto& s : {"1.cp", "2.cp", "3.cp", "4.cp"})
+        {
+            VFVCloudPointDatasetInformation cloudInfo;
+            cloudInfo.name = s;
+            addCloudPointDataset(NULL, cloudInfo);
+
+            //Remove all the visualization by default
+            VFVRemoveSubDataset remove;
+            remove.datasetID    = m_currentDataset-1;
+            remove.subDatasetID = 0;
+            removeSubDataset(remove);
+        }
 
         //Simulate a volumetric selection
 //        VFVVolumetricData volData;
@@ -377,7 +389,8 @@ namespace sereno
 //        volData.closeCurrentMesh();
 //        applyVolumetricSelection_cloudPoint(volData.meshes.back(), m_datasets[0]->getSubDataset(0));
 //        m_datasets[0]->getSubDataset(0)->enableVolumetricMask(true);
-#endif
+
+        launchNextTBTrial(true);
     }
 
     VFVServer::VFVServer(VFVServer&& mvt) : Server(std::move(mvt))
@@ -781,6 +794,70 @@ namespace sereno
                     sendHeadsetBindingInfo(it.second);
                     break;
                 }
+        }
+    }
+
+    void VFVServer::launchNextTBTrial(bool firstLaunch)
+    {
+        if(!firstLaunch)
+        {
+            m_subTrialID++;
+            if(m_subTrialID == MAX_NB_TB_SUB_TRIALS)
+            {
+                m_subTrialID = 0;
+                if(m_inTraining) //Redo the experiment, but without training
+                    m_inTraining = false;
+                else
+                {
+                    m_trialID++;
+
+                    glm::vec3 pos(0,0,0);
+
+                    if(m_trialID == MAX_NB_TB_TRIALS)
+                    {
+                        m_trialID = 0;
+                        m_techniqueID++;
+                        m_inTraining = true; //training again
+                    }
+
+                    if(m_techniqueID != END_TANGIBLE_MODE) 
+                    {
+                        //remove the last subdataset
+                        //we need to look at which dataset has a subdataset (only one should have a subdataset)
+                        for(auto& it : m_cloudPointDatasets)
+                        {
+                            if(it.second.sdMetaData.size() != 0)
+                            {
+                                VFVRemoveSubDataset remove;
+                                remove.datasetID    = it.second.datasetID;
+                                remove.subDatasetID = it.second.sdMetaData[0].sdID;
+
+                                //Save the pos before removing it: we will put the new subdataset at the same position
+                                pos = it.second.dataset->getSubDataset(remove.subDatasetID)->getPosition();
+                                
+                                removeSubDataset(remove);
+                                break;
+                            }
+                        } 
+
+                        //add the new subdataset to the correct dataset
+                        uint32_t dID = (m_trialID/3 + m_participantID/3)%MAX_NB_TB_TRIALS;
+
+                        CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
+                        VFVAddSubDataset addSubDataset;
+                        addSubDataset.datasetID = metaData.datasetID;
+                        onAddSubDataset(NULL, addSubDataset);
+                        
+                        //Place it correctly
+                        VFVMoveInformation moveSD;
+                        moveSD.datasetID    = metaData.datasetID;
+                        moveSD.subDatasetID = metaData.sdMetaData[0].sdID;
+                        for(uint8_t i = 0; i < 3; i++)
+                            moveSD.position[i] = pos[i];
+                        translateSubDataset(NULL, moveSD);
+                    }
+                }
+            }
         }
     }
 
@@ -2053,6 +2130,11 @@ endFor:;
             sendResetVolumetricSelection(clt.second, reset.datasetID, reset.subDatasetID, headsetID);
     }
 
+    void VFVServer::onEndTBTrial(VFVClientSocket* client, const VFVEndOfTBTrial& endTrial)
+    {
+        launchNextTBTrial();
+    }
+
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
@@ -2636,6 +2718,9 @@ endFor:;
         size_t dataSize;
         auto data = generateVolumetricMaskEvent(sd, datasetID, &dataSize);
         sendVolumetricMaskDataset(client, data, dataSize);
+
+        //Send the TB trial data
+        sendCurrentTrialData(client);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
@@ -3170,6 +3255,47 @@ endFor:;
 #endif
     }
 
+    void VFVServer::sendCurrentTrialData(VFVClientSocket* client)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 1;
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_CURRENT_TRIAL_DATA);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, m_techniqueID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, m_trialID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, m_subTrialID);
+        offset += sizeof(uint32_t);
+
+        data[offset] = m_inTraining;
+        offset++;
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+
+        //Send the data
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+        
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendCurrentTrialData");
+            m_log << ",    \"techniqueID\" : " << m_techniqueID << ",\n"
+                  << "    \"trialID\" : " << m_trialID << ",\n"
+                  << "    \"m_subTrialID\" : " << m_subTrialID << ",\n"
+                  << "    \"m_inTraining\" : " << m_inTraining << "\n";
+            VFV_END_TO_JSON(m_log);
+            m_log << ",\n" << std::flush;
+        }
+#endif
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -3414,6 +3540,12 @@ endFor:;
                 case RESET_VOLUMETRIC_SELECTION:
                 {
                     onResetVolumetricSelection(client, msg.resetVolumetricSelection);
+                    break;
+                }
+
+                case END_OF_TB_TRIAL:
+                {
+                    onEndTBTrial(client, msg.endOfTBTrial);
                     break;
                 }
 

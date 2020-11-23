@@ -62,20 +62,32 @@ void VRPN_CALLBACK trackerVRPNCallback(void* userData, const vrpn_TRACKERCB t)
         serverPtr->pushHeadsetVRPNPosition(glm::vec3(t.pos[0], t.pos[1], t.pos[2]), Quaternionf(t.quat[0], t.quat[1], t.quat[2], t.quat[3]), 0);
 }
 
+void printHelp()
+{
+    std::cout << "Application permitting to launch the server for the SciVis_HoloLens project.\n" << std::endl
+              << "Help command" << std::endl
+              << "[LD_LIBRARY_PATH=$HOME/.local] [TRACKING_MODE=mode] ./VFVServer participantID" << std::endl
+              << "LD_LIBRARY_PATH: tells where are your built-in libraries (UNIX environment variable)" << std::endl
+              << "TRACKING_MODE  : application-defined environment variable. It defines the tracking mode to use. By default, no tracking is performed. Set at " << TRACKING_VUFORIA << " to use the VUFORIA tracking (debug mode only) or set it at " << TRACKING_VICON << " to use the VICON system." << std::endl; 
+
+}
+
 int main(int argc, char** argv)
 {
     //Read application arguments
-    for(int i = 1; i < argc; i++)
+    if(argc != 1)
     {
-        if(!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
-        {
-            std::cout << "Application permitting to launch the server for the SciVis_HoloLens project.\n" << std::endl
-                      << "Help command" << std::endl
-                      << "[LD_LIBRARY_PATH=$HOME/.local] [TRACKING_MODE=mode] ./VFVServer" << std::endl
-                      << "LD_LIBRARY_PATH: tells where are your built-in libraries (UNIX environment variable)" << std::endl
-                      << "TRACKING_MODE  : application-defined environment variable. It defines the tracking mode to use. By default, no tracking is performed. Set at " << TRACKING_VUFORIA << " to use the VUFORIA tracking (debug mode only) or set it at " << TRACKING_VICON << " to use the VICON system." << std::endl; 
-        }
+        printHelp();
+        return -1;
     }
+
+    else if(!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))
+    {
+        printHelp();
+        return 0;
+    }
+
+    int32_t participantID = std::stoi(argv[1]);
 
     //Init built-in variables
     srand(time(NULL));
@@ -84,7 +96,7 @@ int main(int argc, char** argv)
     InternalData::initSingleton();
 
     //Launch the main server
-    VFVServer* server = new VFVServer(NB_READ_THREAD, CLIENT_PORT);
+    VFVServer* server = new VFVServer(NB_READ_THREAD, CLIENT_PORT, participantID);
     serverPtr = server;
     server->launch();
 
@@ -178,9 +190,9 @@ int main(int argc, char** argv)
     pid = fork();
     if(pid == 0)
     {
-        char logFile[1024];
-        strcpy(logFile, "log.json.old");
-        execl("/bin/cp", "/bin/cp", "log.json", logFile, NULL);
+        std::string inputFile  = "log"+std::to_string(participantID)+".json";
+        std::string outputFile = inputFile+".old";
+        execl("/bin/cp", "/bin/cp", inputFile.c_str(), outputFile.c_str(), NULL);
     }
     else
     {

@@ -2056,51 +2056,18 @@ namespace sereno
 
     struct VFVEndOfTBTrial : public VFVDataInformation
     {
-        uint32_t truePositive;
-        uint32_t falsePositive;
-        uint32_t trueNegative;
-        uint32_t falseNegative;
+        int32_t getMaxCursor() const {return -1;}
 
         char getTypeAt(uint32_t cursor) const
         {
-            if(cursor <= 3)
-                return 'I';
             return 0;
         }
-
-        bool pushValue(uint32_t cursor, uint32_t value)
-        {
-            switch(cursor)
-            {
-                case 0:
-                    truePositive = value;
-                    break;
-                case 1:
-                    falsePositive = value;
-                    break;
-                case 2:
-                    trueNegative = value;
-                    break;
-                case 3:
-                    falseNegative = value;
-                    break;
-                default:
-                    VFV_DATA_ERROR
-            }
-            return true;
-        }
-
-        int32_t getMaxCursor() const {return 3;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "EndOfTBTrial");
-            oss << ",    \"truePositive\" : " << truePositive << ",\n"
-                << ",    \"falsePositive\" : " << falsePositive << ",\n"
-                << ",    \"trueNegative\" : " << trueNegative << ",\n"
-                << ",    \"falseNegative\" : " << falseNegative << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
