@@ -841,7 +841,7 @@ namespace sereno
                         } 
 
                         //add the new subdataset to the correct dataset
-                        uint32_t dID = (m_trialID/3 + m_participantID/3)%MAX_NB_TB_TRIALS;
+                        uint32_t dID = (m_techniqueID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
 
                         CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
                         VFVAddSubDataset addSubDataset;
@@ -859,6 +859,20 @@ namespace sereno
                 }
             }
         }
+
+        else
+        {
+            m_trialID     = 0:
+            m_subTrialID  = 0;
+        m_techniqueID = 0;
+            m_inTraining  = true;
+        }
+
+
+        //Send the data
+        std::lock_guard<std::mutex> lock(m_mapMutex);
+        for(auto it: m_clientTable)
+        sendCurrentAction(it.second);
     }
 
     /*----------------------------------------------------------------------------*/
@@ -3264,7 +3278,7 @@ endFor:;
         writeUint16(data, VFV_SEND_CURRENT_TRIAL_DATA);
         offset += sizeof(uint16_t);
 
-        writeUint32(data+offset, m_techniqueID);
+        writeUint32(data+offset, (m_techniqueID + m_participantID%3)%3);
         offset += sizeof(uint32_t);
 
         writeUint32(data+offset, m_trialID);

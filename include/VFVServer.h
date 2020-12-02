@@ -79,9 +79,9 @@ namespace sereno
 
     enum TangibleMode
     {
-        ABSOLUTE = 0,
-        RELATIVE_ALIGNED = 1,
-        RELATIVE_FULL    = 2,
+        ABSOLUTE          = 0,
+        RELATIVE_ALIGNED  = 1,
+        RELATIVE_FULL     = 2,
         END_TANGIBLE_MODE
     };
 
