@@ -799,6 +799,21 @@ namespace sereno
 
     void VFVServer::launchNextTBTrial(bool firstLaunch)
     {
+        bool replaceDataset = false;
+        glm::vec3 pos(0,0,0);
+
+        //Fnd current subdataset
+        SubDatasetMetaData* sd   = NULL;
+        CloudPointMetaData* cpMD = NULL; 
+
+        for(auto& it : m_cloudPointDatasets)
+            if(it.second.sdMetaData.size() != 0)
+            {
+                sd   = &it.second.sdMetaData[0];
+                cpMD = &it.second;
+                break;
+            }
+
         if(!firstLaunch)
         {
             m_subTrialID++;
@@ -811,8 +826,6 @@ namespace sereno
                 {
                     m_trialID++;
 
-                    glm::vec3 pos(0,0,0);
-
                     if(m_trialID == MAX_NB_TB_TRIALS)
                     {
                         m_trialID = 0;
@@ -822,39 +835,17 @@ namespace sereno
 
                     if(m_techniqueID != END_TANGIBLE_MODE) 
                     {
-                        //remove the last subdataset
-                        //we need to look at which dataset has a subdataset (only one should have a subdataset)
-                        for(auto& it : m_cloudPointDatasets)
+                        if(sd)
                         {
-                            if(it.second.sdMetaData.size() != 0)
-                            {
-                                VFVRemoveSubDataset remove;
-                                remove.datasetID    = it.second.datasetID;
-                                remove.subDatasetID = it.second.sdMetaData[0].sdID;
+                            //remove the last subdataset
+                            VFVRemoveSubDataset remove;
+                            remove.datasetID    = sd->datasetID;
+                            remove.subDatasetID = sd->sdID;
 
-                                //Save the pos before removing it: we will put the new subdataset at the same position
-                                pos = it.second.dataset->getSubDataset(remove.subDatasetID)->getPosition();
-                                
-                                removeSubDataset(remove);
-                                break;
-                            }
-                        } 
-
-                        //add the new subdataset to the correct dataset
-                        uint32_t dID = (m_techniqueID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
-
-                        CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
-                        VFVAddSubDataset addSubDataset;
-                        addSubDataset.datasetID = metaData.datasetID;
-                        onAddSubDataset(NULL, addSubDataset);
-                        
-                        //Place it correctly
-                        VFVMoveInformation moveSD;
-                        moveSD.datasetID    = metaData.datasetID;
-                        moveSD.subDatasetID = metaData.sdMetaData[0].sdID;
-                        for(uint8_t i = 0; i < 3; i++)
-                            moveSD.position[i] = pos[i];
-                        translateSubDataset(NULL, moveSD);
+                            //Save the pos before removing it: we will put the new subdataset at the same position
+                            pos = cpMD->dataset->getSubDataset(remove.subDatasetID)->getPosition();
+                            removeSubDataset(remove);
+                        }
                     }
                 }
             }
@@ -862,17 +853,47 @@ namespace sereno
 
         else
         {
-            m_trialID     = 0:
+            m_trialID     = 0;
             m_subTrialID  = 0;
-        m_techniqueID = 0;
+            m_techniqueID = 0;
             m_inTraining  = true;
+
+            replaceDataset = true;
         }
 
+        if(replaceDataset)
+        {
+            //add the new subdataset to the correct dataset
+            uint32_t dID = (m_techniqueID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+
+            CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
+            VFVAddSubDataset addSubDataset;
+            addSubDataset.datasetID = metaData.datasetID;
+            onAddSubDataset(NULL, addSubDataset);
+            
+            //Place it correctly
+            VFVMoveInformation moveSD;
+            moveSD.datasetID    = metaData.datasetID;
+            moveSD.subDatasetID = metaData.sdMetaData[0].sdID;
+            for(uint8_t i = 0; i < 3; i++)
+                moveSD.position[i] = pos[i];
+            translateSubDataset(NULL, moveSD);
+        }
+
+        else if(sd)
+        {
+            //Reset Volumetric Mask
+            VFVResetVolumetricSelection reset;
+            reset.subDatasetID = sd->sdID;
+            reset.datasetID    = sd->datasetID;
+
+            onResetVolumetricSelection(NULL, reset);
+        }
 
         //Send the data
         std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto it: m_clientTable)
-        sendCurrentAction(it.second);
+            sendCurrentTrialData(it.second);
     }
 
     /*----------------------------------------------------------------------------*/
@@ -1254,11 +1275,11 @@ endFor:;
             }
         };
 
-        for(auto it : m_binaryDatasets)
+        for(auto& it : m_binaryDatasets)
             f(it.second);
-        for(auto it : m_vtkDatasets)
+        for(auto& it : m_vtkDatasets)
             f(it.second);
-        for(auto it : m_cloudPointDatasets)
+        for(auto& it : m_cloudPointDatasets)
             f(it.second);
 
         //Remove the subdataset
@@ -1639,7 +1660,8 @@ endFor:;
 
             //Get the type of the dataset
             void(*applyFunc)(const VolumetricMesh&, SubDataset*) = nullptr;
-            switch(getDatasetType(dataset))
+            DatasetType datasetType = getDatasetType(dataset);
+            switch(datasetType)
             {
                 case DATASET_TYPE_VTK:
                     applyFunc = &applyVolumetricSelection_vtk;
@@ -1690,6 +1712,48 @@ endFor:;
                 m_log << confirmSelection.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
                 m_log << ",\n";
                 m_log << std::flush;
+
+                //Compute precision metrics
+                if(datasetType == DATASET_TYPE_CLOUD_POINT)
+                {
+                    int trueIn   = 0;
+                    int trueOut  = 0;
+                    int falseIn  = 0;
+                    int falseOut = 0;
+
+                    const PointFieldDesc& desc = dataset->getPointFieldDescs()[0];
+                    uint8_t valueFormatInt     = VTKValueFormatInt(desc.format);
+                    
+                    for(size_t i = 0; i < desc.nbTuples; i++)
+                    {
+                        float readVal = readParsedVTKValue<float>((uint8_t*)(desc.values[0].get()) + i*valueFormatInt, desc.format);
+                        bool in = sd->getVolumetricMaskAt(i);
+
+                        if(in)
+                        {
+                            if(readVal > 0)
+                                trueIn++;
+                            else
+                                falseIn++;
+                        }
+                        else
+                        {
+                            if(readVal > 0)
+                                falseOut++;
+                            else
+                                trueOut++;
+                        }
+                    }
+
+                    VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "AccuracyMetrics");
+                    m_log << ",    \"trueIn\" : "  << trueIn   << ",\n"
+                          << "    \"trueOut\" : "  << trueOut  << ",\n"
+                          << "    \"falseIn\" : "  << falseIn  << ",\n"
+                          << "    \"falseOut\" : " << falseOut << "\n";
+                    VFV_END_TO_JSON(m_log);
+                    m_log << std::flush;
+                }
+
             }
 #endif
             /*----------------------------------------------------------------------------*/
@@ -2125,20 +2189,27 @@ endFor:;
         std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
 
         //Check that the dataset exists
-        if(getDataset(reset.datasetID, reset.subDatasetID) == nullptr)
+        Dataset* dataset = getDataset(reset.datasetID, reset.subDatasetID);
+        if(dataset == nullptr)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(reset.datasetID, reset.subDatasetID)
             return;
         }
+        SubDataset* sd = dataset->getSubDataset(reset.subDatasetID);
+        sd->resetVolumetricMask(true, false);
 
         //Get the headset asking for this piece of information
-        VFVClientSocket* hmdClient = getHeadsetFromClient(client);
         int headsetID = -1;
-        if(hmdClient == NULL)
+        if(client)
         {
-            WARNING << "Not connected to a headset yet..." << std::endl;
+            VFVClientSocket* hmdClient = getHeadsetFromClient(client);
+            if(hmdClient == NULL)
+            {
+                WARNING << "Not connected to a headset yet..." << std::endl;
+            }
+            else
+                headsetID = hmdClient->getHeadsetData().id;
         }
-        headsetID = hmdClient->getHeadsetData().id;
 
         for(auto& clt : m_clientTable)
             sendResetVolumetricSelection(clt.second, reset.datasetID, reset.subDatasetID, headsetID);

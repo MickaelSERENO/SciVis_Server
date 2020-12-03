@@ -75,7 +75,7 @@ void printHelp()
 int main(int argc, char** argv)
 {
     //Read application arguments
-    if(argc != 1)
+    if(argc != 2)
     {
         printHelp();
         return -1;
