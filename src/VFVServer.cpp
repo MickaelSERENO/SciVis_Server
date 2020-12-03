@@ -2009,13 +2009,16 @@ endFor:;
         sd->resetVolumetricMask(true, false);
 
         //Get the headset asking for this piece of information
-        VFVClientSocket* hmdClient = getHeadsetFromClient(client);
         int headsetID = -1;
-        if(hmdClient == NULL)
+        if(client)
         {
-            WARNING << "Not connected to a headset yet..." << std::endl;
+            VFVClientSocket* hmdClient = getHeadsetFromClient(client);
+            if(hmdClient == NULL)
+            {
+                WARNING << "Not connected to a headset yet..." << std::endl;
+            }
+            headsetID = hmdClient->getHeadsetData().id;
         }
-        headsetID = hmdClient->getHeadsetData().id;
 
         for(auto& clt : m_clientTable)
             sendResetVolumetricSelection(clt.second, reset.datasetID, reset.subDatasetID, headsetID);
