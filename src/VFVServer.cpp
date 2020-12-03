@@ -1163,11 +1163,11 @@ endFor:;
             }
         };
 
-        for(auto it : m_binaryDatasets)
+        for(auto& it : m_binaryDatasets)
             f(it.second);
-        for(auto it : m_vtkDatasets)
+        for(auto& it : m_vtkDatasets)
             f(it.second);
-        for(auto it : m_cloudPointDatasets)
+        for(auto& it : m_cloudPointDatasets)
             f(it.second);
 
         //Remove the subdataset
@@ -1999,11 +1999,14 @@ endFor:;
         std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
 
         //Check that the dataset exists
-        if(getDataset(reset.datasetID, reset.subDatasetID) == nullptr)
+        Dataset* dataset = getDataset(reset.datasetID, reset.subDatasetID);
+        if(dataset == nullptr)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(reset.datasetID, reset.subDatasetID)
             return;
         }
+        SubDataset* sd = dataset->getSubDataset(reset.subDatasetID);
+        sd->resetVolumetricMask(true, false);
 
         //Get the headset asking for this piece of information
         VFVClientSocket* hmdClient = getHeadsetFromClient(client);
