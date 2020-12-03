@@ -1913,7 +1913,7 @@ namespace sereno
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "OpenCloudPointDataset");
-            oss << ",    \"name\" : " << name << "\n";
+            oss << ",    \"name\" : \"" << name << "\"\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();

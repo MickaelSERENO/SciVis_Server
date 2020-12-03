@@ -338,7 +338,7 @@ namespace sereno
                   << "    \"data\" : [\n";
 
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "OpenTheServer");
-            m_log << "\"participantID\" : " << participantID << std::endl 
+            m_log << ",    \"participantID\" : " << participantID << std::endl 
                   << "},\n";
             m_log << std::flush;
         }
@@ -369,12 +369,23 @@ namespace sereno
         {
             VFVCloudPointDatasetInformation cloudInfo;
             cloudInfo.name = s;
+
+#ifdef VFV_LOG_DATA
+            m_log << cloudInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
+            m_log << std::flush;
+#endif
+
             addCloudPointDataset(NULL, cloudInfo);
 
             //Remove all the visualization by default
             VFVRemoveSubDataset remove;
             remove.datasetID    = m_currentDataset-1;
             remove.subDatasetID = 0;
+
+#ifdef VFV_LOG_DATA
+            m_log << remove.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
+            m_log << std::flush;
+#endif
             removeSubDataset(remove);
         }
 
@@ -799,6 +810,7 @@ namespace sereno
 
     void VFVServer::launchNextTBTrial(bool firstLaunch)
     {
+        m_datasetMutex.lock();
         bool replaceDataset = false;
         glm::vec3 pos(0,0,0);
 
@@ -816,6 +828,52 @@ namespace sereno
 
         if(!firstLaunch)
         {
+            //Compute precision metrics
+            if(cpMD)
+            {
+                int trueIn   = 0;
+                int trueOut  = 0;
+                int falseIn  = 0;
+                int falseOut = 0;
+
+                Dataset*    dataset    = cpMD->dataset;
+                SubDataset* subDataset = dataset->getSubDataset(sd->sdID);
+
+                const PointFieldDesc& desc = dataset->getPointFieldDescs()[0];
+                uint8_t valueFormatInt     = VTKValueFormatInt(desc.format);
+                
+                for(size_t i = 0; i < dataset->getNbSpatialData(); i++)
+                {
+                    int readVal = readParsedVTKValue<int>((uint8_t*)(desc.values[0].get()) + i*valueFormatInt, desc.format);
+                    bool in = subDataset->getVolumetricMaskAt(i);
+
+                    if(in)
+                    {
+                        if(readVal == 0)
+                            trueIn++;
+                        else
+                            falseIn++;
+                    }
+                    else
+                    {
+                        if(readVal == 0)
+                            falseOut++;
+                        else
+                            trueOut++;
+                    }
+                }
+
+                std::lock_guard<std::mutex> logLock(m_logMutex);
+                VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "AccuracyMetrics");
+                m_log << ",    \"trueIn\" : "  << trueIn   << ",\n"
+                      << "    \"trueOut\" : "  << trueOut  << ",\n"
+                      << "    \"falseIn\" : "  << falseIn  << ",\n"
+                      << "    \"falseOut\" : " << falseOut << "\n";
+                VFV_END_TO_JSON(m_log);
+                m_log << ",\n";
+                m_log << std::flush;
+            }
+
             m_subTrialID++;
             if(m_subTrialID == MAX_NB_TB_SUB_TRIALS)
             {
@@ -845,6 +903,8 @@ namespace sereno
                             //Save the pos before removing it: we will put the new subdataset at the same position
                             pos = cpMD->dataset->getSubDataset(remove.subDatasetID)->getPosition();
                             removeSubDataset(remove);
+
+                            replaceDataset = true;
                         }
                     }
                 }
@@ -863,6 +923,7 @@ namespace sereno
 
         if(replaceDataset)
         {
+            m_datasetMutex.unlock();
             //add the new subdataset to the correct dataset
             uint32_t dID = (m_techniqueID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
 
@@ -886,6 +947,7 @@ namespace sereno
             VFVResetVolumetricSelection reset;
             reset.subDatasetID = sd->sdID;
             reset.datasetID    = sd->datasetID;
+            m_datasetMutex.unlock();
 
             onResetVolumetricSelection(NULL, reset);
         }
@@ -1713,46 +1775,6 @@ endFor:;
                 m_log << ",\n";
                 m_log << std::flush;
 
-                //Compute precision metrics
-                if(datasetType == DATASET_TYPE_CLOUD_POINT)
-                {
-                    int trueIn   = 0;
-                    int trueOut  = 0;
-                    int falseIn  = 0;
-                    int falseOut = 0;
-
-                    const PointFieldDesc& desc = dataset->getPointFieldDescs()[0];
-                    uint8_t valueFormatInt     = VTKValueFormatInt(desc.format);
-                    
-                    for(size_t i = 0; i < desc.nbTuples; i++)
-                    {
-                        float readVal = readParsedVTKValue<float>((uint8_t*)(desc.values[0].get()) + i*valueFormatInt, desc.format);
-                        bool in = sd->getVolumetricMaskAt(i);
-
-                        if(in)
-                        {
-                            if(readVal > 0)
-                                trueIn++;
-                            else
-                                falseIn++;
-                        }
-                        else
-                        {
-                            if(readVal > 0)
-                                falseOut++;
-                            else
-                                trueOut++;
-                        }
-                    }
-
-                    VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "AccuracyMetrics");
-                    m_log << ",    \"trueIn\" : "  << trueIn   << ",\n"
-                          << "    \"trueOut\" : "  << trueOut  << ",\n"
-                          << "    \"falseIn\" : "  << falseIn  << ",\n"
-                          << "    \"falseOut\" : " << falseOut << "\n";
-                    VFV_END_TO_JSON(m_log);
-                    m_log << std::flush;
-                }
 
             }
 #endif
@@ -2196,7 +2218,7 @@ endFor:;
             return;
         }
         SubDataset* sd = dataset->getSubDataset(reset.subDatasetID);
-        sd->resetVolumetricMask(true, false);
+        sd->resetVolumetricMask(false, false);
 
         //Get the headset asking for this piece of information
         int headsetID = -1;
@@ -2554,7 +2576,7 @@ endFor:;
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CurrentAction");
             m_log << ",    \"actionID\" : " << currentActionID << "\n";
             VFV_END_TO_JSON(m_log);
-            m_log << std::flush;
+            m_log << ",\n" << std::flush;
         }
 #endif
     }
