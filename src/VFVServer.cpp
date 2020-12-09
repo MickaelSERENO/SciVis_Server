@@ -903,6 +903,8 @@ namespace sereno
                             //Save the pos before removing it: we will put the new subdataset at the same position
                             pos = cpMD->dataset->getSubDataset(remove.subDatasetID)->getPosition();
                             removeSubDataset(remove);
+                            std::lock_guard<std::mutex> lockLog(m_logMutex);
+                            m_log << remove.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
 
                             replaceDataset = true;
                         }
@@ -924,6 +926,9 @@ namespace sereno
         if(replaceDataset)
         {
             m_datasetMutex.unlock();
+#ifdef VFV_LOG_DATA
+            std::lock_guard<std::mutex> lockLog(m_logMutex);
+#endif
             //add the new subdataset to the correct dataset
             uint32_t dID = (m_techniqueID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
 
@@ -931,6 +936,9 @@ namespace sereno
             VFVAddSubDataset addSubDataset;
             addSubDataset.datasetID = metaData.datasetID;
             onAddSubDataset(NULL, addSubDataset);
+#ifdef VFV_LOG_DATA
+            m_log << addSubDataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
+#endif
             
             //Place it correctly
             VFVMoveInformation moveSD;
@@ -939,6 +947,9 @@ namespace sereno
             for(uint8_t i = 0; i < 3; i++)
                 moveSD.position[i] = pos[i];
             translateSubDataset(NULL, moveSD);
+#ifdef VFV_LOG_DATA
+            m_log << moveSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+#endif
         }
 
         else if(sd)
@@ -950,8 +961,13 @@ namespace sereno
             m_datasetMutex.unlock();
 
             onResetVolumetricSelection(NULL, reset);
+#ifdef VFV_LOG_DATA
+            std::lock_guard<std::mutex> lockLog(m_logMutex);
+            m_log << reset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+#endif
         }
 
+        logCurrentTrial(NULL);
         //Send the data
         std::lock_guard<std::mutex> lock(m_mapMutex);
         for(auto it: m_clientTable)
@@ -1060,7 +1076,7 @@ namespace sereno
         INFO << "End Connection" << std::endl;
     }
 
-    void VFVServer::addVTKDataset(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset)
+    void VFVServer::addVTKDataset(VFVClientSocket* client, VFVVTKDatasetInformation& dataset)
     {
         if(client != NULL && !client->isTablet())
         {
@@ -1179,11 +1195,20 @@ endFor:;
         {
             std::lock_guard<std::mutex> lock(m_datasetMutex);
             metaData.datasetID = m_currentDataset;
+            dataset.datasetID = m_currentDataset;
+
             for(auto& it : metaData.sdMetaData)
                 it.datasetID = m_currentDataset;
             m_vtkDatasets.insert(std::pair<uint32_t, VTKMetaData>(m_currentDataset, metaData));
             m_datasets.insert(std::pair<uint32_t, VTKDataset*>(m_currentDataset, vtk));
             m_currentDataset++;
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            }
+#endif
         }
 
         //Send it to the other clients
@@ -1206,7 +1231,7 @@ endFor:;
         }
     }
 
-    void VFVServer::addCloudPointDataset(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset)
+    void VFVServer::addCloudPointDataset(VFVClientSocket* client, VFVCloudPointDatasetInformation& dataset)
     {
         if(client != NULL && !client->isTablet())
         {
@@ -1248,12 +1273,21 @@ endFor:;
         {
             std::lock_guard<std::mutex> lock(m_datasetMutex);
             metaData.datasetID = m_currentDataset;
+            dataset.datasetID  = m_currentDataset;
             for(auto& it : metaData.sdMetaData)
                 it.datasetID = m_currentDataset;
             m_cloudPointDatasets.insert(std::pair<uint32_t, CloudPointMetaData>(m_currentDataset, metaData));
             m_datasets.insert(std::pair<uint32_t, CloudPointDataset*>(m_currentDataset, cloudPoint));
             m_currentDataset++;
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            }
+#endif
         }
+
 
         //Send it to the other clients
         {
@@ -2573,8 +2607,8 @@ endFor:;
 #ifdef VFV_LOG_DATA
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "CurrentAction");
-            m_log << ",    \"actionID\" : " << currentActionID << "\n";
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset(), "HeadsetCurrentAction");
+            m_log << ",    \"action\" : " << currentActionID << "\n";
             VFV_END_TO_JSON(m_log);
             m_log << ",\n" << std::flush;
         }
@@ -3246,7 +3280,7 @@ endFor:;
 #ifdef VFV_LOG_DATA
         {
             std::lock_guard<std::mutex> lockJson(m_logMutex);
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "LocationTablet");
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "TabletLocation");
             m_log << ",    \"position\" : [" << pos[0] << ", " << pos[1] << ", " << pos[2] << "],\n"
                   << "    \"rotation\" : [" << rot[0] << ", " << rot[1] << ", " << rot[2] << ", " << rot[3] << "]\n";
             VFV_END_TO_JSON(m_log);
@@ -3362,6 +3396,22 @@ endFor:;
 #endif
     }
 
+    void VFVServer::logCurrentTrial(VFVClientSocket* client)
+    {
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendCurrentTrialData");
+            m_log << ",    \"techniqueID\" : " << (m_techniqueID + m_participantID%3)%3<< ",\n"
+                  << "    \"trialID\" : "      << m_trialID << ",\n"
+                  << "    \"subTrialID\" : " << m_subTrialID << ",\n"
+                  << "    \"inTraining\" : " << m_inTraining << "\n";
+            VFV_END_TO_JSON(m_log);
+            m_log << ",\n" << std::flush;
+        }
+#endif
+    }
+
     void VFVServer::sendCurrentTrialData(VFVClientSocket* client)
     {
         uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 1;
@@ -3389,18 +3439,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
         
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendCurrentTrialData");
-            m_log << ",    \"techniqueID\" : " << m_techniqueID << ",\n"
-                  << "    \"trialID\" : " << m_trialID << ",\n"
-                  << "    \"m_subTrialID\" : " << m_subTrialID << ",\n"
-                  << "    \"m_inTraining\" : " << m_inTraining << "\n";
-            VFV_END_TO_JSON(m_log);
-            m_log << ",\n" << std::flush;
-        }
-#endif
+        logCurrentTrial(client);
     }
 
     /*----------------------------------------------------------------------------*/

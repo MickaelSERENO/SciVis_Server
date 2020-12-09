@@ -205,13 +205,13 @@ namespace sereno
 
             /* \brief  Add a VTKDataset to the visualized datasets
              * \param client the client adding the dataset
-             * \param dataset the dataset information to add */
-            void addVTKDataset(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset);
+             * \param dataset the dataset information to add. the datasetID shall be updated */
+            void addVTKDataset(VFVClientSocket* client, VFVVTKDatasetInformation& dataset);
 
             /* \brief  Add a CloudPointDataset to the visualized datasets
              * \param client the client adding the dataset
-             * \param dataset the dataset information to add */
-            void addCloudPointDataset(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset);
+             * \param dataset the dataset information to add. The datasetID entry shall be updated */
+            void addCloudPointDataset(VFVClientSocket* client, VFVCloudPointDatasetInformation& dataset);
 
             /* \brief  Add a SubDataset to a given one
              * \param client the client adding the dataset
@@ -356,6 +356,10 @@ namespace sereno
              * \param data the volumetric data byte array. See generateVolumetricMaskEvent function
              * \param size the size of the data array*/
             void sendVolumetricMaskDataset(VFVClientSocket* client, std::shared_ptr<uint8_t> data, size_t size);
+
+            /** \brief  Log the current trial to the log file
+             * \param client the client to which this message is target. NULL if this is a log for the server states itself */
+            void logCurrentTrial(VFVClientSocket* client);
 
             /* \brief Send the current action message to a given client (will set what currently the headset is supposed to do)
              * \param client the client to send the information

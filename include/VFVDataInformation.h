@@ -375,7 +375,7 @@ namespace sereno
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "DefaultByteArray");
-            oss << ",    \"type\" : " << type << ",\n"
+            oss << ",    \"dataType\" : " << type << ",\n"
                 << "    \"dataSize\" : " << dataSize << "\n";
             VFV_END_TO_JSON(oss);
 
@@ -1803,6 +1803,7 @@ namespace sereno
     struct VFVVTKDatasetInformation : public VFVDataInformation
     {
         std::string name;                 /*!< The name of the dataset*/
+        int32_t     datasetID    = -1;    /*!< The datasetID  used for logging purposes only*/
         uint32_t    nbPtFields   = 0;     /*!< The number of point field*/
         uint32_t    nbCellFields = 0;     /*!< The number of cell field*/
         std::vector<uint32_t> ptFields;   /*!<Indices of the point fields to read*/
@@ -1854,6 +1855,7 @@ namespace sereno
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "VTKDataset");
             oss << ",    \"name\" : \"" << name << "\",\n";
+            oss << "    \"datasetID\" : " << datasetID << ",\n";
 
             if(ptFields.size() == 0)
                 oss << "    \"ptFields\" : [],\n";
@@ -1889,6 +1891,7 @@ namespace sereno
     struct VFVCloudPointDatasetInformation : public VFVDataInformation
     {
         std::string name; /*!< The file name to open*/
+        int32_t datasetID = -1; /* !< The datasetID used for logging purposes only */
         
         char getTypeAt(uint32_t cursor) const
         {
@@ -1913,7 +1916,8 @@ namespace sereno
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "OpenCloudPointDataset");
-            oss << ",    \"name\" : \"" << name << "\"\n";
+            oss << ",    \"name\" : \"" << name << "\",\n";
+            oss << "    \"datasetID\" : " << datasetID << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
