@@ -1738,7 +1738,7 @@ namespace sereno
 
     struct VFVAddNewSelectionInput : public VFVDataInformation
     {
-        uint32_t booleanOp = 0;
+        int32_t booleanOp = 0;
 
         char getTypeAt(uint32_t cursor) const {return 'I';}
 

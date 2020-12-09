@@ -320,6 +320,10 @@ namespace sereno
 
         VFVTangibleBrushMesh& mesh = meshes.back();
 
+        //Mesh closed. Do nothing (surely a BOOLEAN_NONE has been sent as Selection operation)
+        if(mesh.isClosed)
+            return;
+
         const uint32_t posID = mesh.points.size();
         for(size_t i = 0; i < mesh.lasso.size(); i++)
             mesh.points.push_back(loc.position + loc.rotation*glm::vec3(mesh.lasso[i].x*lassoScale.x, 0.0f, mesh.lasso[i].y*lassoScale.z));
@@ -381,7 +385,8 @@ namespace sereno
     void VFVVolumetricData::pushMesh(BooleanSelectionOp op)
     {
         closeCurrentMesh();
-        meshes.emplace_back(lasso, op); 
+        if(op != SELECTION_OP_NONE)
+            meshes.emplace_back(lasso, op); 
     }
 
 #undef ERROR_VALUE

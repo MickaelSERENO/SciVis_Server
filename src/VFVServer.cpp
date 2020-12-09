@@ -926,18 +926,18 @@ namespace sereno
         if(replaceDataset)
         {
             m_datasetMutex.unlock();
-#ifdef VFV_LOG_DATA
-            std::lock_guard<std::mutex> lockLog(m_logMutex);
-#endif
             //add the new subdataset to the correct dataset
-            uint32_t dID = (m_techniqueID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+            uint32_t dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
 
             CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
             VFVAddSubDataset addSubDataset;
             addSubDataset.datasetID = metaData.datasetID;
             onAddSubDataset(NULL, addSubDataset);
 #ifdef VFV_LOG_DATA
-            m_log << addSubDataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << addSubDataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
+            }
 #endif
             
             //Place it correctly
@@ -948,7 +948,10 @@ namespace sereno
                 moveSD.position[i] = pos[i];
             translateSubDataset(NULL, moveSD);
 #ifdef VFV_LOG_DATA
-            m_log << moveSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << moveSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            }
 #endif
         }
 
@@ -962,8 +965,10 @@ namespace sereno
 
             onResetVolumetricSelection(NULL, reset);
 #ifdef VFV_LOG_DATA
-            std::lock_guard<std::mutex> lockLog(m_logMutex);
-            m_log << reset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << reset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            }
 #endif
         }
 
@@ -3400,10 +3405,12 @@ endFor:;
     {
 #ifdef VFV_LOG_DATA
         {
+            uint32_t dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
             std::lock_guard<std::mutex> lockJson(m_logMutex);
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendCurrentTrialData");
             m_log << ",    \"techniqueID\" : " << (m_techniqueID + m_participantID%3)%3<< ",\n"
                   << "    \"trialID\" : "      << m_trialID << ",\n"
+                  << "    \"datasetID\" : "    << dID << ",\n"
                   << "    \"subTrialID\" : " << m_subTrialID << ",\n"
                   << "    \"inTraining\" : " << m_inTraining << "\n";
             VFV_END_TO_JSON(m_log);
