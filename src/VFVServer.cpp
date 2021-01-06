@@ -1411,6 +1411,15 @@ endFor:;
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockJson(m_logMutex);
+                m_log << location.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(headset), getTimeOffset());
+                m_log << ",\n";
+                m_log << std::flush;
+            }
+#endif
         }
     }
 
