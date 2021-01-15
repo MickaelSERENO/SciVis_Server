@@ -365,7 +365,7 @@ namespace sereno
 #endif
 
         //Open all the datasets necessary for this study
-        for(auto& s : {"1.cp", "2.cp", "3.cp", "4.cp"})
+        for(auto& s : {"training1.cp", "training3.cp", "training4.cp", "1.cp", "3.cp", "4.cp"})
         {
             VFVCloudPointDatasetInformation cloudInfo;
             cloudInfo.name = s;
@@ -875,6 +875,9 @@ namespace sereno
             }
 
             m_subTrialID++;
+            if(m_inTraining)
+                replaceDataset = true;
+
             if(m_subTrialID == MAX_NB_TB_SUB_TRIALS)
             {
                 m_subTrialID = 0;
@@ -892,24 +895,22 @@ namespace sereno
                     }
 
                     if(m_techniqueID != END_TANGIBLE_MODE) 
-                    {
-                        if(sd)
-                        {
-                            //remove the last subdataset
-                            VFVRemoveSubDataset remove;
-                            remove.datasetID    = sd->datasetID;
-                            remove.subDatasetID = sd->sdID;
-
-                            //Save the pos before removing it: we will put the new subdataset at the same position
-                            pos = cpMD->dataset->getSubDataset(remove.subDatasetID)->getPosition();
-                            removeSubDataset(remove);
-                            std::lock_guard<std::mutex> lockLog(m_logMutex);
-                            m_log << remove.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
-
-                            replaceDataset = true;
-                        }
-                    }
+                        replaceDataset = true;
                 }
+            }
+
+            if(replaceDataset && sd)
+            {
+                //remove the last subdataset
+                VFVRemoveSubDataset remove;
+                remove.datasetID    = sd->datasetID;
+                remove.subDatasetID = sd->sdID;
+
+                //Save the pos before removing it: we will put the new subdataset at the same position
+                pos = cpMD->dataset->getSubDataset(remove.subDatasetID)->getPosition();
+                removeSubDataset(remove);
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << remove.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
             }
         }
 
@@ -926,8 +927,13 @@ namespace sereno
         if(replaceDataset)
         {
             m_datasetMutex.unlock();
+
             //add the new subdataset to the correct dataset
-            uint32_t dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+            uint32_t dID = 0;
+            if(m_inTraining)
+                dID = (m_subTrialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+            else
+                dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS + 3)%MAX_NB_TB_TRIALS; //+3 because of the training datasets
 
             CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
             VFVAddSubDataset addSubDataset;
@@ -951,6 +957,20 @@ namespace sereno
             {
                 std::lock_guard<std::mutex> lockLog(m_logMutex);
                 m_log << moveSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            }
+#endif
+
+            //Scale it correctly
+            VFVScaleInformation scaleSD;
+            scaleSD.datasetID    = metaData.datasetID;
+            scaleSD.subDatasetID = metaData.sdMetaData[0].sdID;
+            for(uint8_t i = 0; i < 3; i++)
+                scaleSD.scale[i] = 0.5f;
+            scaleSubDataset(NULL, scaleSD); 
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << scaleSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
             }
 #endif
         }
