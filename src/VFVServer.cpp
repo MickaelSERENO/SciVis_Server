@@ -1954,8 +1954,8 @@ endFor:;
                 return;
             }
 
-            annotID = sd->getAnnotations().size();
-            sd->emplaceAnnotation(640, 640, anchorAnnot.localPos);
+            annotID = sd->getAnnotationCanvas().size();
+            sd->emplaceAnnotationCanvas(640, 640, anchorAnnot.localPos);
         }
 
         anchorAnnot.headsetID    = headsetID;
@@ -1995,8 +1995,8 @@ endFor:;
         }
 
         //Delete the annotations in the particular dataset
-        while(sd->getAnnotations().size())
-            sd->removeAnnotation(sd->getAnnotations().begin());
+        while(sd->getAnnotationCanvas().size())
+            sd->removeAnnotationCanvas(sd->getAnnotationCanvas().begin());
 
         for(auto& clt : m_clientTable)
             sendClearAnnotations(clt.second, clearAnnots);
@@ -2545,13 +2545,13 @@ endFor:;
                 SubDataset* sd = it.second->getSubDatasets()[i];
 
                 sendAddSubDataset(client, sd);
-                for(uint32_t j = 0; j < sd->getAnnotations().size(); j++)
+                for(uint32_t j = 0; j < sd->getAnnotationCanvas().size(); j++)
                 {
                     VFVAnchorAnnotation anchorAnnot;
                     anchorAnnot.datasetID    = it.first;
                     anchorAnnot.subDatasetID = sd->getID();
                     anchorAnnot.annotationID = j;
-                    auto annotIT = sd->getAnnotations().begin();
+                    auto annotIT = sd->getAnnotationCanvas().begin();
                     std::advance(annotIT, j);
                     for(uint32_t k = 0; k < 3; k++)
                         anchorAnnot.localPos[k] = (*annotIT)->getPosition()[k];
