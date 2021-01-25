@@ -8,6 +8,7 @@
 #include "TransferFunction/TFType.h"
 #include "TransferFunction/TransferFunction.h"
 #include "Datasets/CloudPointDataset.h"
+#include "Datasets/Annotation/AnnotationLogContainer.h"
 
 namespace sereno
 {
@@ -128,7 +129,7 @@ namespace sereno
     };
 
     /*!< Structure representing MetaData associated with the opened Datasets*/
-    struct MetaData
+    struct DatasetMetaData
     {
         std::string name;      /*!< The MetaData's name*/
         uint32_t    datasetID; /*!< The MetaData's ID*/
@@ -148,7 +149,7 @@ namespace sereno
     };
 
     /** \brief  The VTK MetaData structure, containing metadata of VTK Datasets */
-    struct VTKMetaData : public MetaData
+    struct VTKMetaData : public DatasetMetaData
     {
         VTKDataset* dataset; /*!< The dataset opened*/
         std::vector<uint32_t> ptFieldValueIndices;   /*!< the pt field values to take account of*/
@@ -156,14 +157,23 @@ namespace sereno
     };
 
     /** \brief  The VectorField MetaData structure, containing metadata of VectorField Datasets */
-    struct VectorFieldMetaData : public MetaData
+    struct VectorFieldMetaData : public DatasetMetaData
     {
         VectorFieldDataset* dataset; /*!< The dataset opened*/
     };
 
-    struct CloudPointMetaData : public MetaData
+    /** \brief  The CloudPointer MetaData structure, containing metadata of CloudPoints Datasets */
+    struct CloudPointMetaData : public DatasetMetaData
     {
         CloudPointDataset* dataset; /*!< The dataset opened*/
+    };
+
+    /** \brief  The LogMetaData structure, containing metadata of AnnotationLogContainer */
+    struct LogMetaData
+    {
+        std::string name;  /*!< The name (e.g., the path) of the Log data*/
+        uint32_t    logID; /*!< The associated ID*/
+        AnnotationLogContainer* annot; /*!< The actual data*/
     };
 }
 

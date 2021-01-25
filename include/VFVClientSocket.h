@@ -70,6 +70,7 @@ namespace sereno
         TOGGLE_MAP_VISIBILITY       = 27,
         MERGE_SUBDATASETS           = 28,
         RESET_VOLUMETRIC_SELECTION  = 29,
+        ADD_LOG_DATA               = 30,
         END_MESSAGE_TYPE
     };
 
@@ -168,6 +169,7 @@ namespace sereno
             struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
             struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
             struct VFVResetVolumetricSelection   resetVolumetricSelection; /*!< Reset the volumetric selection */
+            struct VFVOpenLogData                addLogData;              /*!< Open a log data annotation*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -306,6 +308,10 @@ namespace sereno
                         case RESET_VOLUMETRIC_SELECTION:
                             resetVolumetricSelection = cpy.resetVolumetricSelection;
                             curMsg = &resetVolumetricSelection;
+                            break;
+                        case ADD_LOG_DATA:
+                            addLogData = cpy.addLogData;
+                            curMsg = &addLogData;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -452,6 +458,10 @@ namespace sereno
                     new(&resetVolumetricSelection) VFVResetVolumetricSelection;
                     curMsg = &resetVolumetricSelection;
                     break;
+                case ADD_LOG_DATA:
+                    new(&addLogData) VFVOpenLogData;
+                    curMsg = &addLogData;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -556,6 +566,9 @@ namespace sereno
                     break;
                 case RESET_VOLUMETRIC_SELECTION:
                     resetVolumetricSelection.~VFVResetVolumetricSelection();
+                    break;
+                case ADD_LOG_DATA:
+                    addLogData.~VFVOpenLogData();
                     break;
                 case NOTHING:
                     break;

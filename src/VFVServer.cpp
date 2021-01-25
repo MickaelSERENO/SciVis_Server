@@ -580,7 +580,7 @@ namespace sereno
         {
             INFO << "Disconnecting a headset client\n";
 
-            auto f = [c,this](MetaData& mtData) 
+            auto f = [c,this](DatasetMetaData& mtData) 
             {
                 for(SubDatasetMetaData& sdMT : mtData.sdMetaData)
                     if(sdMT.owner == c)
@@ -655,9 +655,9 @@ namespace sereno
         return it->second;
     }
 
-    MetaData* VFVServer::getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr)
+    DatasetMetaData* VFVServer::getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr)
     {
-        MetaData* mt = NULL;
+        DatasetMetaData* mt = NULL;
         SubDatasetMetaData* sdMT = NULL;
         auto it = m_vtkDatasets.find(datasetID);
         if(it != m_vtkDatasets.end())
@@ -698,9 +698,9 @@ namespace sereno
         return DATASET_TYPE_NOT_FOUND;
     }
 
-    MetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMT)
+    DatasetMetaData* VFVServer::updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMT)
     {
-        MetaData* mt = NULL;
+        DatasetMetaData* mt = NULL;
         SubDatasetMetaData* _sdMT;
         if((mt = getMetaData(datasetID, sdID, &_sdMT)) == NULL || sdMT == NULL)
             return NULL;
@@ -1113,7 +1113,7 @@ endFor:;
 
         //Add a dataset
         Dataset* d = it->second;
-        MetaData* mt = getMetaData(dataset.datasetID, 0, NULL);
+        DatasetMetaData* mt = getMetaData(dataset.datasetID, 0, NULL);
         if(mt == NULL)
         {
             ERROR << "Could not find the Meta Data of Dataset ID: " << dataset.datasetID << std::endl;
@@ -1152,7 +1152,7 @@ endFor:;
         }
         SubDataset* sd = dataset->getSubDataset(remove.subDatasetID);
 
-        auto f = [&remove](MetaData& mtData)
+        auto f = [&remove](DatasetMetaData& mtData)
         {
             for(auto it = mtData.sdMetaData.begin(); it != mtData.sdMetaData.end();)
             {
@@ -1176,6 +1176,20 @@ endFor:;
         //Tells all the clients
         for(auto& clt : m_clientTable)
             sendRemoveSubDatasetEvent(clt.second, remove);
+    }
+
+    void VFVServer::addLogData(VFVClientSocket* client, const VFVOpenLogData& logData)
+    {
+        if(client != NULL && !client->isTablet())
+        {
+            std::lock_guard<std::mutex> lock(m_mapMutex);
+            VFVSERVER_NOT_A_TABLET
+            return;
+        }
+
+        AnnotationLogContainer* annot = new AnnotationLogContainer(logData.hasHeader);
+        INFO << "On open Log Data" << std::endl;
+        delete annot;
     }
 
     void VFVServer::onMakeSubDatasetPublic(VFVClientSocket* client, const VFVMakeSubDatasetPublic& makePublic)
@@ -1217,7 +1231,7 @@ endFor:;
 
         //Find the subdataset meta data
         SubDatasetMetaData* sdMT = NULL;
-        MetaData* mt = getMetaData(duplicate.datasetID, duplicate.subDatasetID, &sdMT);
+        DatasetMetaData* mt = getMetaData(duplicate.datasetID, duplicate.subDatasetID, &sdMT);
         if(!mt)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(duplicate.datasetID, duplicate.subDatasetID)
@@ -1278,7 +1292,7 @@ endFor:;
         //Find the subdatasets meta data
         //SD1
         SubDatasetMetaData* sd1MT = NULL;
-        MetaData* mt1 = getMetaData(merge.datasetID, merge.sd1ID, &sd1MT);
+        DatasetMetaData* mt1 = getMetaData(merge.datasetID, merge.sd1ID, &sd1MT);
         if(!mt1)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(merge.datasetID, merge.sd1ID)
@@ -1297,7 +1311,7 @@ endFor:;
 
         //SD2
         SubDatasetMetaData* sd2MT = NULL;
-        MetaData* mt2 = getMetaData(merge.datasetID, merge.sd2ID, &sd2MT);
+        DatasetMetaData* mt2 = getMetaData(merge.datasetID, merge.sd2ID, &sd2MT);
         if(!mt2)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(merge.datasetID, merge.sd2ID)
@@ -1614,7 +1628,7 @@ endFor:;
 
         //Find the subdataset meta data and update it
         SubDatasetMetaData* sdMT = NULL;
-        MetaData* mt = NULL;
+        DatasetMetaData* mt = NULL;
         if(client)
             mt = updateMetaDataModification(client, visibility.datasetID, visibility.subDatasetID, &sdMT);
         else
@@ -1646,7 +1660,7 @@ endFor:;
 
         //Find the subdataset meta data
         SubDatasetMetaData* sdMT = NULL;
-        MetaData* mt = getMetaData(remove.datasetID, remove.subDatasetID, &sdMT);
+        DatasetMetaData* mt = getMetaData(remove.datasetID, remove.subDatasetID, &sdMT);
         if(!mt)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(remove.datasetID, remove.subDatasetID)
@@ -1684,7 +1698,7 @@ endFor:;
         {
             //Find the subdataset meta data and update it
             SubDatasetMetaData* sdMT = NULL;
-            MetaData* mt = updateMetaDataModification(client, rotate.datasetID, rotate.subDatasetID, &sdMT);
+            DatasetMetaData* mt = updateMetaDataModification(client, rotate.datasetID, rotate.subDatasetID, &sdMT);
             if(!mt)
             {
                 VFVSERVER_SUB_DATASET_NOT_FOUND(rotate.datasetID, rotate.subDatasetID)
@@ -1735,7 +1749,7 @@ endFor:;
         {
             //Find the subdataset meta data and update it
             SubDatasetMetaData* sdMT = NULL;
-            MetaData* mt = updateMetaDataModification(client, translate.datasetID, translate.subDatasetID, &sdMT);
+            DatasetMetaData* mt = updateMetaDataModification(client, translate.datasetID, translate.subDatasetID, &sdMT);
             if(!mt)
             {
                 VFVSERVER_SUB_DATASET_NOT_FOUND(translate.datasetID, translate.subDatasetID)
@@ -1780,7 +1794,7 @@ endFor:;
         SubDataset* sd = dataset->getSubDataset(tfSD.subDatasetID);
 
         SubDatasetMetaData* sdMT = NULL;
-        MetaData* mt = NULL;
+        DatasetMetaData* mt = NULL;
         mt = getMetaData(tfSD.datasetID, tfSD.subDatasetID, &sdMT);
         if(!mt || !sdMT)
         {
@@ -1835,7 +1849,7 @@ endFor:;
         {
             //Find the subdataset meta data and update it
             SubDatasetMetaData* sdMT = NULL;
-            MetaData* mt = updateMetaDataModification(client, scale.datasetID, scale.subDatasetID, &sdMT);
+            DatasetMetaData* mt = updateMetaDataModification(client, scale.datasetID, scale.subDatasetID, &sdMT);
             if(!mt)
             {
                 VFVSERVER_SUB_DATASET_NOT_FOUND(scale.datasetID, scale.subDatasetID)
@@ -3397,6 +3411,12 @@ endFor:;
                     break;
                 }
 
+                case ADD_LOG_DATA:
+                {
+                    addLogData(client, msg.addLogData);
+                    break;
+                }
+
                 default:
                     break;
             }
@@ -3555,7 +3575,7 @@ endFor:;
                 std::lock_guard<std::mutex> lock2(m_datasetMutex);
                 std::lock_guard<std::mutex> lock(m_mapMutex);
 
-                auto f = [this, endTime](MetaData& mt)
+                auto f = [this, endTime](DatasetMetaData& mt)
                 {
                     for(auto& it2 : mt.sdMetaData)
                     {

@@ -62,6 +62,7 @@ namespace sereno
         VFV_SEND_TOGGLE_MAP_VISIBILITY      = 25, /*!< Toggle the map visibility of a given subdataset*/
         VFV_SEND_VOLUMETRIC_MASK            = 26, /*!< Send SubDataset computed volumetric mask*/
         VFV_SEND_RESET_VOLUMETRIC_SELECTION = 27, /*!< Reset the volumetric selection of a particular subdataset*/
+        VFV_SEND_ADD_LOG_DATASET            = 28, /*!< Open a Log dataset (annotation. Format: CSV)*/
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -138,16 +139,16 @@ namespace sereno
              * \param datasetID the dataset ID
              * \param sdID the subdataset ID
              * \param sdMTPtr[out] if not NULL, will contain the SubDatasetMetaData corresponding
-             * \return The MetaData being updated. NULL if not found. In this case, sdMTPtr will not be modified*/
-            MetaData* getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr);
+             * \return The DatasetMetaData being updated. NULL if not found. In this case, sdMTPtr will not be modified*/
+            DatasetMetaData* getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr);
 
             /* \brief  Update the subdataset meta data last modification component via its ID
              * \param client the client modifying the metadata
              * \param datasetID the dataset ID
              * \param sdID the subdataset ID
              * \param sdMTPtr[out] if not NULL, will contain the SubDatasetMetaData corresponding
-             * \return The MetaData being updated. NULL if not found*/
-            MetaData* updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr=NULL);
+             * \return The DatasetMetaData being updated. NULL if not found*/
+            DatasetMetaData* updateMetaDataModification(VFVClientSocket* client, uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr=NULL);
 
             /* \brief  Get the Headset ClientSocket object from a VFVClientSocket that can also be a tablet
              * \param client the client link to a headset. If client->isHeadset, returns client, otherwise returns client->getTabletData().headset
@@ -207,6 +208,11 @@ namespace sereno
             /* \brief  Remove a known subdataset
              * \param dataset the dataset ID information */
             void removeSubDataset(const VFVRemoveSubDataset& dataset);
+
+            /* \brief  Add a Log data to the dataset objects
+             * \param client the client adding the dataset
+             * \param logData the information needed to add a log dataset*/
+            void addLogData(VFVClientSocket* client, const VFVOpenLogData& logData);
 
             /* \brief  Make public a known SubDataset
              * \param client the client making this subdataset public
@@ -443,12 +449,14 @@ namespace sereno
             std::map<uint32_t, VTKMetaData>         m_vtkDatasets;        /*!< The vtk datasets opened*/
             std::map<uint32_t, CloudPointMetaData>  m_cloudPointDatasets; /*!< The cloud point datasets opened*/
             std::map<uint32_t, Dataset*>            m_datasets;           /*!< The datasets opened*/
+            std::map<uint32_t, LogMetaData>         m_logData;            /*!< The log data*/
 
             std::mutex   m_datasetMutex;                         /*!< The mutex handling the datasets*/
             std::thread* m_updateThread  = NULL;                 /*!< The update thread*/
 
             uint64_t m_currentDataset    = 0;                    /*!< The current Dataset id to push */
             uint64_t m_currentSubDataset = 0;                    /*!< The current SubDatase id, useful to determine the next subdataset 3D position*/
+            uint64_t m_currentLogData    = 0;                    /*!< The current Log data ID to push */
             uint32_t m_nbConnectedHeadsets = 0;
 
             VFVClientSocket*  m_headsetAnchorClient = NULL;      /*!< The client sending the anchor. If the client is NULL, m_anchorData has to be redone*/

@@ -2052,6 +2052,66 @@ namespace sereno
             return oss.str();
         }
     };
+
+    struct VFVOpenLogData : public VFVDataInformation
+    {
+        std::string fileName;
+        bool        hasHeader;
+        int32_t     timeID;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 's';
+            else if(cursor == 1)
+                return 'b';
+            else if(cursor == 2)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, const std::string& value)
+        {
+            if(cursor == 0)
+                fileName = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 1)
+                hasHeader = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 2)
+                timeID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 2;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "OpenLogData");
+            oss << ",    \"fileName\" : \"" << fileName << "\",\n"
+                << "    \"hasHeader\" : " << hasHeader << ",\n"
+                << "    \"timeID\" : " << timeID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR
