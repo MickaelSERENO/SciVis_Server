@@ -415,6 +415,9 @@ namespace sereno
             for(auto& sd : d.second.sdMetaData)
                 sd.tf = NULL;
 
+        for(auto& d : m_logData)
+            delete d.second.logData;
+
         //delete datasets
         for(auto& d : m_datasets)
             delete d.second;
@@ -1187,9 +1190,49 @@ endFor:;
             return;
         }
 
+        const std::string fullPath = "Logs/"+logData.fileName;
+
         AnnotationLogContainer* annot = new AnnotationLogContainer(logData.hasHeader);
-        INFO << "On open Log Data" << std::endl;
-        delete annot;
+        INFO << "On Open Log Data file " << fullPath << std::endl;
+
+        //Parse data based on its extension
+        std::string extension = std::filesystem::path(fullPath).extension();
+        if(extension == ".csv")
+        {
+            if(!annot->readFromCSV(fullPath))
+            {
+                ERROR << "Cannot parse file " << fullPath << ". Discard" << std::endl;
+                delete annot;
+                return;
+            }
+        }
+        else
+        {
+            ERROR << "Unknown file extension " << extension << ". Discard" << std::endl;
+            delete annot;
+            return;
+        }
+
+        //Set the time column ID
+        annot->setTimeColumn(logData.timeID);
+
+        //Add this annotation
+        LogMetaData metaData;
+        metaData.logData = annot;
+        metaData.name    = logData.fileName;
+        {
+            std::lock_guard<std::mutex> lock(m_datasetMutex);
+            metaData.logID = m_currentLogData;
+            m_logData.emplace(std::make_pair(metaData.logID, metaData));
+            m_currentLogData++;
+        }
+
+        //Send it to all clients
+        {
+            std::lock_guard<std::mutex> lock2(m_mapMutex);
+            for(auto clt : m_clientTable)
+                sendAddLogData(clt.second, logData, metaData.logID);
+        }
     }
 
     void VFVServer::onMakeSubDatasetPublic(VFVClientSocket* client, const VFVMakeSubDatasetPublic& makePublic)
@@ -2252,6 +2295,54 @@ endFor:;
 #endif
     }
 
+    void VFVServer::sendAddLogData(VFVClientSocket* client, const VFVOpenLogData& logData, uint32_t logID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 
+                            sizeof(uint32_t) +
+                            sizeof(uint32_t) + logData.fileName.size() +
+                            sizeof(uint8_t)  +
+                            sizeof(uint32_t);
+
+        uint8_t* data   = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_ADD_LOG_DATASET);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, logID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, logData.fileName.size());
+        offset += sizeof(uint32_t);
+
+        for(uint32_t i = 0; i < logData.fileName.size(); offset++, i++)
+            data[offset] = logData.fileName[i];
+
+        data[offset] = logData.hasHeader;
+        offset++;
+
+        writeUint32(data+offset, logData.timeID);
+        offset += sizeof(uint32_t);
+
+        INFO << "Sending ADD LOG DATASET Event data. Data : " << logData.fileName << " ID " << logID << std::endl;
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AddLogData");
+            m_log << ",    \"logID\" : " << logID << ",\n"
+                  << "    \"fileName\" : " << logData.fileName << ",\n"
+                  << "    \"hasHeader\" : " << logData.hasHeader << ",\n" 
+                  << "    \"timeID\" : " << logData.timeID << "\n"
+                  << "},\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
     void VFVServer::sendRotateDatasetEvent(VFVClientSocket* client, const VFVRotationInformation& rotate)
     {
         uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 4*sizeof(float);
@@ -2531,6 +2622,15 @@ endFor:;
         sendHeadsetBindingInfo(client);
 
         //Send common data
+        for(auto& it : m_logData)
+        {
+            VFVOpenLogData logData;
+            logData.fileName  = it.second.name;
+            logData.hasHeader = (it.second.logData->getHeaders().size() != 0);
+            logData.timeID    = it.second.logData->getTimeColumn();
+            sendAddLogData(client, logData, it.second.logID);
+        }
+
         for(auto& it : m_vtkDatasets)
         {
             VFVVTKDatasetInformation dataset;

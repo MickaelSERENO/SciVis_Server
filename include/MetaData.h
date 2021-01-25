@@ -173,7 +173,7 @@ namespace sereno
     {
         std::string name;  /*!< The name (e.g., the path) of the Log data*/
         uint32_t    logID; /*!< The associated ID*/
-        AnnotationLogContainer* annot; /*!< The actual data*/
+        AnnotationLogContainer* logData; /*!< The actual data*/
     };
 }
 

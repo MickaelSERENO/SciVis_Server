@@ -316,6 +316,12 @@ namespace sereno
              * \param dataset the dataset information*/
             void sendRemoveSubDatasetEvent(VFVClientSocket* client, const VFVRemoveSubDataset& dataset);
 
+            /* \brief  Send the AddLogData event to a given client
+             * \param client the client to send the message
+             * \param logData the log information
+             * \param logID the ID representing this data*/
+            void sendAddLogData(VFVClientSocket* client, const VFVOpenLogData& logData, uint32_t logID);
+
             /* \brief  Send a rotation event to client
              * \param client the client to send the information
              * \param rotate the rotate information*/
