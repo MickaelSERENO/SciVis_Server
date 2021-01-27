@@ -2112,6 +2112,82 @@ namespace sereno
             return oss.str();
         }
     };
+
+    struct VFVAddAnnotationPosition : public VFVDataInformation
+    {
+        uint32_t annotLogID;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                annotLogID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddAnnotationPosition");
+            oss << "    \"annotLogID\" : " << annotLogID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVSetAnnotationPositionIndexes : public VFVDataInformation
+    {
+        uint32_t annotLogID;
+        uint32_t annotComponentID;
+        int32_t  indexes[3];
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor <= 4)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                annotLogID = value;
+            else if(cursor == 1)
+                annotComponentID = value;
+            else if(cursor <= 4)
+                indexes[cursor-2] = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 4;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddAnnotationPosition");
+            oss << "    \"annotLogID\" : " << annotLogID << ",\n"
+                << "    \"annotComponentID\" : " << annotComponentID << ",\n"
+                << "    \"indexes\" : [" << indexes[0] << "," << indexes[1] << "," << indexes[2] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR

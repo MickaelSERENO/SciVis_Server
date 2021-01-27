@@ -39,38 +39,40 @@ namespace sereno
     /* \brief The type of message this application can receive */
     enum VFVMessageType
     {
-        NOTHING                     = -1,
-        IDENT_HEADSET               = 0,
-        IDENT_TABLET                = 1,
-        ADD_BINARY_DATASET          = 2,
-        ADD_VTK_DATASET             = 3,
-        ROTATE_DATASET              = 4,
-        UPDATE_HEADSET              = 5,
-        ANNOTATION_DATA             = 6,
-        ANCHORING_DATA_SEGMENT      = 7,
-        ANCHORING_DATA_STATUS       = 8,
-        HEADSET_CURRENT_ACTION      = 9,
-        HEADSET_CURRENT_SUB_DATASET = 10,
-        TRANSLATE_DATASET           = 11,
-        SCALE_DATASET               = 12,
-        TF_DATASET                  = 13,
-        START_ANNOTATION            = 14,
-        ANCHOR_ANNOTATION           = 15,
-        CLEAR_ANNOTATIONS           = 16,
-        ADD_SUBDATASET              = 17,
-        REMOVE_SUBDATASET           = 18,
-        MAKE_SUBDATASET_PUBLIC      = 19,
-        DUPLICATE_SUBDATASET        = 20,
-        LOCATION                    = 21,
-        TABLETSCALE                 = 22,
-        LASSO                       = 23,
-        CONFIRM_SELECTION           = 24,
-        ADD_CLOUD_POINT_DATASET     = 25,
-        ADD_NEW_SELECTION_INPUT     = 26,
-        TOGGLE_MAP_VISIBILITY       = 27,
-        MERGE_SUBDATASETS           = 28,
-        RESET_VOLUMETRIC_SELECTION  = 29,
-        ADD_LOG_DATA               = 30,
+        NOTHING                         = -1,
+        IDENT_HEADSET                   = 0,
+        IDENT_TABLET                    = 1,
+        ADD_BINARY_DATASET              = 2,
+        ADD_VTK_DATASET                 = 3,
+        ROTATE_DATASET                  = 4,
+        UPDATE_HEADSET                  = 5,
+        ANNOTATION_DATA                 = 6,
+        ANCHORING_DATA_SEGMENT          = 7,
+        ANCHORING_DATA_STATUS           = 8,
+        HEADSET_CURRENT_ACTION          = 9,
+        HEADSET_CURRENT_SUB_DATASET     = 10,
+        TRANSLATE_DATASET               = 11,
+        SCALE_DATASET                   = 12,
+        TF_DATASET                      = 13,
+        START_ANNOTATION                = 14,
+        ANCHOR_ANNOTATION               = 15,
+        CLEAR_ANNOTATIONS               = 16,
+        ADD_SUBDATASET                  = 17,
+        REMOVE_SUBDATASET               = 18,
+        MAKE_SUBDATASET_PUBLIC          = 19,
+        DUPLICATE_SUBDATASET            = 20,
+        LOCATION                        = 21,
+        TABLETSCALE                     = 22,
+        LASSO                           = 23,
+        CONFIRM_SELECTION               = 24,
+        ADD_CLOUD_POINT_DATASET         = 25,
+        ADD_NEW_SELECTION_INPUT         = 26,
+        TOGGLE_MAP_VISIBILITY           = 27,
+        MERGE_SUBDATASETS               = 28,
+        RESET_VOLUMETRIC_SELECTION      = 29,
+        ADD_LOG_DATA                    = 30,
+        ADD_ANNOTATION_POSITION         = 31,
+        SET_ANNOTATION_POSITION_INDEXES = 32,
         END_MESSAGE_TYPE
     };
 
@@ -139,37 +141,39 @@ namespace sereno
 
         union
         {
-            struct VFVNoDataInformation          noData;        /*!< Structure for message with no internal data*/
-            struct VFVIdentTabletInformation     identTablet;   /*!< Ident information of a tablet*/
-            struct VFVBinaryDatasetInformation   binaryDataset; /*!< Binary Dataset information*/
-            struct VFVVTKDatasetInformation      vtkDataset;    /*!< Binary Dataset information*/
-            struct VFVRotationInformation        rotate;        /*!< The rotate information sent from a tablet*/
-            struct VFVUpdateHeadset              headset;       /*!< The headset update data information*/
-            struct VFVAnnotation                 annotation;    /*!< The annotation data information*/
-            struct VFVDefaultByteArray           defaultByteArray;    /*!< Default byte array information*/
-            struct VFVAnchoringDataStatus        anchoringDataStatus; /*!< Anchoring data status*/
-            struct VFVHeadsetCurrentAction       headsetCurrentAction;     /*!< The headset current action*/
-            struct VFVHeadsetCurrentSubDataset   headsetCurrentSubDataset; /*!< The headset current SubDataset*/
-            struct VFVMoveInformation            translate;  /*!< Translate information*/
-            struct VFVScaleInformation           scale;      /*!< Scale information*/
-            struct VFVTransferFunctionSubDataset tfSD;       /*!< Transfer Function information for a SubDataset*/          
-            struct VFVStartAnnotation            startAnnotation;  /*!< Start an annotation information*/
-            struct VFVAnchorAnnotation           anchorAnnotation; /*!< Anchor an annotation at a specific location*/
-            struct VFVClearAnnotations           clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
-            struct VFVAddSubDataset              addSubDataset;    /*!< Add a new default SubDataset*/
-            struct VFVRemoveSubDataset           removeSubDataset; /*!< Remove a registered SubDataset*/
-            struct VFVDuplicateSubDataset        duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
-            struct VFVMakeSubDatasetPublic       makeSubDatasetPublic; /*!< Make a SubDataset public*/
-            struct VFVLocation                   location;         /*!< Update the tablet's virtual location*/
-            struct VFVTabletScale                tabletScale;      /*!< Tablet scale*/
-            struct VFVLasso                      lasso;            /*!< Lasso data*/
-            struct VFVConfirmSelection           confirmSelection; /*!< Confirm selection*/
-            struct VFVCloudPointDatasetInformation cloudPointDataset; /*!< Cloud point dataset message*/
-            struct VFVAddNewSelectionInput       addNewSelectionInput; /*!< Start a new selection input*/
-            struct VFVToggleMapVisibility        toggleMapVisibility; /*!< Toggle the map visibility*/
-            struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
-            struct VFVResetVolumetricSelection   resetVolumetricSelection; /*!< Reset the volumetric selection */
-            struct VFVOpenLogData                addLogData;              /*!< Open a log data annotation*/
+            struct VFVNoDataInformation            noData;        /*!< Structure for message with no internal data*/
+            struct VFVIdentTabletInformation       identTablet;   /*!< Ident information of a tablet*/
+            struct VFVBinaryDatasetInformation     binaryDataset; /*!< Binary Dataset information*/
+            struct VFVVTKDatasetInformation        vtkDataset;    /*!< Binary Dataset information*/
+            struct VFVRotationInformation          rotate;        /*!< The rotate information sent from a tablet*/
+            struct VFVUpdateHeadset                headset;       /*!< The headset update data information*/
+            struct VFVAnnotation                   annotation;    /*!< The annotation data information*/
+            struct VFVDefaultByteArray             defaultByteArray;    /*!< Default byte array information*/
+            struct VFVAnchoringDataStatus          anchoringDataStatus; /*!< Anchoring data status*/
+            struct VFVHeadsetCurrentAction         headsetCurrentAction;     /*!< The headset current action*/
+            struct VFVHeadsetCurrentSubDataset     headsetCurrentSubDataset; /*!< The headset current SubDataset*/
+            struct VFVMoveInformation              translate;  /*!< Translate information*/
+            struct VFVScaleInformation             scale;      /*!< Scale information*/
+            struct VFVTransferFunctionSubDataset   tfSD;       /*!< Transfer Function information for a SubDataset*/          
+            struct VFVStartAnnotation              startAnnotation;  /*!< Start an annotation information*/
+            struct VFVAnchorAnnotation             anchorAnnotation; /*!< Anchor an annotation at a specific location*/
+            struct VFVClearAnnotations             clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
+            struct VFVAddSubDataset                addSubDataset;    /*!< Add a new default SubDataset*/
+            struct VFVRemoveSubDataset             removeSubDataset; /*!< Remove a registered SubDataset*/
+            struct VFVDuplicateSubDataset          duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
+            struct VFVMakeSubDatasetPublic         makeSubDatasetPublic; /*!< Make a SubDataset public*/
+            struct VFVLocation                     location;         /*!< Update the tablet's virtual location*/
+            struct VFVTabletScale                  tabletScale;      /*!< Tablet scale*/
+            struct VFVLasso                        lasso;            /*!< Lasso data*/
+            struct VFVConfirmSelection             confirmSelection; /*!< Confirm selection*/
+            struct VFVCloudPointDatasetInformation cloudPointDataset;  /*!< Cloud point dataset message*/
+            struct VFVAddNewSelectionInput         addNewSelectionInput; /*!< Start a new selection input*/
+            struct VFVToggleMapVisibility          toggleMapVisibility;  /*!< Toggle the map visibility*/
+            struct VFVMergeSubDatasets             mergeSubDatasets;     /*!< Merge two subdatasets visuals into one*/
+            struct VFVResetVolumetricSelection     resetVolumetricSelection; /*!< Reset the volumetric selection */
+            struct VFVOpenLogData                  addLogData;               /*!< Open a log data annotation*/
+            struct VFVAddAnnotationPosition        addAnnotPos;              /*!< Add and link an annotation position object*/
+            struct VFVSetAnnotationPositionIndexes setAnnotPosIndexes;       /*!< Set the annot position database (indexes==headers)*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -312,6 +316,14 @@ namespace sereno
                         case ADD_LOG_DATA:
                             addLogData = cpy.addLogData;
                             curMsg = &addLogData;
+                            break;
+                        case ADD_ANNOTATION_POSITION:
+                            addAnnotPos = cpy.addAnnotPos;
+                            curMsg = &addAnnotPos;
+                            break;
+                        case SET_ANNOTATION_POSITION_INDEXES:
+                            setAnnotPosIndexes = cpy.setAnnotPosIndexes;
+                            curMsg = &setAnnotPosIndexes;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -462,6 +474,14 @@ namespace sereno
                     new(&addLogData) VFVOpenLogData;
                     curMsg = &addLogData;
                     break;
+                case ADD_ANNOTATION_POSITION:
+                    new(&addAnnotPos) VFVAddAnnotationPosition;
+                    curMsg = &addAnnotPos;
+                    break;
+                case SET_ANNOTATION_POSITION_INDEXES:
+                    new(&setAnnotPosIndexes) VFVSetAnnotationPositionIndexes;
+                    curMsg = &setAnnotPosIndexes;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -569,6 +589,12 @@ namespace sereno
                     break;
                 case ADD_LOG_DATA:
                     addLogData.~VFVOpenLogData();
+                    break;
+                case ADD_ANNOTATION_POSITION:
+                    addAnnotPos.~VFVAddAnnotationPosition();
+                    break;
+                case SET_ANNOTATION_POSITION_INDEXES:
+                    setAnnotPosIndexes.~VFVSetAnnotationPositionIndexes();
                     break;
                 case NOTHING:
                     break;
