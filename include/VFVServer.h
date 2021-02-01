@@ -34,35 +34,37 @@ namespace sereno
     /** \brief Enum describing what the server can push */
     enum VFVSendData
     {
-        VFV_SEND_ADD_VTK_DATASET            = 0,  /*!< Send an ADD VTK event*/
-        VFV_SEND_ACKNOWLEDGE_ADD_DATASET    = 1,  /*!< Acknowledge an event "add vtk"*/
-        VFV_SEND_ROTATE_DATASET             = 2,  /*!< Send the rotation status of a dataset*/
-        VFV_SEND_MOVE_DATASET               = 3,  /*!< Send the position status of a dataset*/
-        VFV_SEND_HEADSET_BINDING_INFO       = 4,  /*!< Send the binding headset information*/
-        VFV_SEND_HEADSETS_STATUS            = 5,  /*!< Send all the headsets status except the client receiving the message*/
-        VFV_SEND_HEADSET_ANCHOR_SEGMENT     = 6,  /*!< Send anchor segment*/
-        VFV_SEND_HEADSET_ANCHOR_EOF         = 7,  /*!< Send anchor end of stream*/
-        VFV_SEND_SUBDATASET_LOCK_OWNER      = 8,  /*!< Send the new subdataset lock owner*/
-        VFV_SEND_SCALE_DATASET              = 9,  /*!< Send the scaling status of a dataset*/
-        VFV_SEND_TF_DATASET                 = 10, /*!< Send the Transfer Function status of a dataset*/
-        VFV_SEND_START_ANNOTATION           = 11, /*!< Send the start annotation message (asking to start an annotation) */
-        VFV_SEND_ANCHOR_ANNOTATION          = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
-        VFV_SEND_CLEAR_ANNOTATION           = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
-        VFV_SEND_ADD_SUBDATASET             = 14, /*!< Send the "add" subdataset command.*/
-        VFV_SEND_DEL_SUBDATASET             = 15, /*!< Send the "delete" subdataset command.*/
-        VFV_SEND_SUBDATASET_OWNER           = 16, /*!< Send the new SubDataset owner command.*/
-        VFV_SEND_CURRENT_ACTION             = 17, /*!< Send the current action command.*/
-        VFV_SEND_LOCATION                   = 18, /*!< Send the location to the tablet.*/
-        VFV_SEND_TABLET_LOCATION            = 19, /*!< Send the tablet's virtual location.*/
-        VFV_SEND_TABLET_SCALE               = 20, /*!< Send the tablet's scale.*/
-        VFV_SEND_LASSO                      = 21, /*!< Send the lasso data.*/
-        VFV_SEND_CONFIRM_SELECTION          = 22, /*!< Confirm a selection.*/
-        VFV_SEND_ADD_CLOUDPOINT_DATASET     = 23, /*!< Add a cloud point type dataset*/
-        VFV_SEND_ADD_NEW_SELECTION_INPUT    = 24, /*!< Add a new selection input*/
-        VFV_SEND_TOGGLE_MAP_VISIBILITY      = 25, /*!< Toggle the map visibility of a given subdataset*/
-        VFV_SEND_VOLUMETRIC_MASK            = 26, /*!< Send SubDataset computed volumetric mask*/
-        VFV_SEND_RESET_VOLUMETRIC_SELECTION = 27, /*!< Reset the volumetric selection of a particular subdataset*/
-        VFV_SEND_ADD_LOG_DATASET            = 28, /*!< Open a Log dataset (annotation. Format: CSV)*/
+        VFV_SEND_ADD_VTK_DATASET                 = 0,  /*!< Send an ADD VTK event*/
+        VFV_SEND_ACKNOWLEDGE_ADD_DATASET         = 1,  /*!< Acknowledge an event "add vtk"*/
+        VFV_SEND_ROTATE_DATASET                  = 2,  /*!< Send the rotation status of a dataset*/
+        VFV_SEND_MOVE_DATASET                    = 3,  /*!< Send the position status of a dataset*/
+        VFV_SEND_HEADSET_BINDING_INFO            = 4,  /*!< Send the binding headset information*/
+        VFV_SEND_HEADSETS_STATUS                 = 5,  /*!< Send all the headsets status except the client receiving the message*/
+        VFV_SEND_HEADSET_ANCHOR_SEGMENT          = 6,  /*!< Send anchor segment*/
+        VFV_SEND_HEADSET_ANCHOR_EOF              = 7,  /*!< Send anchor end of stream*/
+        VFV_SEND_SUBDATASET_LOCK_OWNER           = 8,  /*!< Send the new subdataset lock owner*/
+        VFV_SEND_SCALE_DATASET                   = 9,  /*!< Send the scaling status of a dataset*/
+        VFV_SEND_TF_DATASET                      = 10, /*!< Send the Transfer Function status of a dataset*/
+        VFV_SEND_START_ANNOTATION                = 11, /*!< Send the start annotation message (asking to start an annotation) */
+        VFV_SEND_ANCHOR_ANNOTATION               = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
+        VFV_SEND_CLEAR_ANNOTATION                = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
+        VFV_SEND_ADD_SUBDATASET                  = 14, /*!< Send the "add" subdataset command.*/
+        VFV_SEND_DEL_SUBDATASET                  = 15, /*!< Send the "delete" subdataset command.*/
+        VFV_SEND_SUBDATASET_OWNER                = 16, /*!< Send the new SubDataset owner command.*/
+        VFV_SEND_CURRENT_ACTION                  = 17, /*!< Send the current action command.*/
+        VFV_SEND_LOCATION                        = 18, /*!< Send the location to the tablet.*/
+        VFV_SEND_TABLET_LOCATION                 = 19, /*!< Send the tablet's virtual location.*/
+        VFV_SEND_TABLET_SCALE                    = 20, /*!< Send the tablet's scale.*/
+        VFV_SEND_LASSO                           = 21, /*!< Send the lasso data.*/
+        VFV_SEND_CONFIRM_SELECTION               = 22, /*!< Confirm a selection.*/
+        VFV_SEND_ADD_CLOUDPOINT_DATASET          = 23, /*!< Add a cloud point type dataset*/
+        VFV_SEND_ADD_NEW_SELECTION_INPUT         = 24, /*!< Add a new selection input*/
+        VFV_SEND_TOGGLE_MAP_VISIBILITY           = 25, /*!< Toggle the map visibility of a given subdataset*/
+        VFV_SEND_VOLUMETRIC_MASK                 = 26, /*!< Send SubDataset computed volumetric mask*/
+        VFV_SEND_RESET_VOLUMETRIC_SELECTION      = 27, /*!< Reset the volumetric selection of a particular subdataset*/
+        VFV_SEND_ADD_LOG_DATASET                 = 28, /*!< Open a Log dataset (annotation. Format: CSV)*/
+        VFV_SEND_ADD_ANNOTATION_POSITION         = 29, /*!< Add an annotation position object to an Annotation Log Object*/
+        VFV_SEND_SET_ANNOTATION_POSITION_INDEXES = 30, /*!< Set the indexes of the annotation position object*/
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -214,6 +216,16 @@ namespace sereno
              * \param logData the information needed to add a log dataset*/
             void addLogData(VFVClientSocket* client, const VFVOpenLogData& logData);
 
+            /** \brief  Add a new AnnotationPosition to an already opened annotation log data
+             * \param client the client asking for the addition
+             * \param pos the information needed to add an annotation position data*/
+            void addAnnotationPosition(VFVClientSocket* client, const VFVAddAnnotationPosition& pos);
+
+            /** \brief  Set the reading indexes of an annotation position object
+             * \param client the client asking for the change
+             * \param idx the new indexes to use */
+            void onSetAnnotationPositionIndexes(VFVClientSocket* client, const VFVSetAnnotationPositionIndexes& idx);
+
             /* \brief  Make public a known SubDataset
              * \param client the client making this subdataset public
              * \param dataset the dataset ID information */
@@ -321,6 +333,18 @@ namespace sereno
              * \param logData the log information
              * \param logID the ID representing this data*/
             void sendAddLogData(VFVClientSocket* client, const VFVOpenLogData& logData, uint32_t logID);
+
+            /** \brief  Send an "Add Annotation Position" event to a client
+             * \param client the client to send the message to
+             * \param posMT the AnnotationPosition meta data
+             * \param annotID the annotation ID which possesses the AnnotationPosition object*/
+            void sendAddAnnotationPositionData(VFVClientSocket* client, const AnnotationPositionMetaData& posMT, uint32_t annotID);
+
+            /** \brief  Send an "Set Annotation Position Indexes" (headers) event to a client
+             * \param client the client to send the message to
+             * \param posMT the AnnotationPosition meta data
+             * \param annotID the annotation ID which possesses the AnnotationPosition object*/
+            void sendSetAnnotationPositionIndexes(VFVClientSocket* client, const AnnotationPositionMetaData& posMT, uint32_t annotID);
 
             /* \brief  Send a rotation event to client
              * \param client the client to send the information

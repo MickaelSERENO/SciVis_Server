@@ -168,12 +168,33 @@ namespace sereno
         CloudPointDataset* dataset; /*!< The dataset opened*/
     };
 
+    struct AnnotationPositionMetaData
+    {
+        uint32_t posID;
+        std::shared_ptr<AnnotationPosition> position;
+    };
+
     /** \brief  The LogMetaData structure, containing metadata of AnnotationLogContainer */
     struct LogMetaData
     {
         std::string name;  /*!< The name (e.g., the path) of the Log data*/
         uint32_t    logID; /*!< The associated ID*/
+        uint32_t    curPositionID = 0;   /*!< The next AnnotationPosition ID to use when adding an AnnotationPosition object*/
         AnnotationLogContainer* logData; /*!< The actual data*/
+        std::list<AnnotationPositionMetaData> positions; /*!< The list of AnnotationPosition objects */
+
+        /** \brief  Add an AnnotationPosition to this object 
+         * \return the AnnotationPositionMetaData object added */
+        AnnotationPositionMetaData& addPosition()
+        {
+            std::shared_ptr<AnnotationPosition> pos = logData->buildAnnotationPositionView();
+            AnnotationPositionMetaData mt;
+            mt.posID = curPositionID;
+            curPositionID++;
+            mt.position = pos;
+            positions.push_back(mt);
+            return positions.back();
+        }
     };
 }
 

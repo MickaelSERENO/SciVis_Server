@@ -73,6 +73,7 @@ namespace sereno
         ADD_LOG_DATA                    = 30,
         ADD_ANNOTATION_POSITION         = 31,
         SET_ANNOTATION_POSITION_INDEXES = 32,
+        ADD_ANNOTATION_POSITION_TO_SD   = 33,
         END_MESSAGE_TYPE
     };
 
@@ -174,6 +175,7 @@ namespace sereno
             struct VFVOpenLogData                  addLogData;               /*!< Open a log data annotation*/
             struct VFVAddAnnotationPosition        addAnnotPos;              /*!< Add and link an annotation position object*/
             struct VFVSetAnnotationPositionIndexes setAnnotPosIndexes;       /*!< Set the annot position database (indexes==headers)*/
+            struct VFVAddAnnotationPositionToSD    addAnnotPosToSD;          /*!< Add an annotation position to an already registered SubDataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -324,6 +326,10 @@ namespace sereno
                         case SET_ANNOTATION_POSITION_INDEXES:
                             setAnnotPosIndexes = cpy.setAnnotPosIndexes;
                             curMsg = &setAnnotPosIndexes;
+                            break;
+                        case ADD_ANNOTATION_POSITION_TO_SD:
+                            addAnnotPosToSD = cpy.addAnnotPosToSD;
+                            curMsg = &addAnnotPosToSD;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -482,6 +488,10 @@ namespace sereno
                     new(&setAnnotPosIndexes) VFVSetAnnotationPositionIndexes;
                     curMsg = &setAnnotPosIndexes;
                     break;
+                case ADD_ANNOTATION_POSITION_TO_SD:
+                    new(&addAnnotPosToSD) VFVAddAnnotationPositionToSD;
+                    curMsg = &addAnnotPosToSD;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -595,6 +605,9 @@ namespace sereno
                     break;
                 case SET_ANNOTATION_POSITION_INDEXES:
                     setAnnotPosIndexes.~VFVSetAnnotationPositionIndexes();
+                    break;
+                case ADD_ANNOTATION_POSITION_TO_SD:
+                    addAnnotPosToSD.~VFVAddAnnotationPositionToSD();
                     break;
                 case NOTHING:
                     break;
