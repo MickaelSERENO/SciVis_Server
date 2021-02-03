@@ -1224,7 +1224,7 @@ endFor:;
         }
 
         //Set the time column ID
-        annot->setTimeColumn(logData.timeID);
+        annot->setTimeInd(logData.timeID);
 
         //Add this annotation
         LogMetaData metaData;
