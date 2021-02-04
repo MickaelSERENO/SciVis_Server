@@ -2460,7 +2460,7 @@ endFor:;
         uint8_t* data     = (uint8_t*)malloc(dataSize);
         uint32_t offset   = 0;
 
-        writeUint16(data, VFV_SEND_ADD_ANNOTATION_POSITION);
+        writeUint16(data, VFV_SEND_SET_ANNOTATION_POSITION_INDEXES);
         offset += sizeof(uint16_t);
 
         writeUint32(data+offset, annotID);
