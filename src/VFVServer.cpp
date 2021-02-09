@@ -38,11 +38,6 @@ namespace sereno
         WARNING << "Dataset ID " << (datasetID) << " not found... disconnecting the client!"; \
     }
 
-#define VFVSERVER_ANNOTATION_NOT_FOUND(_annotID)\
-    {\
-        WARNING << "Annotation ID " << (_annotID) << " not found... disconnecting the client!"; \
-    }
-
 #define VFVSERVER_ANNOTATION_COMPONENT_NOT_FOUND(_annotLogID, _annotComponentID)\
     {\
         WARNING << "Annotation Component ID " << (_annotComponentID) << " in annotation ID " << (_annotLogID) << " not found... disconnecting the client!"; \
@@ -424,9 +419,6 @@ namespace sereno
         for(auto& d : m_cloudPointDatasets)
             for(auto& sd : d.second.sdMetaData)
                 sd.tf = NULL;
-
-        for(auto& d : m_logData)
-            delete d.second.logData;
 
         //delete datasets
         for(auto& d : m_datasets)
@@ -1202,7 +1194,7 @@ endFor:;
 
         const std::string fullPath = "Logs/"+logData.fileName;
 
-        AnnotationLogContainer* annot = new AnnotationLogContainer(logData.hasHeader);
+        std::shared_ptr<AnnotationLogContainer> annot = std::make_shared<AnnotationLogContainer>(logData.hasHeader);
         INFO << "On Open Log Data file " << fullPath << std::endl;
 
         //Parse data based on its extension
@@ -1212,14 +1204,12 @@ endFor:;
             if(!annot->readFromCSV(fullPath))
             {
                 ERROR << "Cannot parse file " << fullPath << ". Discard" << std::endl;
-                delete annot;
                 return;
             }
         }
         else
         {
             ERROR << "Unknown file extension " << extension << ". Discard" << std::endl;
-            delete annot;
             return;
         }
 
@@ -1263,16 +1253,57 @@ endFor:;
             return;
         }
 
-        AnnotationPositionMetaData& posMT = it->second.addPosition();
+        AnnotationComponentMetaData<AnnotationPosition>& posMT = it->second.addPosition();
 
         //Send it to all clients
         {
             std::lock_guard<std::mutex> lock2(m_mapMutex);
             for(auto clt : m_clientTable)
             {
-                sendAddAnnotationPositionData(clt.second, posMT, pos.annotLogID);
-                sendSetAnnotationPositionIndexes(clt.second, posMT, pos.annotLogID);
+                sendAddAnnotationPositionData(clt.second, posMT);
+                sendSetAnnotationPositionIndexes(clt.second, posMT);
             }
+        }
+    }
+
+    void VFVServer::addAnnotationPositionToSD(VFVClientSocket* client, const VFVAddAnnotationPositionToSD& pos)
+    {
+        //Check if the client is valid
+        if(client != NULL && !client->isTablet())
+        {
+            std::lock_guard<std::mutex> lock(m_mapMutex);
+            VFVSERVER_NOT_A_TABLET
+            return;
+        }
+
+        //Search for the SD
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        SubDatasetMetaData* sdMT;
+        getMetaData(pos.datasetID, pos.sdID, &sdMT);
+        if(sdMT == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(pos.datasetID, pos.sdID)
+            return;
+        }
+
+        //Search for the annotation position component
+        AnnotationComponentMetaData<AnnotationPosition>* posIT = nullptr;
+        LogMetaData* annot = getLogComponentMetaData(pos.annotLogID, pos.annotComponentID, &posIT);
+        if(posIT == nullptr || annot == nullptr)
+        {
+            VFVSERVER_ANNOTATION_COMPONENT_NOT_FOUND(pos.annotLogID, pos.annotComponentID);
+            return;
+        }
+
+        //Create a new visualization
+        std::shared_ptr<DrawableAnnotationPositionMetaData> drawable = std::make_shared<DrawableAnnotationPositionMetaData>();
+        drawable->compMetaData = posIT;
+        drawable->drawable     = std::make_shared<DrawableAnnotationPosition>(annot->logData, posIT->component);
+        sdMT->pushDrawableAnnotationPosition(drawable);
+        {
+            std::lock_guard<std::mutex> lock2(m_mapMutex);
+            for(auto it : m_clientTable)
+                sendAddAnnotationPositionToSD(it.second, *sdMT, *(drawable.get()), drawable->drawableID);
         }
     }
 
@@ -1286,30 +1317,21 @@ endFor:;
             return;
         }
 
-        //Search the Annotation Log object (using ID)
-        std::lock_guard<std::mutex> dataLock(m_datasetMutex);
-        auto it = m_logData.find(idx.annotLogID);
-        if(it == m_logData.end())
-        {
-            VFVSERVER_ANNOTATION_NOT_FOUND(idx.annotLogID);
-            return;
-        }
-
-        //Search for the annotation position
-        auto posIT = std::find_if(it->second.positions.begin(), it->second.positions.end(), [&idx](const AnnotationPositionMetaData& mt){return mt.posID == idx.annotComponentID;});
-        if(posIT == it->second.positions.end())
+        AnnotationComponentMetaData<AnnotationPosition>* posIT = nullptr;
+        getLogComponentMetaData(idx.annotLogID, idx.annotComponentID, &posIT);
+        if(posIT == nullptr)
         {
             VFVSERVER_ANNOTATION_COMPONENT_NOT_FOUND(idx.annotLogID, idx.annotComponentID);
             return;
         }
 
-        posIT->position->setXYZIndices(idx.indexes[0], idx.indexes[1], idx.indexes[2]);
+        posIT->component->setXYZIndices(idx.indexes[0], idx.indexes[1], idx.indexes[2]);
 
         //Send it to all clients
         {
             std::lock_guard<std::mutex> lock2(m_mapMutex);
             for(auto clt : m_clientTable)
-                sendSetAnnotationPositionIndexes(clt.second, *posIT, idx.annotLogID);
+                sendSetAnnotationPositionIndexes(clt.second, *posIT);
         }
     }
 
@@ -2421,7 +2443,7 @@ endFor:;
 #endif
     }
 
-    void VFVServer::sendAddAnnotationPositionData(VFVClientSocket* client, const AnnotationPositionMetaData& posMT, uint32_t annotID)
+    void VFVServer::sendAddAnnotationPositionData(VFVClientSocket* client, const AnnotationComponentMetaData<AnnotationPosition>& posMT)
     {
         uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t);
         uint8_t* data     = (uint8_t*)malloc(dataSize);
@@ -2430,13 +2452,13 @@ endFor:;
         writeUint16(data, VFV_SEND_ADD_ANNOTATION_POSITION);
         offset += sizeof(uint16_t);
 
-        writeUint32(data+offset, annotID);
+        writeUint32(data+offset, posMT.annotID);
         offset += sizeof(uint32_t);
 
-        writeUint32(data+offset, posMT.posID);
+        writeUint32(data+offset, posMT.compID);
         offset += sizeof(uint32_t);
 
-        INFO << "Sending 'ADD ANNOTATION POSITION Event data. AnnotID: " << annotID << " PosID: " << posMT.posID << std::endl;
+        INFO << "Sending 'ADD ANNOTATION POSITION Event data. AnnotID: " << posMT.annotID << " PosID: " << posMT.compID << std::endl;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
@@ -2446,15 +2468,15 @@ endFor:;
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AddAnnotationPosition");
-            m_log << ",    \"annotID\" : " << annotID << ",\n"
-                  << "    \"posID\" : " << posMT.posID << "\n"
+            m_log << ",    \"annotID\" : " << posMT.annotID << ",\n"
+                  << "    \"compID\" : " << posMT.compID << "\n"
                   << "},\n";
             m_log << std::flush;
         }
 #endif
     }
 
-    void VFVServer::sendSetAnnotationPositionIndexes(VFVClientSocket* client, const AnnotationPositionMetaData& posMT, uint32_t annotID)
+    void VFVServer::sendSetAnnotationPositionIndexes(VFVClientSocket* client, const AnnotationComponentMetaData<AnnotationPosition>& posMT)
     {
         uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t) + 3*sizeof(uint32_t);
         uint8_t* data     = (uint8_t*)malloc(dataSize);
@@ -2463,19 +2485,19 @@ endFor:;
         writeUint16(data, VFV_SEND_SET_ANNOTATION_POSITION_INDEXES);
         offset += sizeof(uint16_t);
 
-        writeUint32(data+offset, annotID);
+        writeUint32(data+offset, posMT.annotID);
         offset += sizeof(uint32_t);
 
-        writeUint32(data+offset, posMT.posID);
+        writeUint32(data+offset, posMT.compID);
         offset += sizeof(uint32_t);
 
         int32_t indices[3];
-        posMT.position->getPosIndices(indices);
+        posMT.component->getPosIndices(indices);
 
         for(uint32_t i = 0; i < 3; i++, offset+=sizeof(uint32_t))
             writeUint32(data+offset, indices[i]);
 
-        INFO << "Sending 'SET ANNOTATION POSITION INDICES Event data. AnnotID: " << annotID << " PosID: " << posMT.posID 
+        INFO << "Sending 'SET ANNOTATION POSITION INDICES Event data. AnnotID: " << posMT.annotID << " PosID: " << posMT.compID 
              << "X: " << indices[0] << " Y: " << indices[1] << " Z: " << indices[2] << std::endl;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
@@ -2486,9 +2508,55 @@ endFor:;
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SetAnnotationPositionIndexes");
-            m_log << ",    \"annotID\" : " << annotID << ",\n"
-                  << "    \"posID\" : " << posMT.posID << ",\n"
+            m_log << ",    \"annotID\" : " << posMT.annotID << ",\n"
+                  << "    \"compID\" : " << posMT.compID << ",\n"
                   << "    \"indexes\" : [" << indices[0] << ", " << indices[1] << ", " << indices[2] << "]\n"
+                  << "},\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendAddAnnotationPositionToSD(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawable, uint32_t drawableID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(uint32_t);
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_ADD_ANNOTATION_POSITION_TO_SD);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, sdMT.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, sdMT.sdID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, drawable.compMetaData->annotID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, drawable.compMetaData->compID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, drawableID);
+        offset += sizeof(uint32_t);
+
+        INFO << "Sending 'ADD ANNOTATION POSITION INDICES Event data. DatasetID: " << sdMT.datasetID << " sdID: " << sdMT.sdID 
+             << " AnnotID: " << drawable.compMetaData->annotID << " compID: " << drawable.compMetaData->compID << " drawableID: " << drawableID;
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SetAnnotationPositionIndexes");
+            m_log << ",    \"datasetID\" : " << sdMT.datasetID << ",\n"
+                  << "    \"subDatasetID\" : " << sdMT.sdID << ",\n"
+                  << "    \"annotID\" : " << drawable.compMetaData->annotID << ",\n"
+                  << "    \"compID\" : " << drawable.compMetaData->compID << ",\n"
+                  << "    \"drawableID\" : " << drawableID << "\n"
                   << "},\n";
             m_log << std::flush;
         }
@@ -2779,13 +2847,13 @@ endFor:;
             VFVOpenLogData logData;
             logData.fileName  = it.second.name;
             logData.hasHeader = (it.second.logData->getHeaders().size() != 0);
-            logData.timeID    = it.second.logData->getTimeColumn();
+            logData.timeID    = it.second.logData->getTimeInd();
             sendAddLogData(client, logData, it.second.logID);
 
             for(auto& posIT : it.second.positions)
             {
-                sendAddAnnotationPositionData(client, posIT, it.second.logID);
-                sendSetAnnotationPositionIndexes(client, posIT, it.second.logID);
+                sendAddAnnotationPositionData(client, posIT);
+                sendSetAnnotationPositionIndexes(client, posIT);
             }
         }
 
@@ -3684,6 +3752,12 @@ endFor:;
                 case SET_ANNOTATION_POSITION_INDEXES:
                 {
                     onSetAnnotationPositionIndexes(client, msg.setAnnotPosIndexes);
+                    break;
+                }
+
+                case ADD_ANNOTATION_POSITION_TO_SD:
+                {
+                    addAnnotationPositionToSD(client, msg.addAnnotPosToSD);
                     break;
                 }
 

@@ -113,6 +113,69 @@ namespace sereno
             }; /*!< The transfer function meta data*/
     };
 
+    /** \brief Basic structure for annotation component meta data 
+     * @tparam T the type of the actual stored annotation component. */
+    template<typename T>
+    struct AnnotationComponentMetaData
+    {
+        uint32_t annotID; /*!< The parent annotation log ID as defined by the server */
+        uint32_t compID;  /*!< This component ID INSIDE the parent annotation linked to this component */
+        std::shared_ptr<T> component; /*!< The linked component object */
+    };
+
+    /** \brief  The LogMetaData structure, containing metadata of AnnotationLogContainer */
+    struct LogMetaData
+    {
+        std::string name;  /*!< The name (e.g., the path) of the Log data*/
+        uint32_t    logID; /*!< The associated ID*/
+        uint32_t    curPositionID = 0;   /*!< The next AnnotationPosition ID to use when adding an AnnotationPosition object*/
+        std::shared_ptr<AnnotationLogContainer> logData; /*!< The actual data*/
+        std::list<AnnotationComponentMetaData<AnnotationPosition>> positions; /*!< The list of AnnotationPosition objects */
+
+        /** \brief  Add an AnnotationPosition to this object 
+         * \return the AnnotationPositionMetaData object added */
+        AnnotationComponentMetaData<AnnotationPosition>& addPosition()
+        {
+            std::shared_ptr<AnnotationPosition> pos = logData->buildAnnotationPositionView();
+            AnnotationComponentMetaData<AnnotationPosition> mt;
+            mt.annotID   = logID;
+            mt.compID    = curPositionID;
+            mt.component = pos;
+            curPositionID++;
+            positions.push_back(mt);
+            return positions.back();
+        }
+
+        /** \brief  Get the component meta data based on the type T
+         * @tparam T the type to look for. Invalid types results in nullptr. See AnnotationComponentMetaData for valid t parameters
+         * \param compID the component ID to search for
+         * \return   a pointer to T corresponding to the actual component object (see AnnotationComponentMetaData)*/
+        template <typename T>
+        AnnotationComponentMetaData<T>* getComponentMetaData(uint32_t compID){return nullptr;}
+    };
+
+    template<>
+    inline AnnotationComponentMetaData<AnnotationPosition>* LogMetaData::getComponentMetaData<AnnotationPosition>(uint32_t compID)
+    {
+        auto it = std::find_if(positions.begin(), positions.end(), [compID](AnnotationComponentMetaData<AnnotationPosition>& mt){return mt.compID == compID;});
+        if(it != positions.end())
+            return &(*it);
+        return nullptr;
+    }
+    
+    /** \brief  Drawable annotation component meta data
+     * @tparam T the type of the drawable component to store. An AnnotationComponentMetaData of template parameter T::type must exist*/
+    template<typename T>
+    struct DrawableAnnotationComponentMetaData
+    {
+        AnnotationComponentMetaData<typename T::type>* compMetaData;
+        std::shared_ptr<T>                             drawable;
+        uint32_t                                       drawableID;
+    };
+
+    struct DrawableAnnotationPositionMetaData : public DrawableAnnotationComponentMetaData<DrawableAnnotationPosition>
+    {};
+
     /** \brief  Subdataset meta data */
     struct SubDatasetMetaData
     {
@@ -125,7 +188,15 @@ namespace sereno
         std::shared_ptr<SubDatasetTFMetaData> tf; /*!< The transfer function information*/
         uint64_t         sdID      = 0;        /*!< SubDataset ID*/
         uint64_t         datasetID = 0;        /*!< Dataset ID*/
-        bool             mapVisibility = true; /*!< The tatus about the map visibility*/
+        bool             mapVisibility = true; /*!< The status about the map visibility*/
+
+        std::list<std::shared_ptr<DrawableAnnotationPositionMetaData>> annotPos; /*!< The annotation position components linked to this subdataset */
+        uint32_t         currentDrawableID = 0;
+        void pushDrawableAnnotationPosition(std::shared_ptr<DrawableAnnotationPositionMetaData> annot)
+        {
+            annot->drawableID = currentDrawableID++;
+            annotPos.push_back(annot);
+        }
     };
 
     /*!< Structure representing MetaData associated with the opened Datasets*/
@@ -166,35 +237,6 @@ namespace sereno
     struct CloudPointMetaData : public DatasetMetaData
     {
         CloudPointDataset* dataset; /*!< The dataset opened*/
-    };
-
-    struct AnnotationPositionMetaData
-    {
-        uint32_t posID;
-        std::shared_ptr<AnnotationPosition> position;
-    };
-
-    /** \brief  The LogMetaData structure, containing metadata of AnnotationLogContainer */
-    struct LogMetaData
-    {
-        std::string name;  /*!< The name (e.g., the path) of the Log data*/
-        uint32_t    logID; /*!< The associated ID*/
-        uint32_t    curPositionID = 0;   /*!< The next AnnotationPosition ID to use when adding an AnnotationPosition object*/
-        AnnotationLogContainer* logData; /*!< The actual data*/
-        std::list<AnnotationPositionMetaData> positions; /*!< The list of AnnotationPosition objects */
-
-        /** \brief  Add an AnnotationPosition to this object 
-         * \return the AnnotationPositionMetaData object added */
-        AnnotationPositionMetaData& addPosition()
-        {
-            std::shared_ptr<AnnotationPosition> pos = logData->buildAnnotationPositionView();
-            AnnotationPositionMetaData mt;
-            mt.posID = curPositionID;
-            curPositionID++;
-            mt.position = pos;
-            positions.push_back(mt);
-            return positions.back();
-        }
     };
 }
 

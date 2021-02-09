@@ -17,6 +17,11 @@
 #include "AnchorHeadsetData.h"
 #include "config.h"
 
+#define VFVSERVER_ANNOTATION_NOT_FOUND(_annotID)\
+    {\
+        WARNING << "Annotation ID " << (_annotID) << " not found... disconnecting the client!"; \
+    }
+
 namespace sereno
 {
     /* \brief  Does a string ends with another string value?
@@ -65,6 +70,7 @@ namespace sereno
         VFV_SEND_ADD_LOG_DATASET                 = 28, /*!< Open a Log dataset (annotation. Format: CSV)*/
         VFV_SEND_ADD_ANNOTATION_POSITION         = 29, /*!< Add an annotation position object to an Annotation Log Object*/
         VFV_SEND_SET_ANNOTATION_POSITION_INDEXES = 30, /*!< Set the indexes of the annotation position object*/
+        VFV_SEND_ADD_ANNOTATION_POSITION_TO_SD   = 31, /*!< Link an annotation position object to a subdataset, creating a new drawable*/
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -122,6 +128,21 @@ namespace sereno
              * \param dataset the dataset to evaluate
              * \return   the type of the dataset */
             DatasetType getDatasetType(const Dataset* dataset) const;
+
+            template <typename T = AnnotationPosition>
+            LogMetaData* getLogComponentMetaData(uint32_t annotID, uint32_t compID, AnnotationComponentMetaData<T>** compMT)
+            {
+                auto it = m_logData.find(annotID);
+                if(it == m_logData.end())
+                {
+                    VFVSERVER_ANNOTATION_NOT_FOUND(annotID);
+                    return nullptr;
+                }
+
+                if(compMT)
+                    *compMT = it->second.getComponentMetaData<T>(compID);
+                return &(it->second);
+            }
 
             void closeClient(SOCKET client);
 
@@ -220,6 +241,11 @@ namespace sereno
              * \param client the client asking for the addition
              * \param pos the information needed to add an annotation position data*/
             void addAnnotationPosition(VFVClientSocket* client, const VFVAddAnnotationPosition& pos);
+
+            /** \brief  Link an annotation position component to a SubDataset 
+             * \param client the client asking for the linkage
+             * \param pos the information needed to link the SubDataset and the AnnotationPosition */
+            void addAnnotationPositionToSD(VFVClientSocket* client, const VFVAddAnnotationPositionToSD& pos);
 
             /** \brief  Set the reading indexes of an annotation position object
              * \param client the client asking for the change
@@ -336,15 +362,20 @@ namespace sereno
 
             /** \brief  Send an "Add Annotation Position" event to a client
              * \param client the client to send the message to
-             * \param posMT the AnnotationPosition meta data
-             * \param annotID the annotation ID which possesses the AnnotationPosition object*/
-            void sendAddAnnotationPositionData(VFVClientSocket* client, const AnnotationPositionMetaData& posMT, uint32_t annotID);
+             * \param posMT the AnnotationPosition meta data*/
+            void sendAddAnnotationPositionData(VFVClientSocket* client, const AnnotationComponentMetaData<AnnotationPosition>& posMT);
 
             /** \brief  Send an "Set Annotation Position Indexes" (headers) event to a client
              * \param client the client to send the message to
-             * \param posMT the AnnotationPosition meta data
-             * \param annotID the annotation ID which possesses the AnnotationPosition object*/
-            void sendSetAnnotationPositionIndexes(VFVClientSocket* client, const AnnotationPositionMetaData& posMT, uint32_t annotID);
+             * \param posMT the AnnotationPosition meta data*/
+            void sendSetAnnotationPositionIndexes(VFVClientSocket* client, const AnnotationComponentMetaData<AnnotationPosition>& posMT);
+
+            /** \brief  Send an "Add Annotation Position To SubDataset" event to a client
+             * \param client the client to send the message to
+             * \param sdMT the subdataset meta data needed to connect it to "drawable"
+             * \param drawable the drawable meta data 
+             * \param drawableID the drawable ID as defined by the server*/
+            void sendAddAnnotationPositionToSD(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawable, uint32_t drawableID);
 
             /* \brief  Send a rotation event to client
              * \param client the client to send the information
