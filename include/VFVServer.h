@@ -373,9 +373,8 @@ namespace sereno
             /** \brief  Send an "Add Annotation Position To SubDataset" event to a client
              * \param client the client to send the message to
              * \param sdMT the subdataset meta data needed to connect it to "drawable"
-             * \param drawable the drawable meta data 
-             * \param drawableID the drawable ID as defined by the server*/
-            void sendAddAnnotationPositionToSD(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawable, uint32_t drawableID);
+             * \param drawable the drawable meta data*/ 
+            void sendAddAnnotationPositionToSD(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawable);
 
             /* \brief  Send a rotation event to client
              * \param client the client to send the information

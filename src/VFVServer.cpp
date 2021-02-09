@@ -1303,7 +1303,7 @@ endFor:;
         {
             std::lock_guard<std::mutex> lock2(m_mapMutex);
             for(auto it : m_clientTable)
-                sendAddAnnotationPositionToSD(it.second, *sdMT, *(drawable.get()), drawable->drawableID);
+                sendAddAnnotationPositionToSD(it.second, *sdMT, *(drawable.get()));
         }
     }
 
@@ -2517,7 +2517,7 @@ endFor:;
 #endif
     }
 
-    void VFVServer::sendAddAnnotationPositionToSD(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawable, uint32_t drawableID)
+    void VFVServer::sendAddAnnotationPositionToSD(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawable)
     {
         uint32_t dataSize = sizeof(uint16_t) + 5*sizeof(uint32_t);
         uint8_t* data     = (uint8_t*)malloc(dataSize);
@@ -2538,11 +2538,11 @@ endFor:;
         writeUint32(data+offset, drawable.compMetaData->compID);
         offset += sizeof(uint32_t);
 
-        writeUint32(data+offset, drawableID);
+        writeUint32(data+offset, drawable.drawableID);
         offset += sizeof(uint32_t);
 
         INFO << "Sending 'ADD ANNOTATION POSITION INDICES Event data. DatasetID: " << sdMT.datasetID << " sdID: " << sdMT.sdID 
-             << " AnnotID: " << drawable.compMetaData->annotID << " compID: " << drawable.compMetaData->compID << " drawableID: " << drawableID;
+             << " AnnotID: " << drawable.compMetaData->annotID << " compID: " << drawable.compMetaData->compID << " drawableID: " << drawable.drawableID << std::endl;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
@@ -2556,7 +2556,7 @@ endFor:;
                   << "    \"subDatasetID\" : " << sdMT.sdID << ",\n"
                   << "    \"annotID\" : " << drawable.compMetaData->annotID << ",\n"
                   << "    \"compID\" : " << drawable.compMetaData->compID << ",\n"
-                  << "    \"drawableID\" : " << drawableID << "\n"
+                  << "    \"drawableID\" : " << drawable.drawableID << "\n"
                   << "},\n";
             m_log << std::flush;
         }
@@ -2897,6 +2897,20 @@ endFor:;
                         anchorAnnot.localPos[k] = (*annotIT)->getPosition()[k];
                     
                     sendAnchorAnnotation(client, anchorAnnot);
+                }
+
+                SubDatasetMetaData* sdMT = nullptr;
+                getMetaData(it.first, sd->getID(), &sdMT);
+                
+                if(sdMT)
+                {
+                    for(auto& pos : sdMT->annotPos)
+                        sendAddAnnotationPositionToSD(client, *sdMT, *(pos.get()));
+                }
+                else
+                {
+                    ERROR << "Error... a subdataset, that should have been registered, is not...\n";
+                    continue;
                 }
             }
 
