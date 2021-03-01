@@ -71,6 +71,7 @@ namespace sereno
         VFV_SEND_ADD_ANNOTATION_POSITION         = 29, /*!< Add an annotation position object to an Annotation Log Object*/
         VFV_SEND_SET_ANNOTATION_POSITION_INDEXES = 30, /*!< Set the indexes of the annotation position object*/
         VFV_SEND_ADD_ANNOTATION_POSITION_TO_SD   = 31, /*!< Link an annotation position object to a subdataset, creating a new drawable*/
+        VFV_SEND_SET_SUBDATASET_CLIPPING         = 32, /*!< Set the clipping values of a subdataset*/
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -201,15 +202,19 @@ namespace sereno
              * \param position the position of the data. Not constant because the headset ID will change*/
             void translateSubDataset(VFVClientSocket* client, VFVMoveInformation& position);
 
-            /* \brief Handle the change of transfer function
-             * \param client the client asking for a new transfer function
-             * \param tfSD the transfer function data. Not constant because the headset ID will change */
-            void tfSubDataset(VFVClientSocket* client, VFVTransferFunctionSubDataset& tfSD);
-
             /* \brief Handle the scaling
              * \param client the client asking for a rotation
              * \param scale the scale values of the data. Not constant because the headset ID will change*/
             void scaleSubDataset(VFVClientSocket* client, VFVScaleInformation& scale);
+
+            /* \brief Handle the clipping
+             * \param client the client asking for a set in the clipping*/
+            void setSubDatasetClipping(VFVClientSocket* client, VFVSetSubDatasetClipping& clipping);
+
+            /* \brief Handle the change of transfer function
+             * \param client the client asking for a new transfer function
+             * \param tfSD the transfer function data. Not constant because the headset ID will change */
+            void tfSubDataset(VFVClientSocket* client, VFVTransferFunctionSubDataset& tfSD);
 
             /* \brief  Add a VTKDataset to the visualized datasets
              * \param client the client adding the dataset
@@ -390,6 +395,11 @@ namespace sereno
              * \param client the client to send the information
              * \param position the position information */
             void sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position);
+
+            /* \brief  Send a clipping event to client
+             * \param client the client to send the information
+             * \param clipping the clipping information */
+            void sendSubDatasetClippingEvent(VFVClientSocket* client, const VFVSetSubDatasetClipping& clipping);
 
             /* \brief  Send transfer function of a subdataset event to client
              * \param client the client to send the information

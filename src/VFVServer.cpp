@@ -2023,6 +2023,48 @@ endFor:;
                 sendScaleDatasetEvent(clt.second, scale);
     }
 
+    void VFVServer::setSubDatasetClipping(VFVClientSocket* client, VFVSetSubDatasetClipping& clipping)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        Dataset* dataset = getDataset(clipping.datasetID, clipping.subDatasetID);
+        if(dataset == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(clipping.datasetID, clipping.subDatasetID)
+            return;
+        }
+
+        //Search for the meta data
+        SubDataset* sd = dataset->getSubDataset(clipping.subDatasetID);
+
+        if(client)
+        {
+            //Find the subdataset meta data and update it
+            SubDatasetMetaData* sdMT = NULL;
+            DatasetMetaData* mt = updateMetaDataModification(client, clipping.datasetID, clipping.subDatasetID, &sdMT);
+            if(!mt)
+            {
+                VFVSERVER_SUB_DATASET_NOT_FOUND(clipping.datasetID, clipping.subDatasetID)
+                return;
+            }
+
+            //Check about the privacy
+            if(!canModifySubDataset(client, sdMT))
+            {
+                VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, clipping.datasetID, clipping.subDatasetID)
+                return;
+            }
+        }
+
+        sd->setDepthClipping(clipping.depthClipping);
+
+        //Send to all
+        for(auto& clt : m_clientTable)
+            if(clt.second != client)
+                sendSubDatasetClippingEvent(clt.second, clipping);
+    }
+
     void VFVServer::updateHeadset(VFVClientSocket* client, const VFVUpdateHeadset& headset)
     {
         std::lock_guard<std::mutex> lock(m_mapMutex);
@@ -2665,6 +2707,38 @@ endFor:;
         {
             std::lock_guard<std::mutex> logLock(m_logMutex);
             m_log << position.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendSubDatasetClippingEvent(VFVClientSocket* client, const VFVSetSubDatasetClipping& clipping)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 1*sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset=0;
+
+        writeUint16(data, VFV_SEND_SET_SUBDATASET_CLIPPING); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, clipping.datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, clipping.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        writeFloat(data+offset, clipping.depthClipping);
+        offset += sizeof(float);
+
+        INFO << "Sending SET CLIPPING SUBDATASET Event data Dataset ID " << clipping.datasetID << " sdID : " << clipping.subDatasetID << " depthClipping: " << clipping.depthClipping << std::endl;
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << clipping.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
             m_log << std::flush;
         }
 #endif
@@ -3772,6 +3846,12 @@ endFor:;
                 case ADD_ANNOTATION_POSITION_TO_SD:
                 {
                     addAnnotationPositionToSD(client, msg.addAnnotPosToSD);
+                    break;
+                }
+
+                case SET_SUBDATASET_CLIPPING:
+                {
+                    setSubDatasetClipping(client, msg.setSDClipping);
                     break;
                 }
 

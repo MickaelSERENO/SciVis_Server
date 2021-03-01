@@ -74,6 +74,7 @@ namespace sereno
         ADD_ANNOTATION_POSITION         = 31,
         SET_ANNOTATION_POSITION_INDEXES = 32,
         ADD_ANNOTATION_POSITION_TO_SD   = 33,
+        SET_SUBDATASET_CLIPPING         = 34,
         END_MESSAGE_TYPE
     };
 
@@ -176,6 +177,7 @@ namespace sereno
             struct VFVAddAnnotationPosition        addAnnotPos;              /*!< Add and link an annotation position object*/
             struct VFVSetAnnotationPositionIndexes setAnnotPosIndexes;       /*!< Set the annot position database (indexes==headers)*/
             struct VFVAddAnnotationPositionToSD    addAnnotPosToSD;          /*!< Add an annotation position to an already registered SubDataset*/
+            struct VFVSetSubDatasetClipping        setSDClipping;            /*!< Set the subdataset clipping values*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -330,6 +332,10 @@ namespace sereno
                         case ADD_ANNOTATION_POSITION_TO_SD:
                             addAnnotPosToSD = cpy.addAnnotPosToSD;
                             curMsg = &addAnnotPosToSD;
+                            break;
+                        case SET_SUBDATASET_CLIPPING:
+                            setSDClipping = cpy.setSDClipping;
+                            curMsg = &setSDClipping;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -492,6 +498,10 @@ namespace sereno
                     new(&addAnnotPosToSD) VFVAddAnnotationPositionToSD;
                     curMsg = &addAnnotPosToSD;
                     break;
+                case SET_SUBDATASET_CLIPPING:
+                    new(&setSDClipping) VFVSetSubDatasetClipping;
+                    curMsg = &setSDClipping;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -608,6 +618,9 @@ namespace sereno
                     break;
                 case ADD_ANNOTATION_POSITION_TO_SD:
                     addAnnotPosToSD.~VFVAddAnnotationPositionToSD();
+                    break;
+                case SET_SUBDATASET_CLIPPING:
+                    setSDClipping.~VFVSetSubDatasetClipping();
                     break;
                 case NOTHING:
                     break;

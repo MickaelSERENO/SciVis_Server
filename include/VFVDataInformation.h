@@ -2234,6 +2234,55 @@ namespace sereno
             return oss.str();
         }
     };
+
+    struct VFVSetSubDatasetClipping : public VFVDataInformation
+    {
+        uint32_t datasetID;
+        uint32_t subDatasetID;
+        float    depthClipping;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor <= 1)
+                return 'I';
+            return 'f';
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor == 2)
+                depthClipping = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 2;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "SetSubDatasetClipping");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"depthClipping\" : " << depthClipping << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR
