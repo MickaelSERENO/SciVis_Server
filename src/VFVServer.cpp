@@ -1414,6 +1414,7 @@ endFor:;
         md.datasetID = duplicate.datasetID;
         md.tf     = std::shared_ptr<SubDatasetTFMetaData>(cloneTransferFunction(sdMT->tf));
         md.owner  = sdMT->owner;
+        md.mapVisibility = sdMT->mapVisibility;
         sd->setTransferFunction(md.tf->getTF());
         mt->sdMetaData.push_back(md);
 
@@ -3044,6 +3045,13 @@ endFor:;
         size_t dataSize;
         auto data = generateVolumetricMaskEvent(sd, datasetID, &dataSize);
         sendVolumetricMaskDataset(client, data, dataSize);
+
+        //The clipping plane
+        VFVSetSubDatasetClipping clipping;
+        clipping.datasetID = datasetID;
+        clipping.subDatasetID = sd->getID();
+        clipping.depthClipping = sd->getDepthClipping();
+        sendSubDatasetClippingEvent(client, clipping);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
