@@ -134,6 +134,8 @@ namespace sereno
         tf.subDatasetID = sd->getID();
         tf.changeTFType(tfMT->getType());
         tf.timestep     = tfMT->getTF()->getCurrentTimestep();
+        tf.minClipping  = tfMT->getTF()->getMinClipping();
+        tf.maxClipping  = tfMT->getTF()->getMaxClipping();
 
         if(tfMT != NULL)
         {
@@ -256,6 +258,7 @@ namespace sereno
                 break;
         }
         tfMD->getTF()->setCurrentTimestep(tfSD.timestep);
+        tfMD->getTF()->setClipping(tfSD.minClipping, tfSD.maxClipping);
         //sd->setTransferFunction(sdMT->tf->getTF());
 
         return tfMD;
@@ -2788,7 +2791,7 @@ endFor:;
             }
             case TF_MERGE:
             {
-                size = sizeof(float) + getTransferFunctionSize(*tfSD.mergeTFData.tf1.get()) + getTransferFunctionSize(*tfSD.mergeTFData.tf2.get()) + 4*sizeof(uint8_t) + 2*sizeof(float); //4 == colorMode + type, 2*sizeof(float) == timesteps
+                size = sizeof(float) + getTransferFunctionSize(*tfSD.mergeTFData.tf1.get()) + getTransferFunctionSize(*tfSD.mergeTFData.tf2.get()) + 2*(2*sizeof(uint8_t) + 3*sizeof(float)); //2 == colorMode + type, 3*sizeof(float) == timesteps + min + max clipping. Multiply by two because we merge two TF
                 break;
             }
             default:
@@ -2859,7 +2862,7 @@ endFor:;
     void VFVServer::sendTransferFunctionDataset(VFVClientSocket* client, const VFVTransferFunctionSubDataset& tfSD)
     {
         //Determine the size of the packet
-        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 2*sizeof(uint8_t) + sizeof(float) + getTransferFunctionSize(tfSD);
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + 2*sizeof(uint8_t) + 3*sizeof(float) + getTransferFunctionSize(tfSD);
 
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset = 0;
@@ -2883,6 +2886,12 @@ endFor:;
         offset++;
 
         writeFloat(data+offset, tfSD.timestep); //the timestep
+        offset += sizeof(float);
+
+        writeFloat(data+offset, tfSD.minClipping); //the minimum clipping
+        offset += sizeof(float);
+
+        writeFloat(data+offset, tfSD.maxClipping); //the maximum clipping
         offset += sizeof(float);
 
         INFO << "Timestep: " << tfSD.timestep << std::endl;
