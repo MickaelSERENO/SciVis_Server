@@ -2303,6 +2303,108 @@ namespace sereno
             return oss.str();
         }
     };
+
+    struct VFVSetDrawableAnnotationPositionDefaultColor : public VFVDataInformation
+    {
+        uint32_t datasetID;
+        uint32_t subDatasetID;
+        uint32_t drawableID;
+        uint32_t color;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor <= 3)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else if(cursor == 2)
+                drawableID = value;
+            else if(cursor == 3)
+                color = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 3;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "SetDrawableAnnotationPositionDefaultColor");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"drawableID\" : " << drawableID << ",\n"
+                << "    \"color\" : " << color << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVSetDrawableAnnotationPositionMappedIdx : public VFVDataInformation
+    {
+        uint32_t datasetID;
+        uint32_t subDatasetID;
+        uint32_t drawableID;
+        std::vector<uint32_t> idx;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 4+idx.size())
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else if(cursor == 2)
+                drawableID = value;
+            else if(cursor == 3)
+                idx.resize(value);
+            else if(cursor < 4 + idx.size())
+                idx[cursor-4] = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 3+idx.size();}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "SetDrawableAnnotationPositionMappedIdx");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"drawableID\" : " << drawableID << ",\n"
+                << "    \"indices\" : [";
+           
+            if(idx.size() > 0)
+            {
+                oss << idx[0];
+                for(uint32_t i = 1; i < idx.size(); i++)
+                    oss << ',' << idx[i];
+            }
+            oss << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR

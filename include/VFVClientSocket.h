@@ -39,42 +39,44 @@ namespace sereno
     /* \brief The type of message this application can receive */
     enum VFVMessageType
     {
-        NOTHING                         = -1,
-        IDENT_HEADSET                   = 0,
-        IDENT_TABLET                    = 1,
-        ADD_BINARY_DATASET              = 2,
-        ADD_VTK_DATASET                 = 3,
-        ROTATE_DATASET                  = 4,
-        UPDATE_HEADSET                  = 5,
-        ANNOTATION_DATA                 = 6,
-        ANCHORING_DATA_SEGMENT          = 7,
-        ANCHORING_DATA_STATUS           = 8,
-        HEADSET_CURRENT_ACTION          = 9,
-        HEADSET_CURRENT_SUB_DATASET     = 10,
-        TRANSLATE_DATASET               = 11,
-        SCALE_DATASET                   = 12,
-        TF_DATASET                      = 13,
-        START_ANNOTATION                = 14,
-        ANCHOR_ANNOTATION               = 15,
-        CLEAR_ANNOTATIONS               = 16,
-        ADD_SUBDATASET                  = 17,
-        REMOVE_SUBDATASET               = 18,
-        MAKE_SUBDATASET_PUBLIC          = 19,
-        DUPLICATE_SUBDATASET            = 20,
-        LOCATION                        = 21,
-        TABLETSCALE                     = 22,
-        LASSO                           = 23,
-        CONFIRM_SELECTION               = 24,
-        ADD_CLOUD_POINT_DATASET         = 25,
-        ADD_NEW_SELECTION_INPUT         = 26,
-        TOGGLE_MAP_VISIBILITY           = 27,
-        MERGE_SUBDATASETS               = 28,
-        RESET_VOLUMETRIC_SELECTION      = 29,
-        ADD_LOG_DATA                    = 30,
-        ADD_ANNOTATION_POSITION         = 31,
-        SET_ANNOTATION_POSITION_INDEXES = 32,
-        ADD_ANNOTATION_POSITION_TO_SD   = 33,
-        SET_SUBDATASET_CLIPPING         = 34,
+        NOTHING                                = -1,
+        IDENT_HEADSET                          = 0,
+        IDENT_TABLET                           = 1,
+        ADD_BINARY_DATASET                     = 2,
+        ADD_VTK_DATASET                        = 3,
+        ROTATE_DATASET                         = 4,
+        UPDATE_HEADSET                         = 5,
+        ANNOTATION_DATA                        = 6,
+        ANCHORING_DATA_SEGMENT                 = 7,
+        ANCHORING_DATA_STATUS                  = 8,
+        HEADSET_CURRENT_ACTION                 = 9,
+        HEADSET_CURRENT_SUB_DATASET            = 10,
+        TRANSLATE_DATASET                      = 11,
+        SCALE_DATASET                          = 12,
+        TF_DATASET                             = 13,
+        START_ANNOTATION                       = 14,
+        ANCHOR_ANNOTATION                      = 15,
+        CLEAR_ANNOTATIONS                      = 16,
+        ADD_SUBDATASET                         = 17,
+        REMOVE_SUBDATASET                      = 18,
+        MAKE_SUBDATASET_PUBLIC                 = 19,
+        DUPLICATE_SUBDATASET                   = 20,
+        LOCATION                               = 21,
+        TABLETSCALE                            = 22,
+        LASSO                                  = 23,
+        CONFIRM_SELECTION                      = 24,
+        ADD_CLOUD_POINT_DATASET                = 25,
+        ADD_NEW_SELECTION_INPUT                = 26,
+        TOGGLE_MAP_VISIBILITY                  = 27,
+        MERGE_SUBDATASETS                      = 28,
+        RESET_VOLUMETRIC_SELECTION             = 29,
+        ADD_LOG_DATA                           = 30,
+        ADD_ANNOTATION_POSITION                = 31,
+        SET_ANNOTATION_POSITION_INDEXES        = 32,
+        ADD_ANNOTATION_POSITION_TO_SD          = 33,
+        SET_SUBDATASET_CLIPPING                = 34,
+        SET_DRAWABLE_ANNOTATION_POSITION_COLOR = 35,
+        SET_DRAWABLE_ANNOTATION_POSITION_IDX   = 36,
         END_MESSAGE_TYPE
     };
 
@@ -178,6 +180,8 @@ namespace sereno
             struct VFVSetAnnotationPositionIndexes setAnnotPosIndexes;       /*!< Set the annot position database (indexes==headers)*/
             struct VFVAddAnnotationPositionToSD    addAnnotPosToSD;          /*!< Add an annotation position to an already registered SubDataset*/
             struct VFVSetSubDatasetClipping        setSDClipping;            /*!< Set the subdataset clipping values*/
+            struct VFVSetDrawableAnnotationPositionDefaultColor setDrawableAnnotPosColor; /*!< Set the default drawable annotation position*/
+            struct VFVSetDrawableAnnotationPositionMappedIdx    setDrawableAnnotPosIdx;   /*!< Set the data entries to read from the log that this drawable belongs to*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -336,6 +340,14 @@ namespace sereno
                         case SET_SUBDATASET_CLIPPING:
                             setSDClipping = cpy.setSDClipping;
                             curMsg = &setSDClipping;
+                            break;
+                        case SET_DRAWABLE_ANNOTATION_POSITION_COLOR:
+                            setDrawableAnnotPosColor = cpy.setDrawableAnnotPosColor;
+                            curMsg = &setDrawableAnnotPosColor;
+                            break;
+                        case SET_DRAWABLE_ANNOTATION_POSITION_IDX:
+                            setDrawableAnnotPosIdx = cpy.setDrawableAnnotPosIdx;
+                            curMsg = &setDrawableAnnotPosIdx;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -502,6 +514,14 @@ namespace sereno
                     new(&setSDClipping) VFVSetSubDatasetClipping;
                     curMsg = &setSDClipping;
                     break;
+                case SET_DRAWABLE_ANNOTATION_POSITION_COLOR:
+                    new(&setDrawableAnnotPosColor) VFVSetDrawableAnnotationPositionDefaultColor;
+                    curMsg = &setDrawableAnnotPosColor;
+                    break;
+                case SET_DRAWABLE_ANNOTATION_POSITION_IDX:
+                    new(&setDrawableAnnotPosIdx) VFVSetDrawableAnnotationPositionMappedIdx;
+                    curMsg = &setDrawableAnnotPosIdx;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -621,6 +641,12 @@ namespace sereno
                     break;
                 case SET_SUBDATASET_CLIPPING:
                     setSDClipping.~VFVSetSubDatasetClipping();
+                    break;
+                case SET_DRAWABLE_ANNOTATION_POSITION_COLOR:
+                    setDrawableAnnotPosColor.~VFVSetDrawableAnnotationPositionDefaultColor();
+                    break;
+                case SET_DRAWABLE_ANNOTATION_POSITION_IDX:
+                    setDrawableAnnotPosIdx.~VFVSetDrawableAnnotationPositionMappedIdx();
                     break;
                 case NOTHING:
                     break;

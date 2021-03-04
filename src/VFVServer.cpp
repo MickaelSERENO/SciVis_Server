@@ -2236,6 +2236,56 @@ endFor:;
             sendResetVolumetricSelection(clt.second, reset.datasetID, reset.subDatasetID, headsetID);
     }
 
+    void VFVServer::setDrawableAnnotationPositionColor(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionDefaultColor& color)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+
+        //Search for the meta data
+        SubDatasetMetaData* sdMT = NULL;
+        getMetaData(color.datasetID, color.subDatasetID, &sdMT);
+        if(sdMT == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(color.datasetID, color.subDatasetID)
+            return;
+        }
+
+        //Search for the drawable meta data and set the data
+        std::shared_ptr<DrawableAnnotationPositionMetaData> drawable = sdMT->getDrawableAnnotation<DrawableAnnotationPositionMetaData>(color.drawableID);
+        float r =  ((color.color >> 16)&0xff)/255.0f;
+        float g =  ((color.color >> 8 )&0xff)/255.0f;
+        float b =  ((color.color      )&0xff)/255.0f;
+        float a =  ((color.color >> 24)&0xff)/255.0f;
+        drawable->drawable->setColor(glm::vec4(r, g, b, a));
+
+        //Send the information to every clients
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensure that no one is modifying the list of clients (and relevant information)
+        for(auto& clt : m_clientTable)
+            sendSetDrawableAnnotationPositionColor(clt.second, color);
+    }
+
+    void VFVServer::setDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+
+        //Search for the meta data
+        SubDatasetMetaData* sdMT = NULL;
+        getMetaData(idx.datasetID, idx.subDatasetID, &sdMT);
+        if(sdMT == NULL)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(idx.datasetID, idx.subDatasetID)
+            return;
+        }
+
+        //Search for the drawable meta data and set the data
+        std::shared_ptr<DrawableAnnotationPositionMetaData> drawable = sdMT->getDrawableAnnotation<DrawableAnnotationPositionMetaData>(idx.drawableID);
+        drawable->drawable->setMappedDataIndices(idx.idx);
+
+        //Send the information to every clients
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensure that no one is modifying the list of clients (and relevant information)
+        for(auto& clt : m_clientTable)
+            sendSetDrawableAnnotationPositionIdx(clt.second, idx);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
@@ -2920,6 +2970,26 @@ endFor:;
         writeMessage(sm);
     }
 
+    void VFVServer::sendDrawableAnnotationPositionStatus(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawableMT)
+    {
+        VFVSetDrawableAnnotationPositionDefaultColor color;
+        color.datasetID    = sdMT.datasetID;
+        color.subDatasetID = sdMT.sdID;
+        color.drawableID   = drawableMT.drawableID;
+        color.color        = (std::min((uint32_t)(drawableMT.drawable->getColor()[3]*255.0f), 255U) << 24) + 
+                             (std::min((uint32_t)(drawableMT.drawable->getColor()[0]*255.0f), 255U) << 16) + 
+                             (std::min((uint32_t)(drawableMT.drawable->getColor()[1]*255.0f), 255U) << 8) + 
+                             (std::min((uint32_t)(drawableMT.drawable->getColor()[2]*255.0f), 255U));
+        sendSetDrawableAnnotationPositionColor(client, color);
+
+        VFVSetDrawableAnnotationPositionMappedIdx idx;
+        idx.datasetID    = sdMT.datasetID;
+        idx.subDatasetID = sdMT.sdID;
+        idx.drawableID   = drawableMT.drawableID;
+        idx.idx          = drawableMT.drawable->getMappedDataIndices();
+        sendSetDrawableAnnotationPositionIdx(client, idx);
+    }
+
     void VFVServer::onLoginSendCurrentStatus(VFVClientSocket* client)
     {
         //Send binding information
@@ -2989,7 +3059,10 @@ endFor:;
                 if(sdMT)
                 {
                     for(auto& pos : sdMT->annotPos)
+                    {
                         sendAddAnnotationPositionToSD(client, *sdMT, *(pos.get()));
+                        sendDrawableAnnotationPositionStatus(client, *sdMT, *(pos.get()));
+                    }
                 }
                 else
                 {
@@ -3576,9 +3649,8 @@ endFor:;
         writeUint32(data+offset, headsetID);
         offset += sizeof(uint32_t);
 
-        std::shared_ptr<uint8_t> sharedData(data, free);
-
         //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
         
@@ -3591,6 +3663,84 @@ endFor:;
                   << "    \"headsetID\" : " << headsetID << "\n";
             VFV_END_TO_JSON(m_log);
             m_log << ",\n" << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendSetDrawableAnnotationPositionColor(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionDefaultColor& color)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + sizeof(uint32_t);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_DEFAULT_COLOR);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, color.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, color.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, color.drawableID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, color.color);
+        offset += sizeof(uint32_t);
+
+        INFO << "Set color..." << std::endl;
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << color.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+            m_log << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendSetDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx)
+    {
+
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + (1+idx.idx.size())*sizeof(uint32_t);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset = 0;
+
+        writeUint16(data, VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_MAPPED_IDX);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, idx.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, idx.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, idx.drawableID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, idx.idx.size());
+        offset += sizeof(uint32_t);
+
+        for(uint32_t i = 0; i < idx.idx.size(); i++, offset += sizeof(uint32_t))
+            writeUint32(data+offset, idx.idx[i]);
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << idx.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+            m_log << ",\n";
+            m_log << std::flush;
         }
 #endif
     }
@@ -3869,6 +4019,18 @@ endFor:;
                 case SET_SUBDATASET_CLIPPING:
                 {
                     setSubDatasetClipping(client, msg.setSDClipping);
+                    break;
+                }
+
+                case SET_DRAWABLE_ANNOTATION_POSITION_COLOR:
+                {
+                    setDrawableAnnotationPositionColor(client, msg.setDrawableAnnotPosColor);
+                    break;
+                }
+
+                case SET_DRAWABLE_ANNOTATION_POSITION_IDX:
+                {
+                    setDrawableAnnotationPositionIdx(client, msg.setDrawableAnnotPosIdx);
                     break;
                 }
 

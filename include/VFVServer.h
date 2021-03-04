@@ -39,39 +39,42 @@ namespace sereno
     /** \brief Enum describing what the server can push */
     enum VFVSendData
     {
-        VFV_SEND_ADD_VTK_DATASET                 = 0,  /*!< Send an ADD VTK event*/
-        VFV_SEND_ACKNOWLEDGE_ADD_DATASET         = 1,  /*!< Acknowledge an event "add vtk"*/
-        VFV_SEND_ROTATE_DATASET                  = 2,  /*!< Send the rotation status of a dataset*/
-        VFV_SEND_MOVE_DATASET                    = 3,  /*!< Send the position status of a dataset*/
-        VFV_SEND_HEADSET_BINDING_INFO            = 4,  /*!< Send the binding headset information*/
-        VFV_SEND_HEADSETS_STATUS                 = 5,  /*!< Send all the headsets status except the client receiving the message*/
-        VFV_SEND_HEADSET_ANCHOR_SEGMENT          = 6,  /*!< Send anchor segment*/
-        VFV_SEND_HEADSET_ANCHOR_EOF              = 7,  /*!< Send anchor end of stream*/
-        VFV_SEND_SUBDATASET_LOCK_OWNER           = 8,  /*!< Send the new subdataset lock owner*/
-        VFV_SEND_SCALE_DATASET                   = 9,  /*!< Send the scaling status of a dataset*/
-        VFV_SEND_TF_DATASET                      = 10, /*!< Send the Transfer Function status of a dataset*/
-        VFV_SEND_START_ANNOTATION                = 11, /*!< Send the start annotation message (asking to start an annotation) */
-        VFV_SEND_ANCHOR_ANNOTATION               = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
-        VFV_SEND_CLEAR_ANNOTATION                = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
-        VFV_SEND_ADD_SUBDATASET                  = 14, /*!< Send the "add" subdataset command.*/
-        VFV_SEND_DEL_SUBDATASET                  = 15, /*!< Send the "delete" subdataset command.*/
-        VFV_SEND_SUBDATASET_OWNER                = 16, /*!< Send the new SubDataset owner command.*/
-        VFV_SEND_CURRENT_ACTION                  = 17, /*!< Send the current action command.*/
-        VFV_SEND_LOCATION                        = 18, /*!< Send the location to the tablet.*/
-        VFV_SEND_TABLET_LOCATION                 = 19, /*!< Send the tablet's virtual location.*/
-        VFV_SEND_TABLET_SCALE                    = 20, /*!< Send the tablet's scale.*/
-        VFV_SEND_LASSO                           = 21, /*!< Send the lasso data.*/
-        VFV_SEND_CONFIRM_SELECTION               = 22, /*!< Confirm a selection.*/
-        VFV_SEND_ADD_CLOUDPOINT_DATASET          = 23, /*!< Add a cloud point type dataset*/
-        VFV_SEND_ADD_NEW_SELECTION_INPUT         = 24, /*!< Add a new selection input*/
-        VFV_SEND_TOGGLE_MAP_VISIBILITY           = 25, /*!< Toggle the map visibility of a given subdataset*/
-        VFV_SEND_VOLUMETRIC_MASK                 = 26, /*!< Send SubDataset computed volumetric mask*/
-        VFV_SEND_RESET_VOLUMETRIC_SELECTION      = 27, /*!< Reset the volumetric selection of a particular subdataset*/
-        VFV_SEND_ADD_LOG_DATASET                 = 28, /*!< Open a Log dataset (annotation. Format: CSV)*/
-        VFV_SEND_ADD_ANNOTATION_POSITION         = 29, /*!< Add an annotation position object to an Annotation Log Object*/
-        VFV_SEND_SET_ANNOTATION_POSITION_INDEXES = 30, /*!< Set the indexes of the annotation position object*/
-        VFV_SEND_ADD_ANNOTATION_POSITION_TO_SD   = 31, /*!< Link an annotation position object to a subdataset, creating a new drawable*/
-        VFV_SEND_SET_SUBDATASET_CLIPPING         = 32, /*!< Set the clipping values of a subdataset*/
+        VFV_SEND_ADD_VTK_DATASET                                = 0,  /*!< Send an ADD VTK event*/
+        VFV_SEND_ACKNOWLEDGE_ADD_DATASET                        = 1,  /*!< Acknowledge an event "add vtk"*/
+        VFV_SEND_ROTATE_DATASET                                 = 2,  /*!< Send the rotation status of a dataset*/
+        VFV_SEND_MOVE_DATASET                                   = 3,  /*!< Send the position status of a dataset*/
+        VFV_SEND_HEADSET_BINDING_INFO                           = 4,  /*!< Send the binding headset information*/
+        VFV_SEND_HEADSETS_STATUS                                = 5,  /*!< Send all the headsets status except the client receiving the message*/
+        VFV_SEND_HEADSET_ANCHOR_SEGMENT                         = 6,  /*!< Send anchor segment*/
+        VFV_SEND_HEADSET_ANCHOR_EOF                             = 7,  /*!< Send anchor end of stream*/
+        VFV_SEND_SUBDATASET_LOCK_OWNER                          = 8,  /*!< Send the new subdataset lock owner*/
+        VFV_SEND_SCALE_DATASET                                  = 9,  /*!< Send the scaling status of a dataset*/
+        VFV_SEND_TF_DATASET                                     = 10, /*!< Send the Transfer Function status of a dataset*/
+        VFV_SEND_START_ANNOTATION                               = 11, /*!< Send the start annotation message (asking to start an annotation) */
+        VFV_SEND_ANCHOR_ANNOTATION                              = 12, /*!< Send the achor annotation message (anchor an annotation in a dataset)*/
+        VFV_SEND_CLEAR_ANNOTATION                               = 13, /*!< Send the clear annotations message (asking to clear all annotations in a specific subdataset) */
+        VFV_SEND_ADD_SUBDATASET                                 = 14, /*!< Send the "add" subdataset command.*/
+        VFV_SEND_DEL_SUBDATASET                                 = 15, /*!< Send the "delete" subdataset command.*/
+        VFV_SEND_SUBDATASET_OWNER                               = 16, /*!< Send the new SubDataset owner command.*/
+        VFV_SEND_CURRENT_ACTION                                 = 17, /*!< Send the current action command.*/
+        VFV_SEND_LOCATION                                       = 18, /*!< Send the location to the tablet.*/
+        VFV_SEND_TABLET_LOCATION                                = 19, /*!< Send the tablet's virtual location.*/
+        VFV_SEND_TABLET_SCALE                                   = 20, /*!< Send the tablet's scale.*/
+        VFV_SEND_LASSO                                          = 21, /*!< Send the lasso data.*/
+        VFV_SEND_CONFIRM_SELECTION                              = 22, /*!< Confirm a selection.*/
+        VFV_SEND_ADD_CLOUDPOINT_DATASET                         = 23, /*!< Add a cloud point type dataset*/
+        VFV_SEND_ADD_NEW_SELECTION_INPUT                        = 24, /*!< Add a new selection input*/
+        VFV_SEND_TOGGLE_MAP_VISIBILITY                          = 25, /*!< Toggle the map visibility of a given subdataset*/
+        VFV_SEND_VOLUMETRIC_MASK                                = 26, /*!< Send SubDataset computed volumetric mask*/
+        VFV_SEND_RESET_VOLUMETRIC_SELECTION                     = 27, /*!< Reset the volumetric selection of a particular subdataset*/
+        VFV_SEND_ADD_LOG_DATASET                                = 28, /*!< Open a Log dataset (annotation. Format: CSV)*/
+        VFV_SEND_ADD_ANNOTATION_POSITION                        = 29, /*!< Add an annotation position object to an Annotation Log Object*/
+        VFV_SEND_SET_ANNOTATION_POSITION_INDEXES                = 30, /*!< Set the indexes of the annotation position object*/
+        VFV_SEND_ADD_ANNOTATION_POSITION_TO_SD                  = 31, /*!< Link an annotation position object to a subdataset, creating a new drawable*/
+        VFV_SEND_SET_SUBDATASET_CLIPPING                        = 32, /*!< Set the clipping values of a subdataset*/
+        VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_DEFAULT_COLOR = 33,
+        VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_MAPPED_IDX    = 34,
+        VFV_SEND_END,
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -332,6 +335,16 @@ namespace sereno
              * \param reset the reset data*/
             void onResetVolumetricSelection(VFVClientSocket* client, const VFVResetVolumetricSelection& reset);
 
+            /** \brief Handle the "set the default color of drawable annotation position".
+             * \param client The client asking to set the default color
+             * \param color the new default color data message to use*/
+            void setDrawableAnnotationPositionColor(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionDefaultColor& color);
+
+            /** \brief Handle the "set the indexes of the data to use for drawable annotation position".
+             * \param client The client asking to set the default color
+             * \param idx the new indices data message to use*/
+            void setDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx);
+
             /* \brief  Send an empty message
              * \param client the client to send the message
              * \param type the type of the message*/
@@ -429,6 +442,12 @@ namespace sereno
              * \param datasetID the dataset ID */
             void sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID);
 
+            /* \brief  Send the drawable annotation position status to a client
+             * \param client the client to send the data
+             * \param sdMT the subdataset meta data information containing the drawable
+             * \param drawableMT the drawable metadata*/
+            void sendDrawableAnnotationPositionStatus(VFVClientSocket* client, const SubDatasetMetaData& sdMT, const DrawableAnnotationPositionMetaData& drawableMT);
+
             /* \brief  Send the annotation data
              * \param client the client to send the data
              * \param annot the annotation's data */
@@ -484,14 +503,22 @@ namespace sereno
              * \param visibility the message data to send */
             void sendToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility);
 
-            /**
-             * \brief  Send the reset volumetric selection message
+            /** \brief  Send the reset volumetric selection message
              * \param client the client to send the message to
              * \param datasetID the dataset ID to reset the selection
              * \param sdID the visualization subdataset ID to reset the visualization from
-             * \param headsetID the headset ID asking to reset it
-             */
+             * \param headsetID the headset ID asking to reset it */
             void sendResetVolumetricSelection(VFVClientSocket* client, int datasetID, int sdID, int headsetID);
+
+            /** \brief  Send a setting of the default color of a drawable annotation position object
+             * \param client the client to send the message to
+             * \param color the data to send */
+            void sendSetDrawableAnnotationPositionColor(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionDefaultColor& color);
+
+            /** \brief  Send a setting of the mapped indices from the annotation log a drawable annotation position object is linked to
+             * \param client the client to send the message to
+             * \param idx the data to send */
+            void sendSetDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

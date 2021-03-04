@@ -179,25 +179,51 @@ namespace sereno
     /** \brief  Subdataset meta data */
     struct SubDatasetMetaData
     {
-        VFVClientSocket* hmdClient = NULL;            /*!< The HMD client locking this subdataset for modification.
-                                                           NULL == no hmd client owning this subdataset*/
+        VFVClientSocket* hmdClient = NULL;                      /*!< The HMD client locking this subdataset for modification.
+                                                                     NULL == no hmd client owning this subdataset*/
 
-        VFVClientSocket* owner = NULL;         /*!< The client owning this SubDataset. No owner == public SubDataset*/
-        time_t           lastModification = 0; /*!< The last modification time is us this subdataset received. 
-                                                    This is used to automatically reset the owner*/
-        std::shared_ptr<SubDatasetTFMetaData> tf; /*!< The transfer function information*/
-        uint64_t         sdID      = 0;        /*!< SubDataset ID*/
-        uint64_t         datasetID = 0;        /*!< Dataset ID*/
-        bool             mapVisibility = true; /*!< The status about the map visibility*/
+        VFVClientSocket* owner = NULL;                          /*!< The client owning this SubDataset. No owner == public SubDataset*/
+        time_t           lastModification = 0;                  /*!< The last modification time is us this subdataset received. 
+                                                                     This is used to automatically reset the owner*/
+        std::shared_ptr<SubDatasetTFMetaData> tf;               /*!< The transfer function information*/
+        uint64_t         sdID      = 0;                         /*!< SubDataset ID*/
+        uint64_t         datasetID = 0;                         /*!< Dataset ID*/
+        
+        bool             mapVisibility = true;                  /*!< The status about the map visibility*/
+
+        uint32_t         nbStackedTimesteps            = 1;     /*!< The number of stacked timesteps to render*/
+        float            stackedTimestepsDepthClipping = false; /*!< The clipping values for timesteps to render in the stacked settings*/
+        bool             stackedTimesteps              = false; /*!< Should we stack multiple timesteps?*/
 
         std::list<std::shared_ptr<DrawableAnnotationPositionMetaData>> annotPos; /*!< The annotation position components linked to this subdataset */
-        uint32_t         currentDrawableID = 0;
+        uint32_t         currentDrawableID = 0;                                  /* !< What should be the next ID of the attached drawable (see DrawableAnnotation*) */
+
+
+        /** \brief Push a new DrawableAnnotationPosition meta data object  
+         * \param annot the object to consider and configure. A link is created between the SubDataset and this drawable.  */
         void pushDrawableAnnotationPosition(std::shared_ptr<DrawableAnnotationPositionMetaData> annot)
         {
             annot->drawableID = currentDrawableID++;
             annotPos.push_back(annot);
         }
+
+        template<typename T>
+        std::shared_ptr<T> getDrawableAnnotation(uint32_t drawableID) {return nullptr;}
+
+        private:
+            template<typename T>
+            std::shared_ptr<T> getDrawableAnnotation(uint32_t drawableID, const std::list<std::shared_ptr<T>>& data)
+            {
+                for(auto& it : data)
+                    if(it->drawableID == drawableID)
+                        return it;
+                return nullptr;
+            }
     };
+
+    template<>
+    inline std::shared_ptr<DrawableAnnotationPositionMetaData> SubDatasetMetaData::getDrawableAnnotation(uint32_t drawableID)
+    { return getDrawableAnnotation(drawableID, annotPos); }
 
     /*!< Structure representing MetaData associated with the opened Datasets*/
     struct DatasetMetaData
