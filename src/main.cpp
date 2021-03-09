@@ -51,9 +51,9 @@ void inSigInt(int sig)
 void VRPN_CALLBACK trackerVRPNCallback(void* userData, const vrpn_TRACKERCB t)
 {
     uint32_t deviceID = *(uint32_t*)userData;
-//    INFO << "DeviceID: " << deviceID << ' '
-//         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
-//         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
+    INFO << "DeviceID: " << deviceID << ' '
+         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
+         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
 
     //Push the position and rotation
     if(deviceID == TABLET_ID)
@@ -126,7 +126,7 @@ int main(int argc, char** argv)
 
             vrpn_Tracker_Remote* trackers[] = {vrpnTrackerHoloLens, vrpnTrackerTablet};
 
-            while(!closeApp)
+            while(!closeApp && !server->isClosed())
             {
                 struct timespec beg;
                 struct timespec end;

@@ -896,6 +896,12 @@ namespace sereno
 
                     if(m_techniqueID != END_TANGIBLE_MODE) 
                         replaceDataset = true;
+                    else
+                    {
+                        m_datasetMutex.unlock();
+                        closeServer();
+                        return;
+                    }
                 }
             }
 
@@ -924,6 +930,8 @@ namespace sereno
             replaceDataset = true;
         }
 
+        INFO << "LAUNCH NEXT TB TRIAL. TrialID: " << m_trialID << " subtrialID: " << m_subTrialID << " techniqueID: " << m_techniqueID << " inTraining: " << m_inTraining << std::endl;
+
         if(replaceDataset)
         {
             m_datasetMutex.unlock();
@@ -933,7 +941,7 @@ namespace sereno
             if(m_inTraining)
                 dID = (m_subTrialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
             else
-                dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS + 3)%MAX_NB_TB_TRIALS; //+3 because of the training datasets
+                dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS + 3; //+3 because of the training datasets
 
             CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
             VFVAddSubDataset addSubDataset;
@@ -2527,8 +2535,8 @@ endFor:;
         for(int i = 0; i < 4; i++, offset += sizeof(float)) //Quaternion rotation
             writeFloat(data+offset, rotate.quaternion[i]);
 
-        INFO << "Sending ROTATE DATASET Event data. Data : " << rotate.datasetID << " sdID : " << rotate.subDatasetID
-             << " Q = " << rotate.quaternion[0] << " " << rotate.quaternion[1] << " " << rotate.quaternion[2] << " " << rotate.quaternion[3] << "\n";
+//        INFO << "Sending ROTATE DATASET Event data. Data : " << rotate.datasetID << " sdID : " << rotate.subDatasetID
+//             << " Q = " << rotate.quaternion[0] << " " << rotate.quaternion[1] << " " << rotate.quaternion[2] << " " << rotate.quaternion[3] << "\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
@@ -2563,8 +2571,8 @@ endFor:;
         for(int i = 0; i < 3; i++, offset += sizeof(float)) //3D Scaling
             writeFloat(data+offset, scale.scale[i]);
 
-        INFO << "Sending SCALE DATASET Event data DatasetID " << scale.datasetID << " SubDataset ID " << scale.subDatasetID << " ["
-             << scale.scale[0] << ", " << scale.scale[1] << ", " << scale.scale[2] << "]\n";
+//        INFO << "Sending SCALE DATASET Event data DatasetID " << scale.datasetID << " SubDataset ID " << scale.subDatasetID << " ["
+//             << scale.scale[0] << ", " << scale.scale[1] << ", " << scale.scale[2] << "]\n";
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
