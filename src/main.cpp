@@ -132,7 +132,7 @@ int main(int argc, char** argv)
                 struct timespec end;
                 clock_gettime(CLOCK_REALTIME, &beg);
 
-                uint32_t startTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+                uint64_t startTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
 
                 //Enter the VRPN main loop
                 for(vrpn_Tracker_Remote* it : trackers)
@@ -140,7 +140,7 @@ int main(int argc, char** argv)
                     it->mainloop();
                 }
                 clock_gettime(CLOCK_REALTIME, &end);
-                uint32_t endTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+                uint64_t endTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
 
                 //Commit all the positions if the VRPN connection works
                 for(vrpn_Tracker_Remote* it : trackers)
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
                     {
                         serverPtr->commitAllVRPNPositions();
                     }
-                usleep(std::max(0.0, 1.e6/UPDATE_VRPN_FRAMERATE - endTime + startTime));
+                usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE) - endTime + startTime));
             }
 
             //Close every connections

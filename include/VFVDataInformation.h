@@ -1739,8 +1739,14 @@ namespace sereno
     struct VFVAddNewSelectionInput : public VFVDataInformation
     {
         int32_t booleanOp = 0;
+        bool    constrained = false;
 
-        char getTypeAt(uint32_t cursor) const {return 'I';}
+        char getTypeAt(uint32_t cursor) const 
+        {
+            if(cursor == 0) return 'I';
+            if(cursor == 1) return 'b';
+            return 0;
+        }
 
         bool pushValue(uint32_t cursor, uint32_t value)
         {
@@ -1752,18 +1758,29 @@ namespace sereno
             VFV_DATA_ERROR
         }
 
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 1)
+            {
+                constrained = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddNewSelectionInput");
-            oss << ",    \"booleanOp\" : " << booleanOp << "\n";
+            oss << ",    \"booleanOp\" : "  << booleanOp << ",\n"
+                << "    \"constrained\" : " << constrained << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
         }
 
-        int32_t getMaxCursor() const {return 0;}
+        int32_t getMaxCursor() const {return 1;}
     };
 
     struct VFVConfirmSelection : public VFVDataInformation

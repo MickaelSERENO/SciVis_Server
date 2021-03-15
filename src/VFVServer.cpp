@@ -998,6 +998,22 @@ namespace sereno
                 m_log << reset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
             }
 #endif
+
+            //Reset the orientation
+            VFVRotationInformation rotate;
+            rotate.subDatasetID = sd->sdID;
+            rotate.datasetID    = sd->datasetID;
+            rotate.quaternion[1] = rotate.quaternion[2] = rotate.quaternion[3] = 0.0f;
+            rotate.quaternion[0] = 1.0f;
+            rotate.headsetID = -1;
+
+            rotateSubDataset(NULL, rotate);
+#ifdef VFV_LOG_DATA
+            {
+                std::lock_guard<std::mutex> lockLog(m_logMutex);
+                m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n" << std::flush;
+            }
+#endif
         }
 
         logCurrentTrial(NULL);
@@ -3325,7 +3341,7 @@ endFor:;
 
     void VFVServer::sendAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput)
     {
-        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t);
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint8_t);
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset = 0;
 
@@ -3336,6 +3352,9 @@ endFor:;
         //Boolean operation in use
         writeUint32(data+offset, addInput.booleanOp);
         offset += sizeof(uint32_t);
+
+        data[offset] = addInput.constrained;
+        offset++;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
         
