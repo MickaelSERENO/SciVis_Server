@@ -19,7 +19,7 @@
 
 namespace sereno
 {
-    #define MAX_NB_TB_SUB_TRIALS 3
+    #define MAX_NB_TB_SUB_TRIALS 2
     #define MAX_NB_TB_TRIALS     3
 
     /* \brief  Does a string ends with another string value?

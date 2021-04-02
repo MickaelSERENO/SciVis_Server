@@ -365,7 +365,7 @@ namespace sereno
 #endif
 
         //Open all the datasets necessary for this study
-        for(auto& s : {"training1.cp", "training3.cp", "training4.cp", "1.cp", "3.cp", "4.cp"})
+        for(auto& s : {"training2.cp", "training3.cp", "training4.cp", "spring.cp", "3.cp", "4.cp"})
         {
             VFVCloudPointDatasetInformation cloudInfo;
             cloudInfo.name = s;
@@ -874,17 +874,22 @@ namespace sereno
                 m_log << std::flush;
             }
 
-            m_subTrialID++;
             if(m_inTraining)
-                replaceDataset = true;
-
-            if(m_subTrialID == MAX_NB_TB_SUB_TRIALS)
             {
-                m_subTrialID = 0;
-                if(m_inTraining) //Redo the experiment, but without training
-                    m_inTraining = false;
-                else
+                replaceDataset = true;
+                if(m_trialID == MAX_NB_TB_TRIALS)
                 {
+                    m_trialID = 0;
+                    m_inTraining = false;
+                }
+            }
+
+            else
+            {
+                m_subTrialID++;
+                if(m_subTrialID == MAX_NB_TB_SUB_TRIALS)
+                {
+                    m_subTrialID = 0;
                     m_trialID++;
 
                     if(m_trialID == MAX_NB_TB_TRIALS)
@@ -939,7 +944,7 @@ namespace sereno
             //add the new subdataset to the correct dataset
             uint32_t dID = 0;
             if(m_inTraining)
-                dID = (m_subTrialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+                dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
             else
                 dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS + 3; //+3 because of the training datasets
 

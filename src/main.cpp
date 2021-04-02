@@ -51,9 +51,9 @@ void inSigInt(int sig)
 void VRPN_CALLBACK trackerVRPNCallback(void* userData, const vrpn_TRACKERCB t)
 {
     uint32_t deviceID = *(uint32_t*)userData;
-    INFO << "DeviceID: " << deviceID << ' '
-         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
-         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
+//    INFO << "DeviceID: " << deviceID << ' '
+//         << "pos: " << t.pos[0]  << ',' << t.pos[1]  << ',' << t.pos[2]  << ' '
+//         << "rot: " << t.quat[0] << ',' << t.quat[1] << ',' << t.quat[2] << ',' << t.quat[3] << std::endl;
 
     //Push the position and rotation
     if(deviceID == TABLET_ID)
@@ -112,6 +112,7 @@ int main(int argc, char** argv)
     {
         viconServerPtr = new std::thread([&]()
         {
+            INFO << "Start connecting with the VICON" << std::endl;
             //Device IDs
             uint32_t holoLensID = HOLOLENS_ID;
             uint32_t tabletID   = TABLET_ID;
@@ -126,21 +127,19 @@ int main(int argc, char** argv)
 
             vrpn_Tracker_Remote* trackers[] = {vrpnTrackerHoloLens, vrpnTrackerTablet};
 
+            INFO << "Connection established with the VICON" << std::endl;
+
             while(!closeApp && !server->isClosed())
             {
-                struct timespec beg;
-                struct timespec end;
-                clock_gettime(CLOCK_REALTIME, &beg);
-
-                uint64_t startTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
+            //    struct timespec beg;
+            //    clock_gettime(CLOCK_REALTIME, &beg);
+            //    uint64_t startTime = (uint64_t)(beg.tv_nsec*1.e-3) + beg.tv_sec*1.e6;
 
                 //Enter the VRPN main loop
                 for(vrpn_Tracker_Remote* it : trackers)
                 {
                     it->mainloop();
                 }
-                clock_gettime(CLOCK_REALTIME, &end);
-                uint64_t endTime = beg.tv_nsec*1.e-3 + end.tv_sec*1.e6;
 
                 //Commit all the positions if the VRPN connection works
                 for(vrpn_Tracker_Remote* it : trackers)
@@ -148,7 +147,13 @@ int main(int argc, char** argv)
                     {
                         serverPtr->commitAllVRPNPositions();
                     }
-                usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE) - endTime + startTime));
+
+            //    struct timespec end;
+            //    clock_gettime(CLOCK_REALTIME, &end);
+            //    uint64_t endTime = (uint64_t)(end.tv_nsec*1.e-3) + end.tv_sec*1.e6;
+
+//                usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE) - endTime + startTime));
+                usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE)));
             }
 
             //Close every connections
