@@ -542,19 +542,21 @@ namespace sereno
 
             std::stack<uint32_t> m_availableHeadsetColors;       /*!< The available headset colors*/
 
-            std::map<uint32_t, VectorFieldMetaData> m_binaryDatasets;     /*!< The binary datasets opened*/
-            std::map<uint32_t, VTKMetaData>         m_vtkDatasets;        /*!< The vtk datasets opened*/
-            std::map<uint32_t, CloudPointMetaData>  m_cloudPointDatasets; /*!< The cloud point datasets opened*/
-            std::map<uint32_t, Dataset*>            m_datasets;           /*!< The datasets opened*/
-            std::map<uint32_t, LogMetaData>         m_logData;            /*!< The log data*/
+            std::map<uint32_t, VectorFieldMetaData>     m_binaryDatasets;     /*!< The binary datasets opened*/
+            std::map<uint32_t, VTKMetaData>             m_vtkDatasets;        /*!< The vtk datasets opened*/
+            std::map<uint32_t, CloudPointMetaData>      m_cloudPointDatasets; /*!< The cloud point datasets opened*/
+            std::map<uint32_t, Dataset*>                m_datasets;           /*!< The datasets opened*/
+            std::map<uint32_t, LogMetaData>             m_logData;            /*!< The log data*/
+            std::map<uint32_t, SubDatasetGroupMetaData> m_sdGroups;           /*!< The registered SubDatasetGroup opened*/
 
             std::mutex   m_datasetMutex;                         /*!< The mutex handling the datasets*/
             std::thread* m_updateThread  = NULL;                 /*!< The update thread*/
 
-            uint64_t m_currentDataset    = 0;                    /*!< The current Dataset id to push */
-            uint64_t m_currentSubDataset = 0;                    /*!< The current SubDatase id, useful to determine the next subdataset 3D position*/
-            uint64_t m_currentLogData    = 0;                    /*!< The current Log data ID to push */
-            uint32_t m_nbConnectedHeadsets = 0;
+            uint64_t m_currentDataset      = 0;                  /*!< The current Dataset id to push */
+            uint64_t m_currentSubDataset   = 0;                  /*!< The current SubDatase id, useful to determine the next subdataset 3D position*/
+            uint64_t m_currentLogData      = 0;                  /*!< The current Log data ID to push */
+            uint64_t m_currentSDGroup      = 0;                  /*!< The current subdataset group ID to push*/
+            uint32_t m_nbConnectedHeadsets = 0;                  /*!< The current number of connected head-mounted displays*/
 
             VFVClientSocket*  m_headsetAnchorClient = NULL;      /*!< The client sending the anchor. If the client is NULL, m_anchorData has to be redone*/
             AnchorHeadsetData m_anchorData;                      /*!< The anchor data registered*/

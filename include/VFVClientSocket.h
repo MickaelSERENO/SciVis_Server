@@ -77,6 +77,10 @@ namespace sereno
         SET_SUBDATASET_CLIPPING                = 34,
         SET_DRAWABLE_ANNOTATION_POSITION_COLOR = 35,
         SET_DRAWABLE_ANNOTATION_POSITION_IDX   = 36,
+        ADD_SV_GROUP                           = 37,
+        SET_SV_GROUP_GLOBAL_PARAMETERS         = 38,
+        REMOVE_SD_GROUP                        = 39,
+        ADD_SD_TO_SV_GROUP                     = 40,
         END_MESSAGE_TYPE
     };
 

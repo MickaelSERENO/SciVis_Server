@@ -2405,6 +2405,183 @@ namespace sereno
             return oss.str();
         }
     };
+
+    struct VFVAddSubjectiveViewGroup : public VFVDataInformation
+    {
+        uint32_t svType;
+        uint32_t baseSDID;
+        uint32_t baseDatasetID;
+        uint32_t sdgID = -1;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 3)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                svType = value;
+            else if(cursor == 1)
+                baseSDID = value;
+            else if(cursor == 2)
+                baseDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 2;}
+
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddSubjectiveViewGroup");
+            oss << ",    \"svType\" : " << svType << ",\n"
+                << "    \"baseSDID\" : " << baseSDID << ",\n"
+                << "    \"baseDatasetID\" : " << baseDatasetID << ",\n"
+                << "    \"sdgID\" : " << sdgID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVRemoveSDGroup : public VFVDataInformation
+    {
+        uint32_t sdgID;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 1)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                sdgID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "RemoveSubjectiveViewGroup");
+            oss << ",    \"sdgID\" : " << sdgID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVSetSVGroupGlobalParameters : public VFVDataInformation
+    {
+        uint32_t sdgID;
+        uint32_t stackMethod;
+        float    gap;
+        bool     merged;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor == 0 || cursor == 1)
+                return 'I';
+            else if(cursor == 2)
+                return 'f';
+            else if(cursor == 3)
+                return 'b';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                sdgID = value;
+            else if(cursor == 1)
+                stackMethod = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor == 2)
+                gap = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        bool pushValue(uint32_t cursor, uint8_t value)
+        {
+            if(cursor == 3)
+                merged = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 3;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "SetSVGroupGlobalParameters");
+            oss << ",    \"sdgID\" : " << sdgID << ",\n"
+                << "    \"stackMethod\" : " << stackMethod << ",\n"
+                << "    \"gape\" : " << gap << ",\n"
+                << "    \"merged\" : " << merged << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
+
+    struct VFVAddSDToSVGroup : public VFVDataInformation
+    {
+        uint32_t sdgID;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 1)
+                return 'I';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                sdgID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 0;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "AddSDToSVGroup");
+            oss << ",    \"sdgID\" : " << sdgID << "\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR

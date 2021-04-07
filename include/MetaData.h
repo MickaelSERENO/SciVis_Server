@@ -9,6 +9,7 @@
 #include "TransferFunction/TransferFunction.h"
 #include "Datasets/CloudPointDataset.h"
 #include "Datasets/Annotation/AnnotationLogContainer.h"
+#include "Datasets/SubDatasetGroup.h"
 
 namespace sereno
 {
@@ -176,18 +177,33 @@ namespace sereno
     struct DrawableAnnotationPositionMetaData : public DrawableAnnotationComponentMetaData<DrawableAnnotationPosition>
     {};
 
+    enum SubDatasetGroupType
+    {
+        SD_GROUP_SV_STACKED,
+        SD_GROUP_SV_LINKED,
+    };
+
+    struct SubDatasetGroupMetaData
+    {
+        SubDatasetGroupType type;
+        SubDatasetGroup*    sdGroup;
+        uint32_t            sdgID;
+    };
+
     /** \brief  Subdataset meta data */
     struct SubDatasetMetaData
     {
         VFVClientSocket* hmdClient = NULL;                      /*!< The HMD client locking this subdataset for modification.
                                                                      NULL == no hmd client owning this subdataset*/
-
         VFVClientSocket* owner = NULL;                          /*!< The client owning this SubDataset. No owner == public SubDataset*/
         time_t           lastModification = 0;                  /*!< The last modification time is us this subdataset received. 
                                                                      This is used to automatically reset the owner*/
+        bool             visibleToOther = false;                /*!< Even if this subdataset is private, is it visible to others?*/
+
         std::shared_ptr<SubDatasetTFMetaData> tf;               /*!< The transfer function information*/
-        uint64_t         sdID      = 0;                         /*!< SubDataset ID*/
-        uint64_t         datasetID = 0;                         /*!< Dataset ID*/
+        uint64_t sdID      = 0;                                 /*!< SubDataset ID*/
+        uint64_t datasetID = 0;                                 /*!< Dataset ID*/
+        int64_t  sdgID     = -1;                                /*!< The SubDatasetGroup linked with this SubDataset*/
         
         bool             mapVisibility = true;                  /*!< The status about the map visibility*/
 
@@ -196,7 +212,7 @@ namespace sereno
         bool             stackedTimesteps              = false; /*!< Should we stack multiple timesteps?*/
 
         std::list<std::shared_ptr<DrawableAnnotationPositionMetaData>> annotPos; /*!< The annotation position components linked to this subdataset */
-        uint32_t         currentDrawableID = 0;                                  /* !< What should be the next ID of the attached drawable (see DrawableAnnotation*) */
+        uint32_t         currentDrawableID = 0;                                  /*!< What should be the next ID of the attached drawable (see DrawableAnnotation*) */
 
 
         /** \brief Push a new DrawableAnnotationPosition meta data object  
