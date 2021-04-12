@@ -177,17 +177,34 @@ namespace sereno
     struct DrawableAnnotationPositionMetaData : public DrawableAnnotationComponentMetaData<DrawableAnnotationPosition>
     {};
 
+    /** \brief  The different subdataset groups usable */
     enum SubDatasetGroupType
     {
         SD_GROUP_SV_STACKED,
         SD_GROUP_SV_LINKED,
+        SD_GROUP_SV_STACKED_LINKED,
+        SD_GROUP_NONE,
     };
 
+    /** \brief The Metadata of subdataset groups */
     struct SubDatasetGroupMetaData
     {
-        SubDatasetGroupType type;
-        SubDatasetGroup*    sdGroup;
-        uint32_t            sdgID;
+        SubDatasetGroupType              type    = SD_GROUP_NONE; /*!< The type of the group*/
+        std::shared_ptr<SubDatasetGroup> sdGroup = nullptr;       /*!< The group base class. Use "type" to cast this object*/
+        uint32_t                         sdgID   = -1;            /*!< The ID of the group*/
+        VFVClientSocket*                 owner   = nullptr;       /*!< The client owning this group. nullptr == the server owns it*/
+
+        inline bool isSubjectiveView() const
+        {
+            return type == SD_GROUP_SV_STACKED ||
+                   type == SD_GROUP_SV_LINKED  ||    
+                   type == SD_GROUP_SV_STACKED_LINKED;
+        }
+
+        inline bool isStackedSubjectiveView() const
+        {
+            return isSubjectiveView(); //For the moment, every subjective views are stacked subjective views.
+        }
     };
 
     /** \brief  Subdataset meta data */
@@ -203,7 +220,6 @@ namespace sereno
         std::shared_ptr<SubDatasetTFMetaData> tf;               /*!< The transfer function information*/
         uint64_t sdID      = 0;                                 /*!< SubDataset ID*/
         uint64_t datasetID = 0;                                 /*!< Dataset ID*/
-        int64_t  sdgID     = -1;                                /*!< The SubDatasetGroup linked with this SubDataset*/
         
         bool             mapVisibility = true;                  /*!< The status about the map visibility*/
 
@@ -213,6 +229,8 @@ namespace sereno
 
         std::list<std::shared_ptr<DrawableAnnotationPositionMetaData>> annotPos; /*!< The annotation position components linked to this subdataset */
         uint32_t         currentDrawableID = 0;                                  /*!< What should be the next ID of the attached drawable (see DrawableAnnotation*) */
+
+        SubDatasetGroupMetaData sdg;                                 /*!< The SubDatasetGroup linked with this SubDataset*/
 
 
         /** \brief Push a new DrawableAnnotationPosition meta data object  

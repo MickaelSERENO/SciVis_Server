@@ -2409,8 +2409,8 @@ namespace sereno
     struct VFVAddSubjectiveViewGroup : public VFVDataInformation
     {
         uint32_t svType;
-        uint32_t baseSDID;
         uint32_t baseDatasetID;
+        uint32_t baseSDID;
         uint32_t sdgID = -1;
 
         char getTypeAt(uint32_t cursor) const
@@ -2425,9 +2425,9 @@ namespace sereno
             if(cursor == 0)
                 svType = value;
             else if(cursor == 1)
-                baseSDID = value;
-            else if(cursor == 2)
                 baseDatasetID = value;
+            else if(cursor == 2)
+                baseSDID = value;
             else
                 VFV_DATA_ERROR
             return true;
@@ -2451,7 +2451,7 @@ namespace sereno
         }
     };
 
-    struct VFVRemoveSDGroup : public VFVDataInformation
+    struct VFVRemoveSubDatasetGroup : public VFVDataInformation
     {
         uint32_t sdgID;
 
@@ -2485,7 +2485,7 @@ namespace sereno
         }
     };
 
-    struct VFVSetSVGroupGlobalParameters : public VFVDataInformation
+    struct VFVSetSVStackedGroupGlobalParameters : public VFVDataInformation
     {
         uint32_t sdgID;
         uint32_t stackMethod;
@@ -2549,7 +2549,7 @@ namespace sereno
         }
     };
 
-    struct VFVAddSDToSVGroup : public VFVDataInformation
+    struct VFVAddClientToSVGroup : public VFVDataInformation
     {
         uint32_t sdgID;
 

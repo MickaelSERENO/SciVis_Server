@@ -78,9 +78,9 @@ namespace sereno
         SET_DRAWABLE_ANNOTATION_POSITION_COLOR = 35,
         SET_DRAWABLE_ANNOTATION_POSITION_IDX   = 36,
         ADD_SV_GROUP                           = 37,
-        SET_SV_GROUP_GLOBAL_PARAMETERS         = 38,
+        SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS = 38,
         REMOVE_SD_GROUP                        = 39,
-        ADD_SD_TO_SV_GROUP                     = 40,
+        ADD_CLIENT_TO_SV_GROUP                 = 40,
         END_MESSAGE_TYPE
     };
 
@@ -108,6 +108,7 @@ namespace sereno
         POINTING_MANUAL  = 3,
     };
 
+    /** \brief  The different handedness handled by this application */
     enum VFVHandedness
     {
         HANDEDNESS_LEFT  = 0,
@@ -149,43 +150,47 @@ namespace sereno
 
         union
         {
-            struct VFVNoDataInformation            noData;        /*!< Structure for message with no internal data*/
-            struct VFVIdentTabletInformation       identTablet;   /*!< Ident information of a tablet*/
-            struct VFVBinaryDatasetInformation     binaryDataset; /*!< Binary Dataset information*/
-            struct VFVVTKDatasetInformation        vtkDataset;    /*!< Binary Dataset information*/
-            struct VFVRotationInformation          rotate;        /*!< The rotate information sent from a tablet*/
-            struct VFVUpdateHeadset                headset;       /*!< The headset update data information*/
-            struct VFVAnnotation                   annotation;    /*!< The annotation data information*/
-            struct VFVDefaultByteArray             defaultByteArray;    /*!< Default byte array information*/
-            struct VFVAnchoringDataStatus          anchoringDataStatus; /*!< Anchoring data status*/
-            struct VFVHeadsetCurrentAction         headsetCurrentAction;     /*!< The headset current action*/
-            struct VFVHeadsetCurrentSubDataset     headsetCurrentSubDataset; /*!< The headset current SubDataset*/
-            struct VFVMoveInformation              translate;  /*!< Translate information*/
-            struct VFVScaleInformation             scale;      /*!< Scale information*/
-            struct VFVTransferFunctionSubDataset   tfSD;       /*!< Transfer Function information for a SubDataset*/          
-            struct VFVStartAnnotation              startAnnotation;  /*!< Start an annotation information*/
-            struct VFVAnchorAnnotation             anchorAnnotation; /*!< Anchor an annotation at a specific location*/
-            struct VFVClearAnnotations             clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
-            struct VFVAddSubDataset                addSubDataset;    /*!< Add a new default SubDataset*/
-            struct VFVRemoveSubDataset             removeSubDataset; /*!< Remove a registered SubDataset*/
-            struct VFVDuplicateSubDataset          duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
-            struct VFVMakeSubDatasetPublic         makeSubDatasetPublic; /*!< Make a SubDataset public*/
-            struct VFVLocation                     location;         /*!< Update the tablet's virtual location*/
-            struct VFVTabletScale                  tabletScale;      /*!< Tablet scale*/
-            struct VFVLasso                        lasso;            /*!< Lasso data*/
-            struct VFVConfirmSelection             confirmSelection; /*!< Confirm selection*/
-            struct VFVCloudPointDatasetInformation cloudPointDataset;  /*!< Cloud point dataset message*/
-            struct VFVAddNewSelectionInput         addNewSelectionInput; /*!< Start a new selection input*/
-            struct VFVToggleMapVisibility          toggleMapVisibility;  /*!< Toggle the map visibility*/
-            struct VFVMergeSubDatasets             mergeSubDatasets;     /*!< Merge two subdatasets visuals into one*/
-            struct VFVResetVolumetricSelection     resetVolumetricSelection; /*!< Reset the volumetric selection */
-            struct VFVOpenLogData                  addLogData;               /*!< Open a log data annotation*/
-            struct VFVAddAnnotationPosition        addAnnotPos;              /*!< Add and link an annotation position object*/
-            struct VFVSetAnnotationPositionIndexes setAnnotPosIndexes;       /*!< Set the annot position database (indexes==headers)*/
-            struct VFVAddAnnotationPositionToSD    addAnnotPosToSD;          /*!< Add an annotation position to an already registered SubDataset*/
-            struct VFVSetSubDatasetClipping        setSDClipping;            /*!< Set the subdataset clipping values*/
+            struct VFVNoDataInformation                         noData;        /*!< Structure for message with no internal data*/
+            struct VFVIdentTabletInformation                    identTablet;   /*!< Ident information of a tablet*/
+            struct VFVBinaryDatasetInformation                  binaryDataset; /*!< Binary Dataset information*/
+            struct VFVVTKDatasetInformation                     vtkDataset;    /*!< Binary Dataset information*/
+            struct VFVRotationInformation                       rotate;        /*!< The rotate information sent from a tablet*/
+            struct VFVUpdateHeadset                             headset;       /*!< The headset update data information*/
+            struct VFVAnnotation                                annotation;    /*!< The annotation data information*/
+            struct VFVDefaultByteArray                          defaultByteArray;    /*!< Default byte array information*/
+            struct VFVAnchoringDataStatus                       anchoringDataStatus; /*!< Anchoring data status*/
+            struct VFVHeadsetCurrentAction                      headsetCurrentAction;     /*!< The headset current action*/
+            struct VFVHeadsetCurrentSubDataset                  headsetCurrentSubDataset; /*!< The headset current SubDataset*/
+            struct VFVMoveInformation                           translate;  /*!< Translate information*/
+            struct VFVScaleInformation                          scale;      /*!< Scale information*/
+            struct VFVTransferFunctionSubDataset                tfSD;       /*!< Transfer Function information for a SubDataset*/          
+            struct VFVStartAnnotation                           startAnnotation;  /*!< Start an annotation information*/
+            struct VFVAnchorAnnotation                          anchorAnnotation; /*!< Anchor an annotation at a specific location*/
+            struct VFVClearAnnotations                          clearAnnotations; /*!< Clear all the annotations of a specific dataset*/
+            struct VFVAddSubDataset                             addSubDataset;    /*!< Add a new default SubDataset*/
+            struct VFVRemoveSubDataset                          removeSubDataset; /*!< Remove a registered SubDataset*/
+            struct VFVDuplicateSubDataset                       duplicateSubDataset; /*!< Duplicate a registered SubDataset*/
+            struct VFVMakeSubDatasetPublic                      makeSubDatasetPublic; /*!< Make a SubDataset public*/
+            struct VFVLocation                                  location;         /*!< Update the tablet's virtual location*/
+            struct VFVTabletScale                               tabletScale;      /*!< Tablet scale*/
+            struct VFVLasso                                     lasso;            /*!< Lasso data*/
+            struct VFVConfirmSelection                          confirmSelection; /*!< Confirm selection*/
+            struct VFVCloudPointDatasetInformation              cloudPointDataset;  /*!< Cloud point dataset message*/
+            struct VFVAddNewSelectionInput                      addNewSelectionInput; /*!< Start a new selection input*/
+            struct VFVToggleMapVisibility                       toggleMapVisibility;  /*!< Toggle the map visibility*/
+            struct VFVMergeSubDatasets                          mergeSubDatasets;     /*!< Merge two subdatasets visuals into one*/
+            struct VFVResetVolumetricSelection                  resetVolumetricSelection; /*!< Reset the volumetric selection */
+            struct VFVOpenLogData                               addLogData;               /*!< Open a log data annotation*/
+            struct VFVAddAnnotationPosition                     addAnnotPos;              /*!< Add and link an annotation position object*/
+            struct VFVSetAnnotationPositionIndexes              setAnnotPosIndexes;       /*!< Set the annot position database (indexes==headers)*/
+            struct VFVAddAnnotationPositionToSD                 addAnnotPosToSD;          /*!< Add an annotation position to an already registered SubDataset*/
+            struct VFVSetSubDatasetClipping                     setSDClipping;            /*!< Set the subdataset clipping values*/
             struct VFVSetDrawableAnnotationPositionDefaultColor setDrawableAnnotPosColor; /*!< Set the default drawable annotation position*/
             struct VFVSetDrawableAnnotationPositionMappedIdx    setDrawableAnnotPosIdx;   /*!< Set the data entries to read from the log that this drawable belongs to*/
+            struct VFVAddSubjectiveViewGroup                    addSVGroup;
+            struct VFVRemoveSubDatasetGroup                     removeSDGroup;
+            struct VFVSetSVStackedGroupGlobalParameters         setSVStackedGroupParams;
+            struct VFVAddClientToSVGroup                        addClientToSVGroup;
         };
 
         VFVMessage() : type(NOTHING)
@@ -353,6 +358,27 @@ namespace sereno
                             setDrawableAnnotPosIdx = cpy.setDrawableAnnotPosIdx;
                             curMsg = &setDrawableAnnotPosIdx;
                             break;
+
+                        case ADD_SV_GROUP:
+                            addSVGroup = cpy.addSVGroup;
+                            curMsg = &addSVGroup;
+                        	break;
+
+                        case SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS:
+                            setSVStackedGroupParams = cpy.setSVStackedGroupParams;
+                            curMsg = &setSVStackedGroupParams;
+                        	break;
+
+                        case REMOVE_SD_GROUP:
+                            removeSDGroup = cpy.removeSDGroup;
+                            curMsg = &removeSDGroup;
+                        	break;
+
+                        case ADD_CLIENT_TO_SV_GROUP:
+                            addClientToSVGroup = cpy.addClientToSVGroup;
+                            curMsg = &addClientToSVGroup;
+                        	break;
+
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
                             break;
@@ -526,6 +552,22 @@ namespace sereno
                     new(&setDrawableAnnotPosIdx) VFVSetDrawableAnnotationPositionMappedIdx;
                     curMsg = &setDrawableAnnotPosIdx;
                     break;
+                case ADD_SV_GROUP:
+                    new(&addSVGroup) VFVAddSubjectiveViewGroup;
+                    curMsg = &addSVGroup;
+                    break;
+                case SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS:
+                    new(&setSVStackedGroupParams) VFVSetSVStackedGroupGlobalParameters;
+                    curMsg = &setSVStackedGroupParams;
+                    break;
+                case REMOVE_SD_GROUP:
+                    new(&removeSDGroup) VFVRemoveSubDatasetGroup;
+                    curMsg = &removeSDGroup;
+                    break;
+                case ADD_CLIENT_TO_SV_GROUP:
+                    new(&addClientToSVGroup) VFVAddClientToSVGroup;
+                    curMsg = &addClientToSVGroup;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -652,6 +694,18 @@ namespace sereno
                 case SET_DRAWABLE_ANNOTATION_POSITION_IDX:
                     setDrawableAnnotPosIdx.~VFVSetDrawableAnnotationPositionMappedIdx();
                     break;
+                case ADD_SV_GROUP:
+                    addSVGroup.~VFVAddSubjectiveViewGroup();
+                	break;
+                case SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS:
+                    setSVStackedGroupParams.~VFVSetSVStackedGroupGlobalParameters();
+                	break;
+                case REMOVE_SD_GROUP:
+                    removeSDGroup.~VFVRemoveSubDatasetGroup();
+                	break;
+                case ADD_CLIENT_TO_SV_GROUP:
+                    addClientToSVGroup.~VFVAddClientToSVGroup();
+                	break;
                 case NOTHING:
                     break;
                 default:

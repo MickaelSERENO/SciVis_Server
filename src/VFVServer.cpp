@@ -645,7 +645,7 @@ namespace sereno
         INFO << "End of disconnection\n";
     }
 
-    Dataset* VFVServer::getDataset(uint32_t datasetID, uint32_t sdID)
+    Dataset* VFVServer::getDataset(uint32_t datasetID, uint32_t sdID, SubDataset** sd)
     {
         auto it = m_datasets.find(datasetID);
         if(it == m_datasets.end())
@@ -659,6 +659,9 @@ namespace sereno
             WARNING << "The subdataset ID 'sdID' in dataset ID 'datasetID' is not found\n";
             return NULL;
         }
+
+        if(sd)
+            *sd = it->second->getSubDataset(sdID);
 
         return it->second;
     }
@@ -743,6 +746,17 @@ namespace sereno
         else if(client->isHeadset())
             return client;
         return NULL;
+    }
+
+    uint32_t VFVServer::getDatasetID(Dataset* dataset)
+    {
+        for(auto& it : m_datasets)
+            if(it.second == dataset)
+            {
+                return it.first;
+            }
+
+        return -1;
     }
 
     bool VFVServer::canModifySubDataset(VFVClientSocket* client, SubDatasetMetaData* sdMT)
@@ -1374,14 +1388,18 @@ endFor:;
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
         std::lock_guard<std::mutex> lockMap(m_mapMutex);
+        duplicateSubDataset(client, duplicate);
+    }
 
+    SubDatasetMetaData* VFVServer::duplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& duplicate)
+    {
         //Find the subdataset meta data
         SubDatasetMetaData* sdMT = NULL;
         DatasetMetaData* mt = getMetaData(duplicate.datasetID, duplicate.subDatasetID, &sdMT);
         if(!mt)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(duplicate.datasetID, duplicate.subDatasetID)
-            return;
+            return nullptr;
         }
 
         if(client)
@@ -1390,7 +1408,7 @@ endFor:;
             if(sdMT->owner != NULL && sdMT->owner != getHeadsetFromClient(client))
             {
                 VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, duplicate.datasetID, duplicate.subDatasetID)
-                return;
+                return nullptr;
             }
         }
 
@@ -1399,7 +1417,7 @@ endFor:;
         if(dataset == NULL)
         {
             VFVSERVER_SUB_DATASET_NOT_FOUND(duplicate.datasetID, duplicate.subDatasetID)
-            return;
+            return nullptr;
         }
         SubDataset* sdToDuplicate = dataset->getSubDataset(duplicate.subDatasetID);
 
@@ -1427,6 +1445,8 @@ endFor:;
             sendAddSubDataset(clt.second, sd);
             sendSubDatasetStatus(clt.second, sd, duplicate.datasetID);
         }
+
+        return &mt->sdMetaData.back();
     }
 
     void VFVServer::onMergeSubDatasets(VFVClientSocket* client, const VFVMergeSubDatasets& merge)
@@ -2286,6 +2306,226 @@ endFor:;
             sendSetDrawableAnnotationPositionIdx(clt.second, idx);
     }
 
+    void VFVServer::addSubjectiveViewGroup(VFVClientSocket* client, const VFVAddSubjectiveViewGroup& addSV)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensure that no one is modifying the list of clients (and relevant information)
+
+        VFVClientSocket* hmdClient = nullptr;
+
+        if(client != NULL) //Not the server
+        {
+            hmdClient = getHeadsetFromClient(client);
+            if(hmdClient == NULL)
+            {
+                WARNING << "Not connected to a headset yet..." << std::endl;
+                return;
+            }
+        }
+
+        //Find and search for the dataset/subdataset
+        SubDatasetMetaData* sdMT = nullptr;
+        SubDataset*         sd   = nullptr;
+        getMetaData(addSV.baseDatasetID, addSV.baseSDID, &sdMT);
+        getDataset(addSV.baseDatasetID, addSV.baseSDID, &sd);
+        if(sdMT == NULL || sd == nullptr)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(addSV.baseDatasetID, addSV.baseSDID)
+            return;
+        }
+
+        if(sdMT->owner != nullptr && sdMT->owner != hmdClient)
+        {
+            ERROR << "The subdataset serving as a base is not public and is not owned by this client.... Exiting\n";
+            return;
+        }
+
+        //Create the subjective view
+        SubDatasetSubjectiveGroup* svGroup = nullptr;
+
+        if(addSV.svType == SD_GROUP_SV_STACKED ||
+           addSV.svType == SD_GROUP_SV_LINKED  ||
+           addSV.svType == SD_GROUP_SV_STACKED_LINKED)
+            svGroup = new SubDatasetSubjectiveStackedLinkedGroup(sd);
+
+        if(svGroup == nullptr)
+        {
+            WARNING << "Was not able to create a subjective view typed " << addSV.svType << ". Discard\n";
+            return;
+        }
+
+        //Add the subjective view to the known groups
+        SubDatasetGroupMetaData sdgMT;
+        sdgMT.type    = (SubDatasetGroupType)addSV.svType;
+        sdgMT.sdGroup = std::shared_ptr<SubDatasetGroup>(svGroup);
+        sdgMT.sdgID   = m_currentSDGroup;
+        sdgMT.owner   = hmdClient;
+        m_currentSDGroup++;
+        m_sdGroups.insert(std::pair(sdgMT.sdgID, sdgMT));
+
+        //Set based subdataset to this subdataset group
+        sdMT->sdg = sdgMT;
+
+        //Send this group to everyone
+        VFVAddSubjectiveViewGroup cpyAddSV = addSV;
+        cpyAddSV.sdgID = sdgMT.sdgID;
+        for(auto& clt : m_clientTable)
+            sendAddSubjectiveViewGroup(clt.second, cpyAddSV);
+
+        //Create a subjective view for this client (if applied)
+        if(hmdClient)
+        {
+            VFVAddClientToSVGroup addClient;
+            addClient.sdgID = sdgMT.sdgID;
+            onAddClientToSVGroup(client, addClient);
+        }
+    }
+
+    void VFVServer::removeSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup)
+    {
+
+    }
+
+    void VFVServer::setSubjectiveViewStackedParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+
+        //Searching for the subjective group
+        auto svIT = m_sdGroups.find(params.sdgID);
+        if(svIT == m_sdGroups.end())
+        {
+            ERROR << "Was not able to find the subdataset group " << params.sdgID << std::endl;
+            return;
+        }
+
+        if(!svIT->second.isStackedSubjectiveView())
+        {
+            ERROR << "The subdataset group ID " << params.sdgID << " is not a subjective stacked view group.\n";
+            return;
+        }
+
+        if(params.stackMethod >= STACK_END)
+        {
+            ERROR << "The stack method " << params.stackMethod << " is unknown...\n";
+            return;
+        }
+
+        SubDatasetSubjectiveStackedGroup* svg = (SubDatasetSubjectiveStackedGroup*)svIT->second.sdGroup.get();
+        svg->setMerge(params.merged);
+        svg->setStackingMethod((StackingEnum)params.stackMethod);
+        svg->setGap(params.gap);
+
+        svg->updateSubDatasets();
+
+        //Retrieve the datasetID
+        uint32_t datasetID = getDatasetID(svg->getBase()->getParent());
+
+        std::lock_guard<std::mutex> lock2(m_mapMutex);
+        for(auto& clt : m_clientTable)
+        {
+            sendSVStackedGroupGlobalParameters(clt.second, params);
+
+            for(SubDataset* sd : svg->getSubDatasets())
+                sendSubDatasetPositionStatus(clt.second, sd, datasetID);
+        }
+    }
+
+    void VFVServer::addClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient)
+    {
+        VFVClientSocket* hmdClient = nullptr;
+
+        if(client != NULL) //Not the server
+        {
+            hmdClient = getHeadsetFromClient(client);
+            if(hmdClient == NULL)
+            {
+                WARNING << "Not connected to a headset yet..." << std::endl;
+                return;
+            }
+        }
+
+        //Searching for the subjective group
+        auto svIT = m_sdGroups.find(addClient.sdgID);
+        if(svIT == m_sdGroups.end())
+        {
+            ERROR << "Was not able to find the subdataset group " << addClient.sdgID << std::endl;
+            return;
+        }
+
+        if(!svIT->second.isSubjectiveView())
+        {
+            ERROR << "The subdataset group ID " << addClient.sdgID << " is not a subjective group.\n";
+            return;
+        }
+
+        SubDatasetSubjectiveGroup* svg = (SubDatasetSubjectiveGroup*)svIT->second.sdGroup.get();
+
+        //Duplicate the base
+        uint32_t datasetID = getDatasetID(svg->getBase()->getParent());
+
+        if(datasetID == (uint32_t)-1)
+        {
+            ERROR << "A Dataset was not found.... Internal error\n";
+            return;
+        }
+
+        if(svIT->second.isStackedSubjectiveView())
+        {
+            SubDataset* subjectiveSDs[2] = {nullptr, nullptr};
+            bool        toDuplicate[2] = {false, false};
+            if(svIT->second.type == SD_GROUP_SV_STACKED ||
+               svIT->second.type == SD_GROUP_SV_STACKED_LINKED)
+                toDuplicate[0] = true;
+
+            if(svIT->second.type == SD_GROUP_SV_LINKED ||
+               svIT->second.type == SD_GROUP_SV_STACKED_LINKED)
+                toDuplicate[1] = true;
+            for(uint32_t i = 0; i < 2; i++)
+            {
+                if(!toDuplicate[i])
+                    continue;
+                VFVDuplicateSubDataset duplicate;
+                duplicate.datasetID    = datasetID;
+                duplicate.subDatasetID = svg->getBase()->getID();
+                SubDatasetMetaData* sdMT = duplicateSubDataset(client, duplicate);
+                if(sdMT == nullptr)
+                {
+                    ERROR << "Was not able to duplicate the base subdataset of the subdataset group... quitting\n";
+
+                    //Unbound previous added subdatasets
+                    for(uint32_t j = 0; j < i; j++)
+                    {
+                        if(!toDuplicate[j])
+                            continue;
+                        getMetaData(datasetID, subjectiveSDs[j]->getID(), &sdMT);
+                        if(sdMT)
+                            sdMT->sdg = SubDatasetGroupMetaData();
+                    }
+                    return;
+                }
+
+                sdMT->sdg = svIT->second;
+                subjectiveSDs[i] = m_datasets[sdMT->datasetID]->getSubDataset(sdMT->sdID);
+            }
+
+            ((SubDatasetSubjectiveStackedLinkedGroup*)(svg))->addSubjectiveSubDataset(subjectiveSDs[0], subjectiveSDs[1]);
+
+            //Send add SubDataset to SVGroup
+            for(auto& clt : m_clientTable)
+                sendAddSubDatasetToSVStackedGroup(clt.second, svIT->second,
+                                                  datasetID, (uint32_t)((subjectiveSDs[0])?subjectiveSDs[0]->getID():-1), 
+                                                             (uint32_t)((subjectiveSDs[1])?subjectiveSDs[1]->getID():-1));
+        }
+    }
+
+    void VFVServer::onAddClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensure that no one is modifying the list of clients (and relevant information)
+
+        addClientToSVGroup(client, addClient);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
@@ -3081,31 +3321,7 @@ endFor:;
 
     void VFVServer::sendSubDatasetStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID)
     {
-        //Send rotate
-        VFVRotationInformation rotate;
-        rotate.datasetID    = datasetID;
-        rotate.subDatasetID = sd->getID();
-        rotate.quaternion[0] = sd->getGlobalRotate().w;
-        rotate.quaternion[1] = sd->getGlobalRotate().x;
-        rotate.quaternion[2] = sd->getGlobalRotate().y;
-        rotate.quaternion[3] = sd->getGlobalRotate().z;
-        sendRotateDatasetEvent(client, rotate);
-
-        //Send move
-        VFVMoveInformation position;
-        position.datasetID    = datasetID;
-        position.subDatasetID = sd->getID();
-        for(uint32_t j = 0; j < 3; j++)
-            position.position[j] = sd->getPosition()[j];
-        sendMoveDatasetEvent(client, position);
-
-        //Send scale
-        VFVScaleInformation scale;
-        scale.datasetID    = datasetID;
-        scale.subDatasetID = sd->getID();
-        for(uint32_t j = 0; j < 3; j++)
-            scale.scale[j] = sd->getScale()[j];
-        sendScaleDatasetEvent(client, scale);
+        sendSubDatasetPositionStatus(client, sd, datasetID);
 
         //Send transfer Function
         SubDatasetMetaData* sdMT = NULL;
@@ -3134,6 +3350,35 @@ endFor:;
         clipping.subDatasetID = sd->getID();
         clipping.depthClipping = sd->getDepthClipping();
         sendSubDatasetClippingEvent(client, clipping);
+    }
+
+    void VFVServer::sendSubDatasetPositionStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID)
+    {
+        //Send rotate
+        VFVRotationInformation rotate;
+        rotate.datasetID    = datasetID;
+        rotate.subDatasetID = sd->getID();
+        rotate.quaternion[0] = sd->getGlobalRotate().w;
+        rotate.quaternion[1] = sd->getGlobalRotate().x;
+        rotate.quaternion[2] = sd->getGlobalRotate().y;
+        rotate.quaternion[3] = sd->getGlobalRotate().z;
+        sendRotateDatasetEvent(client, rotate);
+
+        //Send move
+        VFVMoveInformation position;
+        position.datasetID    = datasetID;
+        position.subDatasetID = sd->getID();
+        for(uint32_t j = 0; j < 3; j++)
+            position.position[j] = sd->getPosition()[j];
+        sendMoveDatasetEvent(client, position);
+
+        //Send scale
+        VFVScaleInformation scale;
+        scale.datasetID    = datasetID;
+        scale.subDatasetID = sd->getID();
+        for(uint32_t j = 0; j < 3; j++)
+            scale.scale[j] = sd->getScale()[j];
+        sendScaleDatasetEvent(client, scale);
     }
 
     void VFVServer::sendDatasetStatus(VFVClientSocket* client, Dataset* dataset, uint32_t datasetID)
@@ -3745,6 +3990,87 @@ endFor:;
 #endif
     }
 
+    void VFVServer::sendAddSubjectiveViewGroup(VFVClientSocket* client, const VFVAddSubjectiveViewGroup& addSV)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint8_t) + 3*sizeof(uint32_t);
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_ADD_SUBJECTIVE_VIEW_GROUP);
+        offset += sizeof(uint16_t);
+
+        data[offset] = addSV.svType;
+        offset++;
+
+        writeUint32(data+offset, addSV.baseDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, addSV.baseSDID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, addSV.sdgID);
+        offset += sizeof(uint32_t);
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+            m_log << addSV.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
+            m_log << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendAddSubDatasetToSVStackedGroup(VFVClientSocket* client, SubDatasetGroupMetaData& sdgMD, uint32_t datasetID, uint32_t sdStackedID, uint32_t sdLinkedID)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 4*sizeof(uint32_t);
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_ADD_SD_TO_SV_STACKED_LINKED_GROUP);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, sdgMD.sdgID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, sdStackedID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, sdLinkedID);
+        offset += sizeof(uint32_t);
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> lockJson(m_logMutex);
+
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "AddSubDatasetToSVStackedGroup");
+            m_log << ",    \"sdgID\" : " << sdgMD.sdgID << ",\n"
+                  << "    \"datasetID\" : " << datasetID << ",\n"
+                  << "    \"sdStackedID\" : " << sdStackedID << ",\n"
+                  << "    \"sdLinkedID\" : " << sdLinkedID << "\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
+    void VFVServer::sendSVStackedGroupGlobalParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params)
+    {
+        //TODO
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -4031,6 +4357,30 @@ endFor:;
                 case SET_DRAWABLE_ANNOTATION_POSITION_IDX:
                 {
                     setDrawableAnnotationPositionIdx(client, msg.setDrawableAnnotPosIdx);
+                    break;
+                }
+
+                case ADD_SV_GROUP:
+                {
+                    addSubjectiveViewGroup(client, msg.addSVGroup);
+                    break;
+                }
+
+                case SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS:
+                {
+                    setSubjectiveViewStackedParameters(client, msg.setSVStackedGroupParams);
+                    break;
+                }
+
+                case REMOVE_SD_GROUP:
+                {
+                    removeSubDatasetGroup(client, msg.removeSDGroup);
+                    break;
+                }
+
+                case ADD_CLIENT_TO_SV_GROUP:
+                {
+                    addClientToSVGroup(client, msg.addClientToSVGroup);
                     break;
                 }
 

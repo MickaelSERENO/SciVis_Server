@@ -72,8 +72,10 @@ namespace sereno
         VFV_SEND_SET_ANNOTATION_POSITION_INDEXES                = 30, /*!< Set the indexes of the annotation position object*/
         VFV_SEND_ADD_ANNOTATION_POSITION_TO_SD                  = 31, /*!< Link an annotation position object to a subdataset, creating a new drawable*/
         VFV_SEND_SET_SUBDATASET_CLIPPING                        = 32, /*!< Set the clipping values of a subdataset*/
-        VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_DEFAULT_COLOR = 33,
-        VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_MAPPED_IDX    = 34,
+        VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_DEFAULT_COLOR = 33, /*!< Set the default color to use for drawable annotation position*/
+        VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_MAPPED_IDX    = 34, /*!< Set which columns to read to map the data to the visual channel for a drawable annotation position*/
+        VFV_SEND_ADD_SUBJECTIVE_VIEW_GROUP                      = 35, /*!< Add a new subjective view group*/
+        VFV_SEND_ADD_SD_TO_SV_STACKED_LINKED_GROUP              = 36, /*!< Add a sub dataset to an already registered subjective view stacked_linked group*/
         VFV_SEND_END,
     };
 
@@ -153,8 +155,9 @@ namespace sereno
             /* \brief  Get the dataset via its ID
              * \param datasetID the dataset ID
              * \param sdID the subdataset ID to test the validity of the Dataset. can be 0.
+             * \param sd a pointer to store the pointer of the corresponding subdataset. nullptr == parameter ignored.
              * \return  NULL if not found, a pointer to the dataset if found*/
-            Dataset* getDataset(uint32_t datasetID, uint32_t sdID);
+            Dataset* getDataset(uint32_t datasetID, uint32_t sdID, SubDataset** sd = nullptr);
 
             /* \brief  Tells wether a given client can modify a subdataset or not
              * \param client the client attempting to modify the subdataset. If NULL, the client is considered here as the server (which can modify everything)
@@ -167,7 +170,7 @@ namespace sereno
              * \param sdID the subdataset ID
              * \param sdMTPtr[out] if not NULL, will contain the SubDatasetMetaData corresponding
              * \return The DatasetMetaData being updated. NULL if not found. In this case, sdMTPtr will not be modified*/
-            DatasetMetaData* getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr);
+            DatasetMetaData* getMetaData(uint32_t datasetID, uint32_t sdID, SubDatasetMetaData** sdMTPtr = nullptr);
 
             /* \brief  Update the subdataset meta data last modification component via its ID
              * \param client the client modifying the metadata
@@ -181,6 +184,11 @@ namespace sereno
              * \param client the client link to a headset. If client->isHeadset, returns client, otherwise returns client->getTabletData().headset
              * \return   the corresponding headset client object */
             VFVClientSocket* getHeadsetFromClient(VFVClientSocket* client);
+
+            /** \brief Get the dataset ID from an already registered dataset
+             * \param dataset the dataset to evaluate
+             * \return the dataset ID, or the maximum value of uint32_t (i.e., the unsigned value of -1=)*/
+            uint32_t getDatasetID(Dataset* dataset);
 
             /* \brief  Ask for a new anchor headset */
             void askNewAnchor();
@@ -275,6 +283,12 @@ namespace sereno
              * \param dataset the dataset information to duplicate */
             void onDuplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& dataset);
 
+            /** \brief  Duplicate a known SubDataset. This function shall be called when mutexes are already locked.
+             * \param client The client asking to duplicate the subdataset
+             * \param dataset the information targetting the subdataset to duplicate
+             *  \return a pointer to the added subdataset. NULL is returned if an error occured. The pointer must be used shortly, as any modification to the dataset arrays might change its address (realloc) */
+            SubDatasetMetaData* duplicateSubDataset(VFVClientSocket* client, const VFVDuplicateSubDataset& dataset);
+
             /* \brief  Merge two known SubDatasets
              * \param client the client asking to merge the subdatasets
              * \param dataset the datasets information to merge */
@@ -344,6 +358,28 @@ namespace sereno
              * \param client The client asking to set the default color
              * \param idx the new indices data message to use*/
             void setDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx);
+
+            /** \brief  Handling the "add subjective view group" message.
+             * \param client The client asking to add a new subjective view group
+             * \param addSV The information concerning the subjective view*/
+            void addSubjectiveViewGroup(VFVClientSocket* client, const VFVAddSubjectiveViewGroup& addSV);
+
+            void removeSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup);
+
+            /** \brief  Set all the common parameters for subjective view stacked groups
+             * \param client the client asking for the change
+             * \param params the new parameters*/
+            void setSubjectiveViewStackedParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params);
+
+            /** \brief  Add a client to the SV Group. This function serves multiple other ones that needs to lock, at different time, mutexes
+             * \param client the client asking to add a new subjective view inside a given group
+             * \param addClient the information required to target the SV Group*/
+            void addClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient);
+
+            /** \brief  Add a client to the SV Group. This function locks all the required mutex then calls onAddClientToSVGroup
+             * \param client the client asking to add a new subjective view inside a given group
+             * \param addClient the information required to target the SV Group*/
+            void onAddClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient);
 
             /* \brief  Send an empty message
              * \param client the client to send the message
@@ -430,11 +466,17 @@ namespace sereno
              * \param currentActionID the action ID to send */
             void sendCurrentAction(VFVClientSocket* client, uint32_t currentActionID);
 
-            /* \brief  Send the the subdataset status to a client
+            /* \brief  Send the subdataset status to a client
              * \param client the client to send the data
              * \param sd the subdataset information
              * \param datasetID the dataset ID that this SubDataset is attached to*/
             void sendSubDatasetStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID);
+
+            /* \brief  Send the subdataset positional status to a client
+             * \param client the client to send the data
+             * \param sd the subdataset information
+             * \param datasetID the dataset ID that this SubDataset is attached to*/
+            void sendSubDatasetPositionStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID);
 
             /* \brief  Send the whole dataset status to a client
              * \param client the client to send the data
@@ -519,6 +561,23 @@ namespace sereno
              * \param client the client to send the message to
              * \param idx the data to send */
             void sendSetDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx);
+
+            /** \brief  Send a new subjective view group
+             * \param client the client to send the message to
+             * \param addSV the information of the subjective view group to add*/
+            void sendAddSubjectiveViewGroup(VFVClientSocket* client, const VFVAddSubjectiveViewGroup& addSV);
+
+            /** \brief  Send a new subjective view group
+             * \param client the client to send the message to
+             * \param datasetID the dataset ID being the same for both subdatasets to add
+             * \param sdStackedID the subdataset ID to stack. It can be -1 if there is no need to add this subdataset
+             * \param sdLinkedID the subdataset ID to link. It can be -1 if there is no need to add this subdataset*/
+            void sendAddSubDatasetToSVStackedGroup(VFVClientSocket* client, SubDatasetGroupMetaData& sdgMD, uint32_t datasetID, uint32_t sdStackedID, uint32_t sdLinkedID);
+
+            /** \brief  Set the global parameters of a Subjective views stacked group
+             * \param client the client to send the message to
+             * \param params the global parameters information */
+            void sendSVStackedGroupGlobalParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
