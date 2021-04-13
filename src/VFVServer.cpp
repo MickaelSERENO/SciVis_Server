@@ -748,6 +748,28 @@ namespace sereno
         return NULL;
     }
 
+    bool VFVServer::canClientModifySubDatasetGroup(VFVClientSocket* client, const SubDatasetGroupMetaData& sdg)
+    {
+        VFVClientSocket* hmdClient = nullptr;
+        if(client != NULL) //Not the server
+        {
+            hmdClient = getHeadsetFromClient(client);
+            if(hmdClient == NULL)
+            {
+                WARNING << "Not connected to a headset yet..." << std::endl;
+                return false;
+            }
+        }
+
+        if(client != NULL && sdg.owner != NULL && sdg.owner != hmdClient)
+        {
+            ERROR << "The client cannot modify this subdataset group ID " << sdg.sdgID << std::endl;
+            return false;
+        }
+
+        return true;
+    }
+
     uint32_t VFVServer::getDatasetID(Dataset* dataset)
     {
         for(auto& it : m_datasets)
@@ -2312,7 +2334,6 @@ endFor:;
         std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensure that no one is modifying the list of clients (and relevant information)
 
         VFVClientSocket* hmdClient = nullptr;
-
         if(client != NULL) //Not the server
         {
             hmdClient = getHeadsetFromClient(client);
@@ -2334,7 +2355,7 @@ endFor:;
             return;
         }
 
-        if(sdMT->owner != nullptr && sdMT->owner != hmdClient)
+        if(!canModifySubDataset(client, sdMT))
         {
             ERROR << "The subdataset serving as a base is not public and is not owned by this client.... Exiting\n";
             return;
@@ -2359,7 +2380,7 @@ endFor:;
         sdgMT.type    = (SubDatasetGroupType)addSV.svType;
         sdgMT.sdGroup = std::shared_ptr<SubDatasetGroup>(svGroup);
         sdgMT.sdgID   = m_currentSDGroup;
-        sdgMT.owner   = hmdClient;
+        sdgMT.owner   = sdMT->owner;
         m_currentSDGroup++;
         m_sdGroups.insert(std::pair(sdgMT.sdgID, sdgMT));
 
@@ -2383,7 +2404,60 @@ endFor:;
 
     void VFVServer::removeSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup)
     {
+        std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
+        std::lock_guard<std::mutex> lock2(m_mapMutex);
 
+        //Searching for the sd group
+        auto svIT = m_sdGroups.find(removeSDGroup.sdgID);
+        if(svIT == m_sdGroups.end())
+        {
+            ERROR << "Was not able to find the subdataset group " << removeSDGroup.sdgID << std::endl;
+            return;
+        }
+
+        if(!canClientModifySubDatasetGroup(client, svIT->second))
+        {
+            ERROR << "The client cannot modify this subdataset group ID " << removeSDGroup.sdgID << std::endl;
+            return;
+        }
+
+        //It might be useful to test per sd group types.
+        if(svIT->second.isSubjectiveView())
+        {
+            std::list<SubDataset*> subdatasets = svIT->second.sdGroup->getSubDatasets();
+
+            //If subjective views --> remove every subjective views
+            SubDataset* base = ((SubDatasetSubjectiveGroup*)svIT->second.sdGroup.get())->getBase();
+            uint32_t datasetID = getDatasetID(base->getParent());
+
+            for(auto sd : subdatasets)
+            {
+                if(sd != base)
+                {
+                    svIT->second.sdGroup->removeSubDataset(sd);
+                    VFVRemoveSubDataset removeSD;
+                    removeSD.datasetID    = datasetID;
+                    removeSD.subDatasetID = sd->getID();
+                    removeSubDataset(removeSD);
+                }
+            }
+        }
+
+        //Update SD meta data
+        std::list<SubDataset*> subdatasets = svIT->second.sdGroup->getSubDatasets();
+        for(auto sd : subdatasets)
+        {
+            uint32_t datasetID = getDatasetID(sd->getParent());
+            SubDatasetMetaData* sdMD;
+            getMetaData(datasetID, sd->getID(), &sdMD);
+            if(sdMD)
+                sdMD->sdg = SubDatasetGroupMetaData();
+        }
+        m_sdGroups.erase(svIT);
+
+        //Send the message to the other users
+        for(auto& clt : m_clientTable)
+            sendRemoveSubDatasetsGroup(clt.second, removeSDGroup);
     }
 
     void VFVServer::setSubjectiveViewStackedParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params)
@@ -2410,6 +2484,12 @@ endFor:;
             return;
         }
 
+        if(!canClientModifySubDatasetGroup(client, svIT->second))
+        {
+            ERROR << "The client cannot modify the subdataset group ID " << params.sdgID << std::endl;
+            return;
+        }
+
         SubDatasetSubjectiveStackedGroup* svg = (SubDatasetSubjectiveStackedGroup*)svIT->second.sdGroup.get();
         svg->setMerge(params.merged);
         svg->setStackingMethod((StackingEnum)params.stackMethod);
@@ -2432,18 +2512,6 @@ endFor:;
 
     void VFVServer::addClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient)
     {
-        VFVClientSocket* hmdClient = nullptr;
-
-        if(client != NULL) //Not the server
-        {
-            hmdClient = getHeadsetFromClient(client);
-            if(hmdClient == NULL)
-            {
-                WARNING << "Not connected to a headset yet..." << std::endl;
-                return;
-            }
-        }
-
         //Searching for the subjective group
         auto svIT = m_sdGroups.find(addClient.sdgID);
         if(svIT == m_sdGroups.end())
@@ -2460,6 +2528,12 @@ endFor:;
 
         SubDatasetSubjectiveGroup* svg = (SubDatasetSubjectiveGroup*)svIT->second.sdGroup.get();
 
+        if(!canClientModifySubDatasetGroup(client, svIT->second))
+        {
+            ERROR << "The client cannot modify the subdataset group ID " << addClient.sdgID << std::endl;
+            return;
+        }
+
         //Duplicate the base
         uint32_t datasetID = getDatasetID(svg->getBase()->getParent());
 
@@ -2472,7 +2546,7 @@ endFor:;
         if(svIT->second.isStackedSubjectiveView())
         {
             SubDataset* subjectiveSDs[2] = {nullptr, nullptr};
-            bool        toDuplicate[2] = {false, false};
+            bool        toDuplicate[2]   = {false, false};
             if(svIT->second.type == SD_GROUP_SV_STACKED ||
                svIT->second.type == SD_GROUP_SV_STACKED_LINKED)
                 toDuplicate[0] = true;
@@ -2509,12 +2583,20 @@ endFor:;
             }
 
             ((SubDatasetSubjectiveStackedLinkedGroup*)(svg))->addSubjectiveSubDataset(subjectiveSDs[0], subjectiveSDs[1]);
+            svg->updateSubDatasets();
 
-            //Send add SubDataset to SVGroup
+            //Send "add SubDataset to SVGroup", and send the new updated positions/graphical properties
             for(auto& clt : m_clientTable)
+            {
                 sendAddSubDatasetToSVStackedGroup(clt.second, svIT->second,
                                                   datasetID, (uint32_t)((subjectiveSDs[0])?subjectiveSDs[0]->getID():-1), 
                                                              (uint32_t)((subjectiveSDs[1])?subjectiveSDs[1]->getID():-1));
+
+                for(uint32_t i = 0; i < 2; i++)
+                    if(subjectiveSDs[i])
+                        sendSubDatasetStatus(clt.second, subjectiveSDs[i], datasetID);
+
+            }
         }
     }
 
@@ -2530,6 +2612,17 @@ endFor:;
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
 
+    void VFVServer::saveMessageSentToJSONLog(VFVClientSocket* client, const VFVDataInformation& data)
+    {
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << data.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset())<< ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
     void VFVServer::sendEmptyMessage(VFVClientSocket* client, uint16_t type)
     {
         uint8_t* data = (uint8_t*)malloc(sizeof(uint16_t));
@@ -2540,15 +2633,9 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, sizeof(uint16_t));
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
         VFVNoDataInformation noData;
         noData.type = type;
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << noData.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset())<< ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, noData);
     }
 
     void VFVServer::sendAddVTKDatasetEvent(VFVClientSocket* client, const VFVVTKDatasetInformation& dataset, uint32_t datasetID)
@@ -2595,13 +2682,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, dataset);
     }
 
     void VFVServer::sendAddCloudPointDatasetEvent(VFVClientSocket* client, const VFVCloudPointDatasetInformation& dataset, uint32_t datasetID)
@@ -2630,13 +2711,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, dataset);
     }
 
     void VFVServer::sendAddSubDataset(VFVClientSocket* client, const SubDataset* sd)
@@ -2722,13 +2797,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << dataset.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, dataset);
     }
 
     void VFVServer::sendAddLogData(VFVClientSocket* client, const VFVOpenLogData& logData, uint32_t logID)
@@ -2926,13 +2995,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, rotate);
     }
 
     void VFVServer::sendScaleDatasetEvent(VFVClientSocket* client, const VFVScaleInformation& scale)
@@ -2962,13 +3025,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << scale.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, scale);
     }
 
     void VFVServer::sendMoveDatasetEvent(VFVClientSocket* client, const VFVMoveInformation& position)
@@ -2997,13 +3054,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << position.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, position);
     }
 
     void VFVServer::sendSubDatasetClippingEvent(VFVClientSocket* client, const VFVSetSubDatasetClipping& clipping)
@@ -3029,13 +3080,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << clipping.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, clipping);
     }
 
     void VFVServer::sendCurrentAction(VFVClientSocket* client, uint32_t currentActionID)
@@ -3194,13 +3239,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> logLock(m_logMutex);
-            m_log << tfSD.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, tfSD);
     }
 
     void VFVServer::sendVolumetricMaskDataset(VFVClientSocket* client, std::shared_ptr<uint8_t> sharedVolData, size_t size)
@@ -3537,16 +3576,10 @@ endFor:;
             SocketMessage<int> smSegment(client->socket, sharedDataSegment, itSegment.dataSize);
             writeMessage(smSegment);
 
-#ifdef VFV_LOG_DATA
             VFVDefaultByteArray byteArr;
             byteArr.type = VFV_SEND_HEADSET_ANCHOR_SEGMENT;
             byteArr.dataSize = itSegment.dataSize;
-            {
-                std::lock_guard<std::mutex> logLock(m_logMutex);
-                m_log << byteArr.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-                m_log << std::flush;
-            }
-#endif
+            saveMessageSentToJSONLog(client, byteArr);
         }
 
         sendEmptyMessage(client, VFV_SEND_HEADSET_ANCHOR_EOF);
@@ -3669,17 +3702,11 @@ endFor:;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << startAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
-
         INFO << "Sending start annotation \n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
+
+        saveMessageSentToJSONLog(client, startAnnot);
     }
 
     void VFVServer::sendAnchorAnnotation(VFVClientSocket* client, const VFVAnchorAnnotation& anchorAnnot)
@@ -3710,17 +3737,10 @@ endFor:;
 
         std::shared_ptr<uint8_t> sharedData(data, free);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << anchorAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
-
         INFO << "Sending anchor annotation " << anchorAnnot.localPos[0] << "x" << anchorAnnot.localPos[1] << "x" << anchorAnnot.localPos[2] << "\n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
+        saveMessageSentToJSONLog(client, anchorAnnot);
     }
 
     void VFVServer::sendClearAnnotations(VFVClientSocket* client, const VFVClearAnnotations& clearAnnot)
@@ -3745,14 +3765,7 @@ endFor:;
         INFO << "Sending clear annotation \n";
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
-
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << clearAnnot.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, clearAnnot);
     }
 
     void VFVServer::sendLocationTablet(const glm::vec3& pos, const Quaternionf& rot, VFVClientSocket* client)
@@ -3826,15 +3839,7 @@ endFor:;
         //Send the data
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
-        
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << addInput.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
-            m_log << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, addInput);
     }
 
     void VFVServer::sendToggleMapVisibility(VFVClientSocket* client, const VFVToggleMapVisibility& visibility)
@@ -3865,14 +3870,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
         
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << visibility.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
-            m_log << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, visibility);
     }
 
 
@@ -3940,14 +3938,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << color.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
-            m_log << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, color);
     }
 
     void VFVServer::sendSetDrawableAnnotationPositionIdx(VFVClientSocket* client, const VFVSetDrawableAnnotationPositionMappedIdx& idx)
@@ -3980,14 +3971,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << idx.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
-            m_log << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, idx);
     }
 
     void VFVServer::sendAddSubjectiveViewGroup(VFVClientSocket* client, const VFVAddSubjectiveViewGroup& addSV)
@@ -4016,14 +4000,7 @@ endFor:;
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
 
-#ifdef VFV_LOG_DATA
-        {
-            std::lock_guard<std::mutex> lockJson(m_logMutex);
-            m_log << addSV.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset());
-            m_log << ",\n";
-            m_log << std::flush;
-        }
-#endif
+        saveMessageSentToJSONLog(client, addSV);
     }
 
     void VFVServer::sendAddSubDatasetToSVStackedGroup(VFVClientSocket* client, SubDatasetGroupMetaData& sdgMD, uint32_t datasetID, uint32_t sdStackedID, uint32_t sdLinkedID)
@@ -4068,7 +4045,50 @@ endFor:;
 
     void VFVServer::sendSVStackedGroupGlobalParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params)
     {
-        //TODO
+        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + sizeof(float) + 1;
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_SET_SV_STACKED_GLOBAL_PARAMETERS);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, params.sdgID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, params.stackMethod);
+        offset += sizeof(uint32_t);
+
+        writeFloat(data+offset, params.gap);
+        offset += sizeof(float);
+
+        data[offset] = params.merged;
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+        saveMessageSentToJSONLog(client, params);
+    }
+
+    void VFVServer::sendRemoveSubDatasetsGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 1*sizeof(uint32_t);
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_REMOVE_SUBDATASET_GROUP);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, removeSDGroup.sdgID);
+        offset += sizeof(uint32_t);
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+        saveMessageSentToJSONLog(client, removeSDGroup);
     }
 
     /*----------------------------------------------------------------------------*/

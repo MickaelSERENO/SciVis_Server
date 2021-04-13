@@ -76,6 +76,8 @@ namespace sereno
         VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_MAPPED_IDX    = 34, /*!< Set which columns to read to map the data to the visual channel for a drawable annotation position*/
         VFV_SEND_ADD_SUBJECTIVE_VIEW_GROUP                      = 35, /*!< Add a new subjective view group*/
         VFV_SEND_ADD_SD_TO_SV_STACKED_LINKED_GROUP              = 36, /*!< Add a sub dataset to an already registered subjective view stacked_linked group*/
+        VFV_SEND_SET_SV_STACKED_GLOBAL_PARAMETERS               = 37,
+        VFV_SEND_REMOVE_SUBDATASET_GROUP                        = 38,
         VFV_SEND_END,
     };
 
@@ -184,6 +186,8 @@ namespace sereno
              * \param client the client link to a headset. If client->isHeadset, returns client, otherwise returns client->getTabletData().headset
              * \return   the corresponding headset client object */
             VFVClientSocket* getHeadsetFromClient(VFVClientSocket* client);
+
+            bool canClientModifySubDatasetGroup(VFVClientSocket* client, const SubDatasetGroupMetaData& sdg);
 
             /** \brief Get the dataset ID from an already registered dataset
              * \param dataset the dataset to evaluate
@@ -380,6 +384,8 @@ namespace sereno
              * \param client the client asking to add a new subjective view inside a given group
              * \param addClient the information required to target the SV Group*/
             void onAddClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient);
+
+            void saveMessageSentToJSONLog(VFVClientSocket* client, const VFVDataInformation& data);
 
             /* \brief  Send an empty message
              * \param client the client to send the message
@@ -578,6 +584,11 @@ namespace sereno
              * \param client the client to send the message to
              * \param params the global parameters information */
             void sendSVStackedGroupGlobalParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params);
+
+            /** \brief Remove a subdataset group from the client data 
+             * \param client the client to send the message to
+             * \param removeSDGroup the subdataset group information */
+            void sendRemoveSubDatasetsGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
