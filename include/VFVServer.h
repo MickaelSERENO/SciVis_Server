@@ -187,6 +187,8 @@ namespace sereno
              * \return   the corresponding headset client object */
             VFVClientSocket* getHeadsetFromClient(VFVClientSocket* client);
 
+            void updateSDGroup(SubDataset* sd);
+
             bool canClientModifySubDatasetGroup(VFVClientSocket* client, const SubDatasetGroupMetaData& sdg);
 
             /** \brief Get the dataset ID from an already registered dataset
@@ -518,7 +520,12 @@ namespace sereno
 
             /* \brief Send the subdataset owner to all the clients (owner included)
              * \param data SubDataset meta data containing the new owner */
-            void sendSubDatasetOwner(SubDatasetMetaData* data);
+            void sendSubDatasetOwnerToAll(SubDatasetMetaData* metaData);
+
+            /** \brief  Send the subdataset owner to a given client
+             * \param client the client to send the message to
+             * \param data the data to send */
+            void sendSubDatasetOwner(VFVClientSocket* client, SubDatasetMetaData* data);
 
             /* \brief  Send a start annotation message to a headset
              * \param client the headset client to send the message

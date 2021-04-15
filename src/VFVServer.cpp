@@ -748,6 +748,12 @@ namespace sereno
         return NULL;
     }
 
+    void VFVServer::updateSDGroup(SubDataset* sd)
+    {
+        if(sd->getSubDatasetGroup())
+            sd->getSubDatasetGroup()->updateSubDatasets();
+    }
+
     bool VFVServer::canClientModifySubDatasetGroup(VFVClientSocket* client, const SubDatasetGroupMetaData& sdg)
     {
         VFVClientSocket* hmdClient = nullptr;
@@ -1402,7 +1408,7 @@ endFor:;
             sdMT->owner = NULL;
 
             //Send to all
-            sendSubDatasetOwner(sdMT);
+            sendSubDatasetOwnerToAll(sdMT);
         }
     }
 
@@ -1905,6 +1911,8 @@ endFor:;
         sd->setGlobalRotate(Quaternionf(rotate.quaternion[1], rotate.quaternion[2],
                                         rotate.quaternion[3], rotate.quaternion[0]));
 
+        updateSDGroup(sd);
+
         //Set the headsetID
         if(client)
         {
@@ -1953,6 +1961,8 @@ endFor:;
             }
         }
         sd->setPosition(glm::vec3(translate.position[0], translate.position[1], translate.position[2]));
+
+        updateSDGroup(sd);
 
         //Set the headsetID
         if(client)
@@ -2054,6 +2064,8 @@ endFor:;
         }
 
         sd->setScale(glm::vec3(scale.scale[0], scale.scale[1], scale.scale[2]));
+
+        updateSDGroup(sd);
 
         //Set the headsetID
         if(client)
@@ -2498,15 +2510,17 @@ endFor:;
         svg->updateSubDatasets();
 
         //Retrieve the datasetID
-        uint32_t datasetID = getDatasetID(svg->getBase()->getParent());
+        //uint32_t datasetID = getDatasetID(svg->getBase()->getParent());
 
         std::lock_guard<std::mutex> lock2(m_mapMutex);
         for(auto& clt : m_clientTable)
         {
             sendSVStackedGroupGlobalParameters(clt.second, params);
 
-            for(SubDataset* sd : svg->getSubDatasets())
-                sendSubDatasetPositionStatus(clt.second, sd, datasetID);
+/* 
+ *          for(SubDataset* sd : svg->getSubDatasets())
+ *              sendSubDatasetPositionStatus(clt.second, sd, datasetID);
+*/
         }
     }
 
@@ -2531,6 +2545,13 @@ endFor:;
         if(!canClientModifySubDatasetGroup(client, svIT->second))
         {
             ERROR << "The client cannot modify the subdataset group ID " << addClient.sdgID << std::endl;
+            return;
+        }
+
+        VFVClientSocket* hmdClient = getHeadsetFromClient(client);
+        if(hmdClient == NULL)
+        {
+            ERROR << "Cannot add a subdataset subjective view to a non-connected client..." << std::endl;
             return;
         }
 
@@ -2573,7 +2594,10 @@ endFor:;
                             continue;
                         getMetaData(datasetID, subjectiveSDs[j]->getID(), &sdMT);
                         if(sdMT)
-                            sdMT->sdg = SubDatasetGroupMetaData();
+                        {
+                            sdMT->sdg   = SubDatasetGroupMetaData();
+                            sdMT->owner = hmdClient;
+                        }
                     }
                     return;
                 }
@@ -3389,6 +3413,8 @@ endFor:;
         clipping.subDatasetID = sd->getID();
         clipping.depthClipping = sd->getDepthClipping();
         sendSubDatasetClippingEvent(client, clipping);
+
+        sendSubDatasetOwner(client, sdMT);
     }
 
     void VFVServer::sendSubDatasetPositionStatus(VFVClientSocket* client, SubDataset* sd, uint32_t datasetID)
@@ -3638,7 +3664,14 @@ endFor:;
         }
     }
 
-    void VFVServer::sendSubDatasetOwner(SubDatasetMetaData* metaData)
+    void VFVServer::sendSubDatasetOwnerToAll(SubDatasetMetaData* metaData)
+    {
+        //Send the data
+        for(auto it : m_clientTable)
+            sendSubDatasetOwner(it.second, metaData);
+    }
+
+    void VFVServer::sendSubDatasetOwner(VFVClientSocket* client, SubDatasetMetaData* metaData)
     {
         //Generate the data
         uint8_t* data   = (uint8_t*)malloc(sizeof(uint16_t) + 3*sizeof(uint32_t));
@@ -3663,24 +3696,20 @@ endFor:;
 
         INFO << "Setting owner dataset ID " <<  metaData->datasetID << " sub dataset ID " << metaData->sdID << " headset ID" << id << std::endl;
 
-        //Send the data
-        for(auto it : m_clientTable)
-        {
-            SocketMessage<int> sm(it.second->socket, sharedData, offset);
-            writeMessage(sm);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
 
 #ifdef VFV_LOG_DATA
-            {
-                std::lock_guard<std::mutex> logLock(m_logMutex);
-                VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "SubDatasetOwner");
-                m_log << ",    \"datasetID\"  : " << metaData->datasetID << ",\n"
-                      << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
-                      << "    \"headsetID\" : " << id << "\n"
-                      << "},\n";
-                m_log << std::flush;
-            }
-#endif
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SubDatasetOwner");
+            m_log << ",    \"datasetID\"  : " << metaData->datasetID << ",\n"
+                  << "    \"subDatasetID\" : " << metaData->sdID << ",\n"
+                  << "    \"headsetID\" : " << id << "\n"
+                  << "},\n";
+            m_log << std::flush;
         }
+#endif
     }
 
     void VFVServer::sendStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)

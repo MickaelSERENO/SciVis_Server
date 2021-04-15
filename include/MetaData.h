@@ -180,9 +180,9 @@ namespace sereno
     /** \brief  The different subdataset groups usable */
     enum SubDatasetGroupType
     {
-        SD_GROUP_SV_STACKED,
-        SD_GROUP_SV_LINKED,
-        SD_GROUP_SV_STACKED_LINKED,
+        SD_GROUP_SV_STACKED        = 0,
+        SD_GROUP_SV_LINKED         = 1,
+        SD_GROUP_SV_STACKED_LINKED = 2,
         SD_GROUP_NONE,
     };
 
