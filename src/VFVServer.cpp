@@ -2373,6 +2373,8 @@ endFor:;
             return;
         }
 
+        INFO << "Creating a new subjective view group..." << std::endl;
+
         //Create the subjective view
         SubDatasetSubjectiveGroup* svGroup = nullptr;
 
@@ -2387,6 +2389,8 @@ endFor:;
             return;
         }
 
+        INFO << "Add the subjective view group to the known groups..." << std::endl;
+
         //Add the subjective view to the known groups
         SubDatasetGroupMetaData sdgMT;
         sdgMT.type    = (SubDatasetGroupType)addSV.svType;
@@ -2399,19 +2403,25 @@ endFor:;
         //Set based subdataset to this subdataset group
         sdMT->sdg = sdgMT;
 
+        INFO << "Send the subjective view group to all clients..." << std::endl;
+
         //Send this group to everyone
         VFVAddSubjectiveViewGroup cpyAddSV = addSV;
         cpyAddSV.sdgID = sdgMT.sdgID;
         for(auto& clt : m_clientTable)
             sendAddSubjectiveViewGroup(clt.second, cpyAddSV);
 
+
+        INFO << "Create a personal subjective view for this client...." << std::endl;
         //Create a subjective view for this client (if applied)
         if(hmdClient)
         {
             VFVAddClientToSVGroup addClient;
             addClient.sdgID = sdgMT.sdgID;
-            onAddClientToSVGroup(client, addClient);
+            addClientToSVGroup(client, addClient);
         }
+
+        INFO << "End of subjective views..." << std::endl;
     }
 
     void VFVServer::removeSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup)
@@ -2592,17 +2602,24 @@ endFor:;
                     {
                         if(!toDuplicate[j])
                             continue;
+
+
                         getMetaData(datasetID, subjectiveSDs[j]->getID(), &sdMT);
                         if(sdMT)
                         {
                             sdMT->sdg   = SubDatasetGroupMetaData();
-                            sdMT->owner = hmdClient;
+                            sdMT->owner = nullptr;
+                            VFVRemoveSubDataset removeSD;
+                            removeSD.datasetID    = datasetID;
+                            removeSD.subDatasetID = subjectiveSDs[j]->getID();
+                            removeSubDataset(removeSD);
                         }
                     }
                     return;
                 }
 
                 sdMT->sdg = svIT->second;
+                sdMT->owner = hmdClient;
                 subjectiveSDs[i] = m_datasets[sdMT->datasetID]->getSubDataset(sdMT->sdID);
             }
 
@@ -2612,14 +2629,13 @@ endFor:;
             //Send "add SubDataset to SVGroup", and send the new updated positions/graphical properties
             for(auto& clt : m_clientTable)
             {
-                sendAddSubDatasetToSVStackedGroup(clt.second, svIT->second,
-                                                  datasetID, (uint32_t)((subjectiveSDs[0])?subjectiveSDs[0]->getID():-1), 
-                                                             (uint32_t)((subjectiveSDs[1])?subjectiveSDs[1]->getID():-1));
-
                 for(uint32_t i = 0; i < 2; i++)
                     if(subjectiveSDs[i])
                         sendSubDatasetStatus(clt.second, subjectiveSDs[i], datasetID);
 
+                sendAddSubDatasetToSVStackedGroup(clt.second, svIT->second,
+                                                  datasetID, (uint32_t)((subjectiveSDs[0])?subjectiveSDs[0]->getID():-1), 
+                                                             (uint32_t)((subjectiveSDs[1])?subjectiveSDs[1]->getID():-1));
             }
         }
     }
@@ -3377,6 +3393,47 @@ endFor:;
             sendDatasetStatus(client, it.second, it.first);
         }
 
+        for(auto& it : m_sdGroups)
+        {
+            if(it.second.isSubjectiveView())
+            {
+                //Send the group
+                SubDatasetSubjectiveStackedLinkedGroup* svGroup = (SubDatasetSubjectiveStackedLinkedGroup*)it.second.sdGroup.get();
+                SubDataset* sdBase = svGroup->getBase();
+                uint32_t datasetBaseID = getDatasetID(sdBase->getParent());
+
+                VFVAddSubjectiveViewGroup addSVG;
+                addSVG.svType        = it.second.type;
+                addSVG.sdgID         = it.second.sdgID;
+                addSVG.baseDatasetID = datasetBaseID;
+                addSVG.baseSDID      = sdBase->getID();
+                sendAddSubjectiveViewGroup(client, addSVG);
+
+                //Send global parameters
+                VFVSetSVStackedGroupGlobalParameters globalParams;
+                globalParams.sdgID       = it.second.sdgID;
+                globalParams.stackMethod = (uint32_t)svGroup->getStackingMethod();
+                globalParams.merged      = svGroup->getMerge();
+                globalParams.gap         = svGroup->getGap();
+                sendSVStackedGroupGlobalParameters(client, globalParams);
+
+
+                //Send each subjective views
+                for(auto& p : svGroup->getLinkedSubDatasets())
+                {
+                    uint32_t stacked = (uint32_t)-1;
+                    uint32_t linked  = (uint32_t)-1;
+
+                    if(p.first)
+                        stacked = p.first->getID();
+                    if(p.second)
+                        linked  = p.second->getID();
+
+                    sendAddSubDatasetToSVStackedGroup(client, it.second, datasetBaseID, stacked, linked);
+                }
+            }
+        }
+
         //Send anchoring data
         if(client->isHeadset())
             sendAnchoring(client);
@@ -4091,6 +4148,7 @@ endFor:;
         offset += sizeof(float);
 
         data[offset] = params.merged;
+        offset++;
 
         //Send the data
         std::shared_ptr<uint8_t> sharedData(data, free);
