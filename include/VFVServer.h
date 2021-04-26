@@ -187,7 +187,7 @@ namespace sereno
              * \return   the corresponding headset client object */
             VFVClientSocket* getHeadsetFromClient(VFVClientSocket* client);
 
-            void updateSDGroup(SubDataset* sd);
+            void updateSDGroup(SubDataset* sd, bool setTF = false);
 
             bool canClientModifySubDatasetGroup(VFVClientSocket* client, const SubDatasetGroupMetaData& sdg);
 

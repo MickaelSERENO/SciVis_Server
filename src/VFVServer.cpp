@@ -748,10 +748,47 @@ namespace sereno
         return NULL;
     }
 
-    void VFVServer::updateSDGroup(SubDataset* sd)
+    void VFVServer::updateSDGroup(SubDataset* sd, bool setTF)
     {
         if(sd->getSubDatasetGroup())
+        {
             sd->getSubDatasetGroup()->updateSubDatasets();
+
+            //Update the Transfer function meta data
+            if(setTF)
+            {
+                SubDatasetMetaData* sdMT = nullptr;
+                uint32_t datasetID = getDatasetID(sd->getParent());
+
+                getMetaData(datasetID, sd->getID(), &sdMT);
+                if(sdMT != nullptr)
+                {
+                    auto it = m_sdGroups.find(sdMT->sdgID);
+                    if(it != m_sdGroups.end())
+                    {
+                        if(it->second.isSubjectiveView())
+                        {
+                            SubDatasetSubjectiveStackedLinkedGroup* svGroup = (SubDatasetSubjectiveStackedLinkedGroup*)it->second.sdGroup.get();
+                            for(auto subjView : svGroup->getLinkedSubDatasets())
+                            {
+                                if(subjView.first != nullptr && subjView.second != nullptr)
+                                {
+                                    SubDatasetMetaData* stackedMT = nullptr;
+                                    SubDatasetMetaData* linkedMT  = nullptr;
+                                    getMetaData(datasetID, subjView.first->getID(), &stackedMT);
+                                    getMetaData(datasetID, subjView.first->getID(), &linkedMT);
+
+                                    if(stackedMT && linkedMT && linkedMT->tf != nullptr)
+                                    {
+                                        stackedMT->tf = std::shared_ptr<SubDatasetTFMetaData>(new SubDatasetTFMetaData(*linkedMT->tf.get()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     bool VFVServer::canClientModifySubDatasetGroup(VFVClientSocket* client, const SubDatasetGroupMetaData& sdg)
@@ -1220,8 +1257,7 @@ endFor:;
         for(auto& it : m_cloudPointDatasets)
             f(it.second);
 
-        //Remove the subdataset
-        dataset->removeSubDataset(sd);
+        dataset->removeSubDataset(sd); //This shall also set the subdataset group as required
 
         //Tells all the clients
         for(auto& clt : m_clientTable)
@@ -2023,6 +2059,8 @@ endFor:;
                 tfSD.headsetID = headset->getHeadsetData().id;
         }
 
+        updateSDGroup(sd, true);
+
         //Send to all
         for(auto& clt : m_clientTable)
             if(clt.second != client)
@@ -2116,6 +2154,7 @@ endFor:;
         }
 
         sd->setDepthClipping(clipping.depthClipping);
+        updateSDGroup(sd);
 
         //Send to all
         for(auto& clt : m_clientTable)
@@ -2286,6 +2325,8 @@ endFor:;
             headsetID = hmdClient->getHeadsetData().id;
         }
 
+        updateSDGroup(sd);
+
         for(auto& clt : m_clientTable)
             sendResetVolumetricSelection(clt.second, reset.datasetID, reset.subDatasetID, headsetID);
     }
@@ -2401,7 +2442,7 @@ endFor:;
         m_sdGroups.insert(std::pair(sdgMT.sdgID, sdgMT));
 
         //Set based subdataset to this subdataset group
-        sdMT->sdg = sdgMT;
+        sdMT->sdgID = sdgMT.sdgID;
 
         INFO << "Send the subjective view group to all clients..." << std::endl;
 
@@ -2473,7 +2514,7 @@ endFor:;
             SubDatasetMetaData* sdMD;
             getMetaData(datasetID, sd->getID(), &sdMD);
             if(sdMD)
-                sdMD->sdg = SubDatasetGroupMetaData();
+                sdMD->sdgID = -1;
         }
         m_sdGroups.erase(svIT);
 
@@ -2607,7 +2648,7 @@ endFor:;
                         getMetaData(datasetID, subjectiveSDs[j]->getID(), &sdMT);
                         if(sdMT)
                         {
-                            sdMT->sdg   = SubDatasetGroupMetaData();
+                            sdMT->sdgID = -1;
                             sdMT->owner = nullptr;
                             VFVRemoveSubDataset removeSD;
                             removeSD.datasetID    = datasetID;
@@ -2618,7 +2659,7 @@ endFor:;
                     return;
                 }
 
-                sdMT->sdg = svIT->second;
+                sdMT->sdgID = svIT->second.sdgID;
                 sdMT->owner = hmdClient;
                 subjectiveSDs[i] = m_datasets[sdMT->datasetID]->getSubDataset(sdMT->sdID);
             }

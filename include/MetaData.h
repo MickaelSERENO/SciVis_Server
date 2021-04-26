@@ -20,6 +20,15 @@ namespace sereno
     {
         std::shared_ptr<SubDatasetTFMetaData> tf1; /*!< The meta data of the first transfer function being merged*/
         std::shared_ptr<SubDatasetTFMetaData> tf2; /*!< The meta data of the second transfer function being merged*/
+
+        MergeTFMetaData(){}
+
+        MergeTFMetaData(const MergeTFMetaData& cpy)
+        {
+            *this = cpy;
+        }
+
+        MergeTFMetaData& operator=(const MergeTFMetaData& cpy);
     }; 
 
     class SubDatasetTFMetaData
@@ -228,10 +237,9 @@ namespace sereno
         bool             stackedTimesteps              = false; /*!< Should we stack multiple timesteps?*/
 
         std::list<std::shared_ptr<DrawableAnnotationPositionMetaData>> annotPos; /*!< The annotation position components linked to this subdataset */
-        uint32_t         currentDrawableID = 0;                                  /*!< What should be the next ID of the attached drawable (see DrawableAnnotation*) */
+        uint32_t currentDrawableID = 0;                                  /*!< What should be the next ID of the attached drawable (see DrawableAnnotation*) */
 
-        SubDatasetGroupMetaData sdg;                                 /*!< The SubDatasetGroup linked with this SubDataset*/
-
+        int32_t  sdgID;                                 /*!< The SubDatasetGroup linked with this SubDataset*/
 
         /** \brief Push a new DrawableAnnotationPosition meta data object  
          * \param annot the object to consider and configure. A link is created between the SubDataset and this drawable.  */
