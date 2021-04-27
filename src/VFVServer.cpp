@@ -877,6 +877,7 @@ namespace sereno
             if(m_inTraining)
             {
                 replaceDataset = true;
+                m_trialID++;
                 if(m_trialID == MAX_NB_TB_TRIALS)
                 {
                     m_trialID = 0;

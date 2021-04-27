@@ -131,9 +131,8 @@ int main(int argc, char** argv)
 
             while(!closeApp && !server->isClosed())
             {
-            //    struct timespec beg;
-            //    clock_gettime(CLOCK_REALTIME, &beg);
-            //    uint64_t startTime = (uint64_t)(beg.tv_nsec*1.e-3) + beg.tv_sec*1.e6;
+                struct timespec beg;
+                clock_gettime(CLOCK_REALTIME, &beg);
 
                 //Enter the VRPN main loop
                 for(vrpn_Tracker_Remote* it : trackers)
@@ -148,12 +147,16 @@ int main(int argc, char** argv)
                         serverPtr->commitAllVRPNPositions();
                     }
 
-            //    struct timespec end;
-            //    clock_gettime(CLOCK_REALTIME, &end);
-            //    uint64_t endTime = (uint64_t)(end.tv_nsec*1.e-3) + end.tv_sec*1.e6;
+                struct timespec end;
+                clock_gettime(CLOCK_REALTIME, &end);
+
+                int64_t sleepTime = (int64_t)((end.tv_nsec-beg.tv_nsec)*1.e-3) + (end.tv_sec - beg.tv_sec)*1e6;
+                sleepTime = std::max(0L, (int64_t)(1.e6/UPDATE_VRPN_FRAMERATE) - sleepTime);
+                usleep(sleepTime);
+//                uint64_t endTime = (uint64_t)(end.tv_nsec*1.e-3) + end.tv_sec*1.e6;
 
 //                usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE) - endTime + startTime));
-                usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE)));
+                //usleep(std::max((uint64_t)0, (uint64_t)(1.e6/UPDATE_VRPN_FRAMERATE)));
             }
 
             //Close every connections
