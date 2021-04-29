@@ -1237,25 +1237,74 @@ endFor:;
             VFVSERVER_SUB_DATASET_NOT_FOUND(remove.datasetID, remove.subDatasetID)
             return;
         }
+
+        SubDatasetMetaData* sdMT = nullptr;
         SubDataset* sd = dataset->getSubDataset(remove.subDatasetID);
-
-        auto f = [&remove](DatasetMetaData& mtData)
+        DatasetMetaData* mtData = getMetaData(remove.datasetID, remove.subDatasetID, &sdMT);
+        if(!mtData || !sdMT)
         {
-            for(auto it = mtData.sdMetaData.begin(); it != mtData.sdMetaData.end();)
-            {
-                if(it->datasetID == remove.datasetID && it->sdID == remove.subDatasetID)
-                    it = mtData.sdMetaData.erase(it);
-                else
-                    it++;
-            }
-        };
+            ERROR << "Could not get the meta data of the subdatasets" << std::endl;
+            return;
+        }
 
-        for(auto& it : m_binaryDatasets)
-            f(it.second);
-        for(auto& it : m_vtkDatasets)
-            f(it.second);
-        for(auto& it : m_cloudPointDatasets)
-            f(it.second);
+        for(auto it = mtData->sdMetaData.begin(); it != mtData->sdMetaData.end();)
+        {
+            if(it->datasetID == remove.datasetID && it->sdID == remove.subDatasetID)
+            {
+                it = mtData->sdMetaData.erase(it);
+                break;
+            }
+            else
+                it++;
+        }
+
+        //There might be extra steps on removing a subdataset based on its group
+        if(sdMT->sdgID != -1)
+        {
+            auto sdgIT = m_sdGroups.find(sdMT->sdgID);
+            if(sdgIT == m_sdGroups.end())
+            {
+                ERROR << "The Subdataset is registered as having a subdatasetgroup, but the subdataset group meta data is unavailable" << std::endl;
+                return;
+            }
+
+            if(sdgIT->second.isSubjectiveView())
+            {
+                SubDatasetSubjectiveStackedLinkedGroup* svg = (SubDatasetSubjectiveStackedLinkedGroup*)(sdgIT->second.sdGroup.get()); 
+
+                //If base --> remove the group
+                if(sd == svg->getBase())
+                {
+                    VFVRemoveSubDatasetGroup removeSDG;
+                    removeSDG.sdgID = sdgIT->first;
+                    removeSubDatasetGroup(removeSDG);
+                }
+
+                //If subjective views --> remove its counter part
+                else
+                {
+                    auto subjViews = svg->getLinkedSubDataset(sd);
+                    if(subjViews.first != nullptr && subjViews.second != nullptr)
+                    {
+                        sdMT->sdgID = -1;
+                        svg->removeSubDataset(sd); //This removes the counter part as well
+
+                        SubDataset* counterPart = subjViews.first;
+                        if(subjViews.first == sd)
+                            counterPart = subjViews.second;
+
+                        SubDatasetMetaData* counterPartMT;
+                        getMetaData(remove.datasetID, counterPart->getID(), &counterPartMT);
+                        if(counterPartMT)
+                            counterPartMT->sdgID = -1;
+
+                        VFVRemoveSubDataset removeCounter = remove;
+                        removeCounter.subDatasetID = counterPart->getID();
+                        removeSubDataset(removeCounter);
+                    }
+                }
+            }
+        }
 
         dataset->removeSubDataset(sd); //This shall also set the subdataset group as required
 
@@ -1911,6 +1960,44 @@ endFor:;
         removeSubDataset(remove);
     }
 
+    void VFVServer::onRenameSubDataset(VFVClientSocket* client, const VFVRenameSubDataset& rename)
+    {
+        std::lock_guard<std::mutex> lock(m_datasetMutex);
+        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+
+        //Find the subdataset meta data
+        SubDatasetMetaData* sdMT = NULL;
+        DatasetMetaData* mt = getMetaData(rename.datasetID, rename.subDatasetID, &sdMT);
+        if(!mt)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(rename.datasetID, rename.subDatasetID)
+            return;
+        }
+
+        if(client)
+        {
+            //Check about the privacy
+            if(!canModifySubDataset(client, sdMT))
+            {
+                VFVSERVER_CANNOT_MODIFY_SUBDATASET(client, rename.datasetID, rename.subDatasetID)
+                return;
+            }
+        }
+
+        Dataset* dataset = getDataset(rename.datasetID, rename.subDatasetID);
+        if(dataset == nullptr)
+        {
+            VFVSERVER_SUB_DATASET_NOT_FOUND(rename.datasetID, rename.subDatasetID)
+            return;
+        }
+        SubDataset* sd = dataset->getSubDataset(rename.subDatasetID);
+
+        sd->setName(rename.name);
+
+        for(auto clt : m_clientTable)
+            sendRenameSubDataset(clt.second, rename);
+    }
+
     void VFVServer::rotateSubDataset(VFVClientSocket* client, VFVRotationInformation& rotate)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex);
@@ -2465,7 +2552,7 @@ endFor:;
         INFO << "End of subjective views..." << std::endl;
     }
 
-    void VFVServer::removeSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup)
+    void VFVServer::onRemoveSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup)
     {
         std::lock_guard<std::mutex> lock(m_datasetMutex); //Ensure that no one is touching the datasets
         std::lock_guard<std::mutex> lock2(m_mapMutex);
@@ -2478,9 +2565,23 @@ endFor:;
             return;
         }
 
+
         if(!canClientModifySubDatasetGroup(client, svIT->second))
         {
             ERROR << "The client cannot modify this subdataset group ID " << removeSDGroup.sdgID << std::endl;
+            return;
+        }
+
+        removeSubDatasetGroup(removeSDGroup);
+    }
+
+    void VFVServer::removeSubDatasetGroup(const VFVRemoveSubDatasetGroup& removeSDGroup)
+    {
+        //Searching for the sd group
+        auto svIT = m_sdGroups.find(removeSDGroup.sdgID);
+        if(svIT == m_sdGroups.end())
+        {
+            ERROR << "Was not able to find the subdataset group " << removeSDGroup.sdgID << std::endl;
             return;
         }
 
@@ -2497,7 +2598,6 @@ endFor:;
             {
                 if(sd != base)
                 {
-                    svIT->second.sdGroup->removeSubDataset(sd);
                     VFVRemoveSubDataset removeSD;
                     removeSD.datasetID    = datasetID;
                     removeSD.subDatasetID = sd->getID();
@@ -2521,6 +2621,8 @@ endFor:;
         //Send the message to the other users
         for(auto& clt : m_clientTable)
             sendRemoveSubDatasetsGroup(clt.second, removeSDGroup);
+
+        INFO << "End of removing SubDatasetGroup" << std::endl;
     }
 
     void VFVServer::setSubjectiveViewStackedParameters(VFVClientSocket* client, const VFVSetSVStackedGroupGlobalParameters& params)
@@ -2662,6 +2764,18 @@ endFor:;
                 sdMT->sdgID = svIT->second.sdgID;
                 sdMT->owner = hmdClient;
                 subjectiveSDs[i] = m_datasets[sdMT->datasetID]->getSubDataset(sdMT->sdID);
+            }
+
+            //Check linked subdataset, and place it at the correct position
+            if(toDuplicate[1])
+            {
+                glm::vec3 sdPosition = hmdClient->getHeadsetData().position + 
+                                       hmdClient->getHeadsetData().rotation * glm::vec3(0.0f, 0.0f, 0.7f) +
+                                       glm::vec3(0.0f, -0.50f, 0.0f);
+
+                glm::vec3 sdScale = glm::vec3(0.5f, 0.5f, 0.5f);
+                subjectiveSDs[1]->setScale(sdScale);
+                subjectiveSDs[1]->setPosition(sdPosition);
             }
 
             ((SubDatasetSubjectiveStackedLinkedGroup*)(svg))->addSubjectiveSubDataset(subjectiveSDs[0], subjectiveSDs[1]);
@@ -4219,6 +4333,35 @@ endFor:;
         saveMessageSentToJSONLog(client, removeSDGroup);
     }
 
+    void VFVServer::sendRenameSubDataset(VFVClientSocket* client, const VFVRenameSubDataset& rename)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 3*sizeof(uint32_t) + rename.name.size();
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_RENAME_SD);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, rename.datasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, rename.subDatasetID);
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, rename.name.size());
+        offset += sizeof(uint32_t);
+
+        memcpy(data+offset, rename.name.c_str(), rename.name.size());
+        offset += rename.name.size();
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+        saveMessageSentToJSONLog(client, rename);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -4522,13 +4665,19 @@ endFor:;
 
                 case REMOVE_SD_GROUP:
                 {
-                    removeSubDatasetGroup(client, msg.removeSDGroup);
+                    onRemoveSubDatasetGroup(client, msg.removeSDGroup);
                     break;
                 }
 
                 case ADD_CLIENT_TO_SV_GROUP:
                 {
                     addClientToSVGroup(client, msg.addClientToSVGroup);
+                    break;
+                }
+
+                case RENAME_SUBDATASET:
+                {
+                    onRenameSubDataset(client, msg.renameSD);
                     break;
                 }
 

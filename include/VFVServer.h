@@ -76,8 +76,9 @@ namespace sereno
         VFV_SEND_SET_DRAWABLE_ANNOTATION_POSITION_MAPPED_IDX    = 34, /*!< Set which columns to read to map the data to the visual channel for a drawable annotation position*/
         VFV_SEND_ADD_SUBJECTIVE_VIEW_GROUP                      = 35, /*!< Add a new subjective view group*/
         VFV_SEND_ADD_SD_TO_SV_STACKED_LINKED_GROUP              = 36, /*!< Add a sub dataset to an already registered subjective view stacked_linked group*/
-        VFV_SEND_SET_SV_STACKED_GLOBAL_PARAMETERS               = 37,
-        VFV_SEND_REMOVE_SUBDATASET_GROUP                        = 38,
+        VFV_SEND_SET_SV_STACKED_GLOBAL_PARAMETERS               = 37, /*!< Set the parameters of a subjective view stacked group*/
+        VFV_SEND_REMOVE_SUBDATASET_GROUP                        = 38, /*!< Remove a SubDataset Group*/
+        VFV_SEND_RENAME_SD                                      = 39, /*!< Rename a SubDataset*/
         VFV_SEND_END,
     };
 
@@ -284,6 +285,11 @@ namespace sereno
              * \param dataset the dataset information to remove */
             void onRemoveSubDataset(VFVClientSocket* client, const VFVRemoveSubDataset& dataset);
 
+            /* \brief  Rename a known SubDataset
+             * \param client the client asking to rename the subdataset
+             * \param dataset the dataset information to rename */
+            void onRenameSubDataset(VFVClientSocket* client, const VFVRenameSubDataset& dataset);
+
             /* \brief  Duplicate a known SubDataset
              * \param client the client asking to duplicate the subdataset
              * \param dataset the dataset information to duplicate */
@@ -370,7 +376,14 @@ namespace sereno
              * \param addSV The information concerning the subjective view*/
             void addSubjectiveViewGroup(VFVClientSocket* client, const VFVAddSubjectiveViewGroup& addSV);
 
-            void removeSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup);
+            /** \brief  Handling the "remove subdataset group" message.
+             * \param client The client asking to remove a registered group
+             * \param removeSDGroup The information concerning the group to remove*/
+            void onRemoveSubDatasetGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup);
+
+            /** \brief Remove a SubDataset Group. Here, we do not consider any clients and will not block any mutex
+             * \param removeSDGroup The information concerning the group to remove*/
+            void removeSubDatasetGroup(const VFVRemoveSubDatasetGroup& removeSDGroup);
 
             /** \brief  Set all the common parameters for subjective view stacked groups
              * \param client the client asking for the change
@@ -415,6 +428,11 @@ namespace sereno
              * \param client the client to send the message
              * \param dataset the dataset information*/
             void sendRemoveSubDatasetEvent(VFVClientSocket* client, const VFVRemoveSubDataset& dataset);
+
+            /* \brief  Send the Rename SubDataset Event to a given client
+             * \param client the client to send the message
+             * \param dataset the dataset information*/
+            void sendRenameSubDataset(VFVClientSocket* client, const VFVRenameSubDataset& dataset);
 
             /* \brief  Send the AddLogData event to a given client
              * \param client the client to send the message

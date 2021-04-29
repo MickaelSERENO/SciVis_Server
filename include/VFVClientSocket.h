@@ -81,6 +81,7 @@ namespace sereno
         SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS = 38,
         REMOVE_SD_GROUP                        = 39,
         ADD_CLIENT_TO_SV_GROUP                 = 40,
+        RENAME_SUBDATASET                      = 41,
         END_MESSAGE_TYPE
     };
 
@@ -191,6 +192,7 @@ namespace sereno
             struct VFVRemoveSubDatasetGroup                     removeSDGroup;
             struct VFVSetSVStackedGroupGlobalParameters         setSVStackedGroupParams;
             struct VFVAddClientToSVGroup                        addClientToSVGroup;
+            struct VFVRenameSubDataset                          renameSD;
         };
 
         VFVMessage() : type(NOTHING)
@@ -378,6 +380,11 @@ namespace sereno
                             addClientToSVGroup = cpy.addClientToSVGroup;
                             curMsg = &addClientToSVGroup;
                         	break;
+
+                        case RENAME_SUBDATASET:
+                            renameSD = cpy.renameSD;
+                            curMsg = &renameSD;
+                            break;
 
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -568,6 +575,10 @@ namespace sereno
                     new(&addClientToSVGroup) VFVAddClientToSVGroup;
                     curMsg = &addClientToSVGroup;
                     break;
+                case RENAME_SUBDATASET:
+                    new(&renameSD) VFVRenameSubDataset;
+                    curMsg = &renameSD;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -706,6 +717,9 @@ namespace sereno
                 case ADD_CLIENT_TO_SV_GROUP:
                     addClientToSVGroup.~VFVAddClientToSVGroup();
                 	break;
+                case RENAME_SUBDATASET:
+                    renameSD.~VFVRenameSubDataset();
+                    break;
                 case NOTHING:
                     break;
                 default:

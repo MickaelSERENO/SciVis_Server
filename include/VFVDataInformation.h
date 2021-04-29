@@ -2582,6 +2582,57 @@ namespace sereno
             return oss.str();
         }
     };
+
+    struct VFVRenameSubDataset : public VFVDataInformation
+    {
+        uint32_t datasetID;
+        uint32_t subDatasetID;
+        std::string name;
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 2)
+                return 'I';
+            else if(cursor == 2)
+                return 's';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+                datasetID = value;
+            else if(cursor == 1)
+                subDatasetID = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        bool pushValue(uint32_t cursor, const std::string& value)
+        {
+            if(cursor == 2)
+                name = value;
+            else
+                VFV_DATA_ERROR
+            return true;
+        }
+
+        int32_t getMaxCursor() const {return 2;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "RenameSubDataset");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n"
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"name\" : \"" << name << "\"\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR
