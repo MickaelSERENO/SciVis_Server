@@ -82,6 +82,7 @@ namespace sereno
         REMOVE_SD_GROUP                        = 39,
         ADD_CLIENT_TO_SV_GROUP                 = 40,
         RENAME_SUBDATASET                      = 41,
+        SAVE_SUBDATASET_VISUAL                 = 42,
         END_MESSAGE_TYPE
     };
 
@@ -188,11 +189,12 @@ namespace sereno
             struct VFVSetSubDatasetClipping                     setSDClipping;            /*!< Set the subdataset clipping values*/
             struct VFVSetDrawableAnnotationPositionDefaultColor setDrawableAnnotPosColor; /*!< Set the default drawable annotation position*/
             struct VFVSetDrawableAnnotationPositionMappedIdx    setDrawableAnnotPosIdx;   /*!< Set the data entries to read from the log that this drawable belongs to*/
-            struct VFVAddSubjectiveViewGroup                    addSVGroup;
-            struct VFVRemoveSubDatasetGroup                     removeSDGroup;
-            struct VFVSetSVStackedGroupGlobalParameters         setSVStackedGroupParams;
-            struct VFVAddClientToSVGroup                        addClientToSVGroup;
-            struct VFVRenameSubDataset                          renameSD;
+            struct VFVAddSubjectiveViewGroup                    addSVGroup;               /*!< Add a subjective view group*/
+            struct VFVRemoveSubDatasetGroup                     removeSDGroup;            /*!< Remove a subdataset group*/
+            struct VFVSetSVStackedGroupGlobalParameters         setSVStackedGroupParams;  /*!< Set all the global parameters of a subjective view stacked froup*/
+            struct VFVAddClientToSVGroup                        addClientToSVGroup;       /*!< Add a client to the subjective view group*/
+            struct VFVRenameSubDataset                          renameSD;                 /*!< Rename a subdataset*/
+            struct VFVSaveSubDatasetVisual                      saveSDVisual;             /*!< Save on disk the image of the subdataset*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -360,32 +362,30 @@ namespace sereno
                             setDrawableAnnotPosIdx = cpy.setDrawableAnnotPosIdx;
                             curMsg = &setDrawableAnnotPosIdx;
                             break;
-
                         case ADD_SV_GROUP:
                             addSVGroup = cpy.addSVGroup;
                             curMsg = &addSVGroup;
                         	break;
-
                         case SET_SV_STACKED_GROUP_GLOBAL_PARAMETERS:
                             setSVStackedGroupParams = cpy.setSVStackedGroupParams;
                             curMsg = &setSVStackedGroupParams;
                         	break;
-
                         case REMOVE_SD_GROUP:
                             removeSDGroup = cpy.removeSDGroup;
                             curMsg = &removeSDGroup;
                         	break;
-
                         case ADD_CLIENT_TO_SV_GROUP:
                             addClientToSVGroup = cpy.addClientToSVGroup;
                             curMsg = &addClientToSVGroup;
                         	break;
-
                         case RENAME_SUBDATASET:
                             renameSD = cpy.renameSD;
                             curMsg = &renameSD;
                             break;
-
+                        case SAVE_SUBDATASET_VISUAL:
+                            saveSDVisual = cpy.saveSDVisual;
+                            curMsg = &saveSDVisual;
+                            break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
                             break;
@@ -579,6 +579,10 @@ namespace sereno
                     new(&renameSD) VFVRenameSubDataset;
                     curMsg = &renameSD;
                     break;
+                case SAVE_SUBDATASET_VISUAL:
+                    new(&saveSDVisual) VFVSaveSubDatasetVisual;
+                    curMsg = &saveSDVisual;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -719,6 +723,9 @@ namespace sereno
                 	break;
                 case RENAME_SUBDATASET:
                     renameSD.~VFVRenameSubDataset();
+                    break;
+                case SAVE_SUBDATASET_VISUAL:
+                    saveSDVisual.~VFVSaveSubDatasetVisual();
                     break;
                 case NOTHING:
                     break;
