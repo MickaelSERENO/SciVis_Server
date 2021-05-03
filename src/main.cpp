@@ -169,9 +169,10 @@ int main(int argc, char** argv)
     signal(SIGPIPE, SIG_IGN);
     signal(SIGINT,  inSigInt);
 
+
     //Wait for the server first. If it closes, everything else should close as well
     server->wait();
-    server->closeServer();
+    closeApp = true;
 
     //Delete vuforia tracking if needed
     if(locationMode == TRACKING_VUFORIA)
@@ -190,6 +191,10 @@ int main(int argc, char** argv)
             delete viconServerPtr;
         }
     }
+
+    if(!server->isClosed())
+        server->closeServer();
+
     delete server;
 
     //Copy the log file in case of "issue" from the investigators (always ;) )

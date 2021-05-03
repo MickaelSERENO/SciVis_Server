@@ -532,6 +532,8 @@ namespace sereno
 
     void VFVServer::commitAllVRPNPositions()
     {
+        if(isClosed())
+            return;
         std::lock_guard<std::mutex> lock(m_mapMutex);
 
         //Search for every tablets
@@ -3801,7 +3803,7 @@ endFor:;
                     offset += sizeof(uint16_t) + sizeof(uint32_t); //Write NB_HEADSET later
 #ifdef LOG_UPDATE_HEAD
 #ifdef VFV_LOG_DATA
-                    m_logMutex.lock();
+                    std::lock_guard<std::mutex> logLock(m_logMutex);
                     VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(it.second), getTimeOffset(), "HeadsetStatus");
                     m_log << ",    \"status\" : [";
                     m_log << std::flush;
@@ -3892,7 +3894,6 @@ endFor:;
 #ifdef VFV_LOG_DATA
                     m_log << "]},\n";
                     m_log << std::flush;
-                    m_logMutex.unlock();
 #endif
 #endif
                     //Write the number of headset to take account of
