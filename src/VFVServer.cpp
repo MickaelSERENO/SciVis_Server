@@ -4362,6 +4362,35 @@ endFor:;
         saveMessageSentToJSONLog(client, rename);
     }
 
+    void VFVServer::sendMessageToDisplay(VFVClientSocket* client, const std::string& msg)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + sizeof(uint32_t) + msg.size();
+        uint8_t* data     = (uint8_t*)malloc(dataSize);
+        uint32_t offset   = 0;
+
+        writeUint16(data, VFV_SEND_DISPLAY_SHORT_MESSAGE);
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, msg.size());
+        offset += sizeof(uint32_t);
+
+        memcpy(data+offset, msg.c_str(), msg.size());
+        offset += msg.size();
+
+        //Send the data
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        std::lock_guard<std::mutex> logLock(m_logMutex);
+        VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "DisplayShortMessage");
+        m_log << ",    \"message\" : \"" << msg << "\"\n"
+              << "},\n";
+        m_log << std::flush;
+#endif
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -4383,20 +4412,15 @@ endFor:;
             if(msg.curMsg)
             {
 #ifdef VFV_LOG_DATA
+                bool isTablet  = client->isTablet();
+                bool isHeadset = client->isHeadset();
+                std::lock_guard<std::mutex> logLock(m_logMutex);
+                std::string str = msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset());
+
+                if(str.size())
                 {
-                    bool isTablet  = client->isTablet();
-                    bool isHeadset = client->isHeadset();
-
-                    {
-                        std::lock_guard<std::mutex> logLock(m_logMutex);
-                        std::string str = msg.curMsg->toJson(isTablet ? VFV_SENDER_TABLET : (isHeadset ? VFV_SENDER_HEADSET : VFV_SENDER_UNKNOWN), getHeadsetIPAddr(client), getTimeOffset());
-
-                        if(str.size())
-                        {
-                            m_log << str << ",\n";
-                            m_log << std::flush;
-                        }
-                    }
+                    m_log << str << ",\n";
+                    m_log << std::flush;
                 }
 #endif
             }
@@ -4678,6 +4702,18 @@ endFor:;
                 case RENAME_SUBDATASET:
                 {
                     onRenameSubDataset(client, msg.renameSD);
+                    break;
+                }
+
+                case SAVE_SUBDATASET_VISUAL:
+                {
+                    onSaveSubDatasetVisual(client, msg.saveSDVisual);
+                    break;
+                }
+
+                case TWO_DIMENSION_DEPTH_SELECTION:
+                {
+                    on2DDepthSelection(client, msg.twoDimensionDepthSelection);
                     break;
                 }
 

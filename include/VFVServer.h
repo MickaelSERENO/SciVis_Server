@@ -79,6 +79,7 @@ namespace sereno
         VFV_SEND_SET_SV_STACKED_GLOBAL_PARAMETERS               = 37, /*!< Set the parameters of a subjective view stacked group*/
         VFV_SEND_REMOVE_SUBDATASET_GROUP                        = 38, /*!< Remove a SubDataset Group*/
         VFV_SEND_RENAME_SD                                      = 39, /*!< Rename a SubDataset*/
+        VFV_SEND_DISPLAY_SHORT_MESSAGE                          = 40, /*!< Display on the device a short message*/
         VFV_SEND_END,
     };
 
@@ -400,6 +401,13 @@ namespace sereno
              * \param addClient the information required to target the SV Group*/
             void onAddClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient);
 
+            void onSaveSubDatasetVisual(VFVClientSocket* client, const VFVSaveSubDatasetVisual& saveSDVisual);
+
+            void on2DDepthSelection(VFVClientSocket* client, const VFV2DDepthSelection& selection);
+
+            /** \brief Save into the current log file a VFVDataInformation message
+             * \param client the client to which the message should have been sent to
+             * \param data the data to save in a JSON format */
             void saveMessageSentToJSONLog(VFVClientSocket* client, const VFVDataInformation& data);
 
             /* \brief  Send an empty message
@@ -614,6 +622,11 @@ namespace sereno
              * \param client the client to send the message to
              * \param removeSDGroup the subdataset group information */
             void sendRemoveSubDatasetsGroup(VFVClientSocket* client, const VFVRemoveSubDatasetGroup& removeSDGroup);
+
+            /** \brief  Send a short message to display on the client device
+             * \param client the client to send the message to
+             * \param msg the message (string) to display on the device for a short amount of time */
+            void sendMessageToDisplay(VFVClientSocket* client, const std::string& msg);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */

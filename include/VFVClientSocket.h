@@ -83,6 +83,7 @@ namespace sereno
         ADD_CLIENT_TO_SV_GROUP                 = 40,
         RENAME_SUBDATASET                      = 41,
         SAVE_SUBDATASET_VISUAL                 = 42,
+        TWO_DIMENSION_DEPTH_SELECTION          = 43,
         END_MESSAGE_TYPE
     };
 
@@ -195,6 +196,7 @@ namespace sereno
             struct VFVAddClientToSVGroup                        addClientToSVGroup;       /*!< Add a client to the subjective view group*/
             struct VFVRenameSubDataset                          renameSD;                 /*!< Rename a subdataset*/
             struct VFVSaveSubDatasetVisual                      saveSDVisual;             /*!< Save on disk the image of the subdataset*/
+            struct VFV2DDepthSelection                          twoDimensionDepthSelection; /*!< Select along the z axis*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -385,6 +387,10 @@ namespace sereno
                         case SAVE_SUBDATASET_VISUAL:
                             saveSDVisual = cpy.saveSDVisual;
                             curMsg = &saveSDVisual;
+                            break;
+                        case TWO_DIMENSION_DEPTH_SELECTION:
+                            twoDimensionDepthSelection = cpy.twoDimensionDepthSelection;
+                            curMsg = &twoDimensionDepthSelection;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -583,6 +589,10 @@ namespace sereno
                     new(&saveSDVisual) VFVSaveSubDatasetVisual;
                     curMsg = &saveSDVisual;
                     break;
+                case TWO_DIMENSION_DEPTH_SELECTION:
+                    new(&twoDimensionDepthSelection) VFV2DDepthSelection;
+                    curMsg = &twoDimensionDepthSelection;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -726,6 +736,9 @@ namespace sereno
                     break;
                 case SAVE_SUBDATASET_VISUAL:
                     saveSDVisual.~VFVSaveSubDatasetVisual();
+                    break;
+                case TWO_DIMENSION_DEPTH_SELECTION:
+                    twoDimensionDepthSelection.~VFV2DDepthSelection();
                     break;
                 case NOTHING:
                     break;
