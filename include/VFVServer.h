@@ -401,8 +401,14 @@ namespace sereno
              * \param addClient the information required to target the SV Group*/
             void onAddClientToSVGroup(VFVClientSocket* client, const VFVAddClientToSVGroup& addClient);
 
+            /** \brief  Save the visual as parameterized by a SubDataset. The visual, depending on the SubDataset's type, is usually stored as 3D objects
+             * \param client the client asking to save a specific SubDataset
+             * \param saveSDVisual the information required to find the subdataset to save*/
             void onSaveSubDatasetVisual(VFVClientSocket* client, const VFVSaveSubDatasetVisual& saveSDVisual);
 
+            /** \brief  Perform a volumetric selection based on a lasso. Every point inside the lasso is selected
+             * \param client the client asking for the selection
+             * \param selection The 2D information required to perform the selection from top to bottom*/
             void on2DDepthSelection(VFVClientSocket* client, const VFV2DDepthSelection& selection);
 
             /** \brief Save into the current log file a VFVDataInformation message

@@ -1312,6 +1312,11 @@ endFor:;
         for(auto& clt : m_clientTable)
             sendRemoveSubDatasetEvent(clt.second, remove);
     }
+    
+    void VFVServer::onSaveSubDatasetVisual(VFVClientSocket* client, const VFVSaveSubDatasetVisual& saveSDVisual)
+    {
+        //TODO
+    }
 
     void VFVServer::addLogData(VFVClientSocket* client, const VFVOpenLogData& logData)
     {
@@ -1878,6 +1883,11 @@ endFor:;
             for(auto it : m_clientTable)
                 sendVolumetricMaskDataset(it.second, sharedVolData, offset);
         }
+    }
+
+    void VFVServer::on2DDepthSelection(VFVClientSocket* client, const VFV2DDepthSelection& selection)
+    {
+        //TODO
     }
 
     void VFVServer::onAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput)
