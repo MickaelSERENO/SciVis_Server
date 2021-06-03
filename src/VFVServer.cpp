@@ -8,7 +8,7 @@
 #include <filesystem>
 
 #ifndef TEST
-#define TEST
+//#define TEST
 #endif
 
 namespace sereno
