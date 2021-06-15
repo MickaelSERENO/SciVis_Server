@@ -902,7 +902,7 @@ namespace sereno
                         m_inTraining = true; //training again
                     }
 
-                    if(m_techniqueID != END_TANGIBLE_MODE) 
+                    if(m_techniqueID != END_VISUALIZATION_MODE) 
                         replaceDataset = true;
                     else
                     {
@@ -947,9 +947,9 @@ namespace sereno
             //add the new subdataset to the correct dataset
             uint32_t dID = 0;
             if(m_inTraining)
-                dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+                dID = (m_trialID + m_participantID/END_VISUALIZATION_MODE)%MAX_NB_TB_TRIALS;
             else
-                dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS + 3; //+3 because of the training datasets
+                dID = (m_trialID + m_participantID/END_VISUALIZATION_MODE)%MAX_NB_TB_TRIALS + 3; //+3 because of the training datasets
 
             CloudPointMetaData& metaData = m_cloudPointDatasets.find(dID)->second;
             VFVAddSubDataset addSubDataset;
@@ -3460,10 +3460,10 @@ endFor:;
     {
 #ifdef VFV_LOG_DATA
         {
-            uint32_t dID = (m_trialID + m_participantID/MAX_NB_TB_TRIALS)%MAX_NB_TB_TRIALS;
+            uint32_t dID = (m_trialID + m_participantID/END_VISUALIZATION_MODE)%MAX_NB_TB_TRIALS;
             std::lock_guard<std::mutex> lockJson(m_logMutex);
             VFV_BEGINING_TO_JSON(m_log, VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset(), "SendCurrentTrialData");
-            m_log << ",    \"techniqueID\" : " << (m_techniqueID + m_participantID%3)%3<< ",\n"
+            m_log << ",    \"techniqueID\" : " << (m_techniqueID + m_participantID%END_VISUALIZATION_MODE)%END_VISUALIZATION_MODE<< ",\n"
                   << "    \"trialID\" : "      << m_trialID << ",\n"
                   << "    \"datasetID\" : "    << dID << ",\n"
                   << "    \"subTrialID\" : " << m_subTrialID << ",\n"
@@ -3483,7 +3483,7 @@ endFor:;
         writeUint16(data, VFV_SEND_CURRENT_TRIAL_DATA);
         offset += sizeof(uint16_t);
 
-        writeUint32(data+offset, (m_techniqueID + m_participantID%3)%3);
+        writeUint32(data+offset, (m_techniqueID + m_participantID%END_VISUALIZATION_MODE)%END_VISUALIZATION_MODE);
         offset += sizeof(uint32_t);
 
         writeUint32(data+offset, m_trialID);

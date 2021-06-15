@@ -85,6 +85,13 @@ namespace sereno
         END_TANGIBLE_MODE
     };
 
+    enum VisualizationMode
+    {
+        ORIGINAL = 0,
+        AR       = 1,
+        END_VISUALIZATION_MODE
+    };
+
     /** \brief  Clone a Transfer function based on its type
      * \param tf the transfer function to clone
      * \return the new Transfer Function allocated using new. The caller is responsible to destroy that object*/
