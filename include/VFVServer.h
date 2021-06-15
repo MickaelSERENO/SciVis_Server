@@ -501,7 +501,7 @@ namespace sereno
             uint32_t m_techniqueID = 0;    /*!< The current technique ID */
             uint32_t m_trialID     = 0;    /*!< The current trial ID (considering the dataset)*/
             uint32_t m_subTrialID  = 0;    /*!< The current subtrial ID in the current dataset (trialID). This is to couple with m_inTraining to know either we are in a training or not*/
-            bool     m_inTraining  = true; /*!< Are we in the training session?*/
+            bool     m_inTraining  = false; /*!< Are we in the training session?*/
 
             //Mutex load order:
             //datasetMutex, mapMutex, logMutex
