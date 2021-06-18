@@ -944,6 +944,8 @@ namespace sereno
         {
             m_datasetMutex.unlock();
 
+            int userStudyTechniqueID = (m_techniqueID + m_participantID%END_VISUALIZATION_MODE)%END_VISUALIZATION_MODE;
+
             //add the new subdataset to the correct dataset
             uint32_t dID = 0;
             if(m_inTraining)
@@ -966,8 +968,15 @@ namespace sereno
             VFVMoveInformation moveSD;
             moveSD.datasetID    = metaData.datasetID;
             moveSD.subDatasetID = metaData.sdMetaData[0].sdID;
-            for(uint8_t i = 0; i < 3; i++)
-                moveSD.position[i] = pos[i];
+
+            //Keep the initial position ONLY for the AR condition
+            if(userStudyTechniqueID == 0)
+                for(uint8_t i = 0; i < 3; i++)
+                    moveSD.position[i] = pos[i];
+            else
+                for(uint8_t i = 0; i < 3; i++)
+                    moveSD.position[i] = 0.0f;
+
             translateSubDataset(NULL, moveSD);
 #ifdef VFV_LOG_DATA
             {
@@ -2333,6 +2342,14 @@ endFor:;
         launchNextTBTrial();
     }
 
+    void VFVServer::onPostReviewRotation(VFVClientSocket* client, const VFVPostReviewRotation& rot)
+    {
+        std::lock_guard<std::mutex> lock2(m_mapMutex);    //Ensute that no one is modifying the list of clients (and relevant information)
+        for(auto& clt : m_clientTable)
+            if(clt.second != client)
+                sendPostReviewRotation(clt.second, rot);
+    }
+
     /*----------------------------------------------------------------------------*/
     /*-------------------------------SEND MESSAGES--------------------------------*/
     /*----------------------------------------------------------------------------*/
@@ -3504,6 +3521,37 @@ endFor:;
         logCurrentTrial(client);
     }
 
+    void VFVServer::sendPostReviewRotation(VFVClientSocket* client, const VFVPostReviewRotation& rotate)
+    {
+        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 4*sizeof(float);
+        uint8_t* data = (uint8_t*)malloc(dataSize);
+        uint32_t offset=0;
+
+        writeUint16(data, VFV_SEND_POST_REVIEW_ROTATION); //Type
+        offset += sizeof(uint16_t);
+
+        writeUint32(data+offset, rotate.datasetID); //The datasetID
+        offset += sizeof(uint32_t);
+
+        writeUint32(data+offset, rotate.subDatasetID); //SubDataset ID
+        offset += sizeof(uint32_t); 
+
+        for(int i = 0; i < 4; i++, offset += sizeof(float)) //Quaternion rotation
+            writeFloat(data+offset, rotate.quaternion[i]);
+
+        std::shared_ptr<uint8_t> sharedData(data, free);
+        SocketMessage<int> sm(client->socket, sharedData, offset);
+        writeMessage(sm);
+
+#ifdef VFV_LOG_DATA
+        {
+            std::lock_guard<std::mutex> logLock(m_logMutex);
+            m_log << rotate.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(client), getTimeOffset()) << ",\n";
+            m_log << std::flush;
+        }
+#endif
+    }
+
     /*----------------------------------------------------------------------------*/
     /*---------------------OVERRIDED METHOD + ADDITIONAL ONES---------------------*/
     /*----------------------------------------------------------------------------*/
@@ -3754,6 +3802,12 @@ endFor:;
                 case END_OF_TB_TRIAL:
                 {
                     onEndTBTrial(client, msg.endOfTBTrial);
+                    break;
+                }
+
+                case POST_REVIEW_ROTATION:
+                {
+                    onPostReviewRotation(client, msg.postReviewRotation);
                     break;
                 }
 

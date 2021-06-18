@@ -2094,6 +2094,64 @@ namespace sereno
             return oss.str();
         }
     };
+
+    /* \brief Structure containing information about the post-review rotation of the tablet */
+    struct VFVPostReviewRotation : public VFVDataInformation
+    {
+        uint32_t datasetID;      /*!< The dataset ID*/
+        uint32_t subDatasetID;   /*!< The SubDataset ID*/
+        float    quaternion[4];  /*!< The quaternion information*/
+
+        char getTypeAt(uint32_t cursor) const
+        {
+            if(cursor < 2)
+                return 'I';
+            else if(cursor < 6)
+                return 'f';
+            return 0;
+        }
+
+        bool pushValue(uint32_t cursor, float value)
+        {
+            if(cursor < 6 && cursor >= 2)
+            {
+                quaternion[cursor-2] = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        bool pushValue(uint32_t cursor, uint32_t value)
+        {
+            if(cursor == 0)
+            {
+                datasetID = value;
+                return true;
+            }
+
+            if(cursor == 1)
+            {
+                subDatasetID = value;
+                return true;
+            }
+            VFV_DATA_ERROR
+        }
+
+        int32_t getMaxCursor() const {return 5;}
+
+        virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
+        {
+            std::ostringstream oss;
+
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "PostReviewRotation");
+            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
+                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
+                << "    \"quaternion\" : [" << quaternion[0] << "," << quaternion[1] << "," << quaternion[2] << "," << quaternion[3] << "]\n";
+            VFV_END_TO_JSON(oss);
+
+            return oss.str();
+        }
+    };
 }
 
 #undef VFV_DATA_ERROR

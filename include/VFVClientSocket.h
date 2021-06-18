@@ -71,6 +71,7 @@ namespace sereno
         MERGE_SUBDATASETS           = 28,
         RESET_VOLUMETRIC_SELECTION  = 29,
         END_OF_TB_TRIAL             = 30,
+        POST_REVIEW_ROTATION        = 31,
         END_MESSAGE_TYPE
     };
 
@@ -170,6 +171,7 @@ namespace sereno
             struct VFVMergeSubDatasets           mergeSubDatasets;    /*!< Merge two subdatasets visuals into one*/
             struct VFVResetVolumetricSelection   resetVolumetricSelection; /*!< Reset the volumetric selection */
             struct VFVEndOfTBTrial               endOfTBTrial;        /*!< End of TangibleBrush trial*/
+            struct VFVPostReviewRotation         postReviewRotation;
         };
 
         VFVMessage() : type(NOTHING)
@@ -312,6 +314,10 @@ namespace sereno
                         case END_OF_TB_TRIAL:
                             endOfTBTrial = cpy.endOfTBTrial;
                             curMsg = &endOfTBTrial;
+                            break;
+                        case POST_REVIEW_ROTATION:
+                            postReviewRotation = cpy.postReviewRotation;
+                            curMsg = &postReviewRotation;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -462,6 +468,10 @@ namespace sereno
                     new(&endOfTBTrial) VFVEndOfTBTrial;
                     curMsg = &endOfTBTrial;
                     break;
+                case POST_REVIEW_ROTATION:
+                    new(&postReviewRotation) VFVPostReviewRotation;
+                    curMsg = &postReviewRotation;
+                    break;
                 case NOTHING:
                     break;
                 default:
@@ -569,6 +579,9 @@ namespace sereno
                     break;
                 case END_OF_TB_TRIAL:
                     endOfTBTrial.~VFVEndOfTBTrial();
+                    break;
+                case POST_REVIEW_ROTATION:
+                    postReviewRotation.~VFVPostReviewRotation();
                     break;
                 case NOTHING:
                     break;

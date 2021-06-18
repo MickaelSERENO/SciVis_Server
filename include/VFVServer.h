@@ -66,6 +66,7 @@ namespace sereno
         VFV_SEND_VOLUMETRIC_MASK            = 26, /*!< Send SubDataset computed volumetric mask*/
         VFV_SEND_RESET_VOLUMETRIC_SELECTION = 27, /*!< Reset the volumetric selection of a particular subdataset*/
         VFV_SEND_CURRENT_TRIAL_DATA         = 28, /*!< The current trial data information*/
+        VFV_SEND_POST_REVIEW_ROTATION       = 29, /*!< Send the post-review rotation event*/
     };
 
     /** \brief  The types of existing dataset this server handles */
@@ -311,6 +312,8 @@ namespace sereno
              * \param endTrial the trial message */
             void onEndTBTrial(VFVClientSocket* client, const VFVEndOfTBTrial& endTrial);
 
+            void onPostReviewRotation(VFVClientSocket* client, const VFVPostReviewRotation& rot);
+
             /* \brief  Send an empty message
              * \param client the client to send the message
              * \param type the type of the message*/
@@ -450,6 +453,8 @@ namespace sereno
             /** \brief  Send current trial information to a given client. The data are those that this server has stored
              * \param client the client to send the information */
             void sendCurrentTrialData(VFVClientSocket* client);
+
+            void sendPostReviewRotation(VFVClientSocket* client, const VFVPostReviewRotation& rot);
 
             /* \brief  Send the current status of the server on login
              * \param client the client to send the data */
