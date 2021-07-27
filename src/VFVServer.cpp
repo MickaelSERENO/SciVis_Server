@@ -930,10 +930,10 @@ namespace sereno
 
         else
         {
-            m_trialID     = 0;
+            m_trialID     = 2;
             m_subTrialID  = 0;
-            m_techniqueID = 0;
-            m_inTraining  = true;
+            m_techniqueID = 1;
+            m_inTraining  = false;
 
             replaceDataset = true;
         }
@@ -1680,7 +1680,7 @@ endFor:;
             std::shared_ptr<uint8_t> sharedData(data, free);
 
 
-            INFO << "Send OnLocation message\n";
+//            INFO << "Send OnLocation message\n";
 
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);

@@ -1722,12 +1722,13 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Lasso");
             oss << ",    \"size\" : " << size << ",\n"
                 << "    \"data\" : [";
-            for(uint32_t i = 0; i < size-1; i++)
+            for(int32_t i = 0; i < (int32_t)(size)-1; i++)
             {
                 oss << data[i] << ",";
             }
             if(size > 0)
-                oss << data[size-1] << "]\n";
+                oss << data[size-1];
+            oss << "]\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();
