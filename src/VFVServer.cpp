@@ -8,7 +8,7 @@
 #include <filesystem>
 
 #ifndef TEST
-//#define TEST
+#define TEST
 #endif
 
 namespace sereno
@@ -352,23 +352,37 @@ namespace sereno
 #endif
 
 #ifdef TEST
-        //Add the dataset the users will play with
-        VFVVTKDatasetInformation vtkInfo;
-        vtkInfo.name = "history.vtk";
-        vtkInfo.nbPtFields = 1;
-        vtkInfo.ptFields.push_back(1);
+        ////Add the dataset the users will play with
+        //VFVVTKDatasetInformation vtkInfo;
+        //vtkInfo.name = "history.vtk";
+        //vtkInfo.nbPtFields = 1;
+        //vtkInfo.ptFields.push_back(1);
 
-#ifdef VFV_LOG_DATA
-        m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
-        m_log << ",\n";
-        m_log << std::flush;
+#ifdef V//FV_LOG_DATA
+        //m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
+        //m_log << ",\n";
+        //m_log << std::flush;
 #endif
-        addVTKDataset(NULL, vtkInfo);
+        //addVTKDataset(NULL, vtkInfo);
 
-        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
-        {
-            INFO << "Loaded. Status: " << status << std::endl;
-        }, NULL);
+        //m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
+        //{
+        //    INFO << "Loaded. Status: " << status << std::endl;
+        //}, NULL);
+
+        //Open all the datasets necessary for this study
+//        for(auto& s : {"training2.cp", "training3.cp", "training4.cp", "spring.cp", "3.cp", "4.cp"})
+//        {
+//            VFVCloudPointDatasetInformation cloudInfo;
+//            cloudInfo.name = s;
+//
+//#ifdef VFV_LOG_DATA
+//            m_log << cloudInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
+//            m_log << std::flush;
+//#endif
+//
+//            addCloudPointDataset(NULL, cloudInfo);
+//        }
 
 //        VFVCloudPointDatasetInformation cloudInfo;
 //        cloudInfo.name="1.cp";

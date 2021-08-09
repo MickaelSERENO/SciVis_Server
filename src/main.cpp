@@ -132,10 +132,10 @@ int main(int argc, char** argv)
 
                 //Commit all the positions if the VRPN connection works
                 for(vrpn_Tracker_Remote* it : trackers)
-                    if(it->connectionPtr() != NULL && it->connectionPtr()->doing_okay() && it->connectionPtr()->connected())
-                    {
-                        serverPtr->commitAllVRPNPositions();
-                    }
+                    if(!(it->connectionPtr() != NULL && it->connectionPtr()->doing_okay() && it->connectionPtr()->connected()))
+                        goto endCheckConnection;
+                serverPtr->commitAllVRPNPositions();
+endCheckConnection:
                 usleep(std::max(0.0, 1.e6/UPDATE_VRPN_FRAMERATE - endTime + startTime));
             }
 
