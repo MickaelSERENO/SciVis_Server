@@ -83,7 +83,7 @@ namespace sereno
         ADD_CLIENT_TO_SV_GROUP                 = 40,
         RENAME_SUBDATASET                      = 41,
         SAVE_SUBDATASET_VISUAL                 = 42,
-        TWO_DIMENSION_DEPTH_SELECTION          = 43,
+        VOLUMETRIC_SELECTION_METHOD            = 43,
         END_MESSAGE_TYPE
     };
 
@@ -116,6 +116,12 @@ namespace sereno
     {
         HANDEDNESS_LEFT  = 0,
         HANDEDNESS_RIGHT = 1,
+    };
+
+    enum VolumetricSelectionMethod
+    {
+        VOLUMETRIC_SELECTION_TANGIBLE = 0,
+        VOLUMETRIC_SELECTION_FROM_TOP = 1,
     };
 
     template<typename T>
@@ -196,7 +202,7 @@ namespace sereno
             struct VFVAddClientToSVGroup                        addClientToSVGroup;       /*!< Add a client to the subjective view group*/
             struct VFVRenameSubDataset                          renameSD;                 /*!< Rename a subdataset*/
             struct VFVSaveSubDatasetVisual                      saveSDVisual;             /*!< Save on disk the image of the subdataset*/
-            struct VFV2DDepthSelection                          twoDimensionDepthSelection; /*!< Select along the z axis*/
+            struct VFVVolumetricSelectionMethod                          volumetricSelectionMethod; /*!< Select along the z axis*/
         };
 
         VFVMessage() : type(NOTHING)
@@ -388,9 +394,9 @@ namespace sereno
                             saveSDVisual = cpy.saveSDVisual;
                             curMsg = &saveSDVisual;
                             break;
-                        case TWO_DIMENSION_DEPTH_SELECTION:
-                            twoDimensionDepthSelection = cpy.twoDimensionDepthSelection;
-                            curMsg = &twoDimensionDepthSelection;
+                        case VOLUMETRIC_SELECTION_METHOD:
+                            volumetricSelectionMethod = cpy.volumetricSelectionMethod;
+                            curMsg = &volumetricSelectionMethod;
                             break;
                         default:
                             WARNING << "Type " << cpy.type << " not handled yet in the copy constructor " << std::endl;
@@ -589,9 +595,9 @@ namespace sereno
                     new(&saveSDVisual) VFVSaveSubDatasetVisual;
                     curMsg = &saveSDVisual;
                     break;
-                case TWO_DIMENSION_DEPTH_SELECTION:
-                    new(&twoDimensionDepthSelection) VFV2DDepthSelection;
-                    curMsg = &twoDimensionDepthSelection;
+                case VOLUMETRIC_SELECTION_METHOD:
+                    new(&volumetricSelectionMethod) VFVVolumetricSelectionMethod;
+                    curMsg = &volumetricSelectionMethod;
                     break;
                 case NOTHING:
                     break;
@@ -737,8 +743,8 @@ namespace sereno
                 case SAVE_SUBDATASET_VISUAL:
                     saveSDVisual.~VFVSaveSubDatasetVisual();
                     break;
-                case TWO_DIMENSION_DEPTH_SELECTION:
-                    twoDimensionDepthSelection.~VFV2DDepthSelection();
+                case VOLUMETRIC_SELECTION_METHOD:
+                    volumetricSelectionMethod.~VFVVolumetricSelectionMethod();
                     break;
                 case NOTHING:
                     break;
@@ -761,6 +767,7 @@ namespace sereno
         VFVClientSocket* headset = NULL; /*!< WHat is the headset bound to this tablet?*/
         int              number = 0;     /*!< The device number. This is defined by the device itself*/
         VFVHandedness    handedness = HANDEDNESS_RIGHT; /*!< The user's handedness (left or right)*/
+        VolumetricSelectionMethod volSelMethod = VOLUMETRIC_SELECTION_TANGIBLE;
     };
 
     /** \brief  The Pointing data of a headset (what pointing action and relative data is the user doing?) */

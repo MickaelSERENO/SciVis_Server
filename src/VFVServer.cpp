@@ -1332,6 +1332,18 @@ endFor:;
         //TODO
     }
 
+    void VFVServer::onSetVolumetricSelectionMethod(VFVClientSocket* client, const VFVVolumetricSelectionMethod& method)
+    {
+        if(client != NULL && !client->isTablet())
+        {
+            std::lock_guard<std::mutex> lock(m_mapMutex);
+            VFVSERVER_NOT_A_TABLET
+            return;
+        }
+
+        client->getTabletData().volSelMethod = (VolumetricSelectionMethod)method.method;
+    }
+
     void VFVServer::addLogData(VFVClientSocket* client, const VFVOpenLogData& logData)
     {
         if(client != NULL && !client->isTablet())
@@ -1680,7 +1692,7 @@ endFor:;
         if(headset)
         {
             //Check the mesh
-            if(headset->getHeadsetData().isInVolumetricSelection())
+            //if(headset->getHeadsetData().isInVolumetricSelection())
             {
                 headset->getHeadsetData().volumetricData.pushLocation(
                     {
@@ -1897,11 +1909,6 @@ endFor:;
             for(auto it : m_clientTable)
                 sendVolumetricMaskDataset(it.second, sharedVolData, offset);
         }
-    }
-
-    void VFVServer::on2DDepthSelection(VFVClientSocket* client, const VFV2DDepthSelection& selection)
-    {
-        //TODO
     }
 
     void VFVServer::onAddNewSelectionInput(VFVClientSocket* client, const VFVAddNewSelectionInput& addInput)
@@ -4735,9 +4742,9 @@ endFor:;
                     break;
                 }
 
-                case TWO_DIMENSION_DEPTH_SELECTION:
+                case VOLUMETRIC_SELECTION_METHOD:
                 {
-                    on2DDepthSelection(client, msg.twoDimensionDepthSelection);
+                    onSetVolumetricSelectionMethod(client, msg.volumetricSelectionMethod);
                     break;
                 }
 

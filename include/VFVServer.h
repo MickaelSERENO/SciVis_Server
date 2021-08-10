@@ -406,10 +406,7 @@ namespace sereno
              * \param saveSDVisual the information required to find the subdataset to save*/
             void onSaveSubDatasetVisual(VFVClientSocket* client, const VFVSaveSubDatasetVisual& saveSDVisual);
 
-            /** \brief  Perform a volumetric selection based on a lasso. Every point inside the lasso is selected
-             * \param client the client asking for the selection
-             * \param selection The 2D information required to perform the selection from top to bottom*/
-            void on2DDepthSelection(VFVClientSocket* client, const VFV2DDepthSelection& selection);
+            void onSetVolumetricSelectionMethod(VFVClientSocket* client, const VFVVolumetricSelectionMethod& method);
 
             /** \brief Save into the current log file a VFVDataInformation message
              * \param client the client to which the message should have been sent to

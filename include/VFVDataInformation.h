@@ -2685,67 +2685,38 @@ namespace sereno
         }
     };
 
-    struct VFV2DDepthSelection : public VFVDataInformation
+    struct VFVVolumetricSelectionMethod : public VFVDataInformation
     {
-        uint32_t datasetID;
-        uint32_t subDatasetID;
-        uint32_t size = 0; /*!< Size of the lasso data*/
-
-        std::vector<float> data; /*!< The lasso data*/
+        uint8_t method;
 
         char getTypeAt(uint32_t cursor) const
         {
-            if(cursor <= 2)
-                return 'I';
-            else if(cursor <= size+2)
-                return 'f';
-            else
-                return 0;
+            if(cursor == 0)
+                return 'b';
+            return 0;
         }
 
-        bool pushValue(uint32_t cursor, uint32_t value)
+        bool pushValue(uint32_t cursor, uint8_t value)
         {
             if(cursor == 0)
-                datasetID = value;
-            else if(cursor == 1)
-               subDatasetID = value;
-            else if(cursor == 2) 
-                size = value;
+                method = value;
             else
                 VFV_DATA_ERROR
             return true;
-        }
-
-        bool pushValue(uint32_t cursor, float value)
-        {
-            if(cursor > 2 && cursor <= size+2)
-            {
-                data.push_back(value);
-                return true;
-            }
-            else
-                VFV_DATA_ERROR
         }
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
             std::ostringstream oss;
 
-            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "2DDepthSelection");
-            oss << ",    \"datasetID\" : " << datasetID << ",\n" 
-                << "    \"subDatasetID\" : " << subDatasetID << ",\n"
-                << "    \"size\" : " << size << ",\n"
-                << "    \"data\" : [";
-            for(uint32_t i = 0; i < size-1; i++)
-                oss << data[i] << ",";
-            if(size > 0)
-                oss << data[size-1] << "]\n";
+            VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "VolumetricSelectionMethod");
+            oss << ",    \"method\" : " << method << "\n" ;
             VFV_END_TO_JSON(oss);
 
             return oss.str();
         }
 
-        int32_t getMaxCursor() const {return 2+size;}
+        int32_t getMaxCursor() const {return 0;}
     };
 }
 

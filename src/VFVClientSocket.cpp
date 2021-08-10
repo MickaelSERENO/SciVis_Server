@@ -312,6 +312,7 @@ namespace sereno
 
     void VFVVolumetricData::pushLocation(const VFVLassoPosition& loc)
     {
+        INFO << "Pushing selection at " << loc.position.x << " " << loc.position.y << " " << loc.position.z << std::endl;
         lassoPos = loc;
 
         //Nothing to generate
@@ -382,6 +383,7 @@ namespace sereno
     {
         closeCurrentMesh();
         meshes.emplace_back(lasso, op); 
+        pushLocation(lassoPos);
     }
 
 #undef ERROR_VALUE
