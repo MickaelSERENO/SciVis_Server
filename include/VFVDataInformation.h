@@ -1742,7 +1742,7 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "Lasso");
             oss << ",    \"size\" : " << size << ",\n"
                 << "    \"data\" : [";
-            for(uint32_t i = 0; i < size-1; i++)
+            for(int32_t i = 0; i < (int)(size)-1; i++)
             {
                 oss << data[i] << ",";
             }
@@ -2259,7 +2259,8 @@ namespace sereno
     {
         uint32_t datasetID;
         uint32_t subDatasetID;
-        float    depthClipping;
+        float    minDepthClipping;
+        float    maxDepthClipping;
 
         char getTypeAt(uint32_t cursor) const
         {
@@ -2282,13 +2283,15 @@ namespace sereno
         bool pushValue(uint32_t cursor, float value)
         {
             if(cursor == 2)
-                depthClipping = value;
+                minDepthClipping = value;
+            else if(cursor == 3)
+                maxDepthClipping = value;
             else
                 VFV_DATA_ERROR
             return true;
         }
 
-        int32_t getMaxCursor() const {return 2;}
+        int32_t getMaxCursor() const {return 3;}
 
         virtual std::string toJson(const std::string& sender, const std::string& headsetIP, time_t timeOffset) const
         {
@@ -2297,7 +2300,8 @@ namespace sereno
             VFV_BEGINING_TO_JSON(oss, sender, headsetIP, timeOffset, "SetSubDatasetClipping");
             oss << ",    \"datasetID\" : " << datasetID << ",\n"
                 << "    \"subDatasetID\" : " << subDatasetID << ",\n"
-                << "    \"depthClipping\" : " << depthClipping << "\n";
+                << "    \"minDepthClipping\" : " << minDepthClipping << ",\n"
+                << "    \"maxDepthClipping\" : " << maxDepthClipping << "\n";
             VFV_END_TO_JSON(oss);
 
             return oss.str();

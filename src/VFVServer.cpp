@@ -1730,9 +1730,6 @@ endFor:;
 
             std::shared_ptr<uint8_t> sharedData(data, free);
 
-
-            INFO << "Send OnLocation message\n";
-
             //Send the data
             SocketMessage<int> sm(headset->socket, sharedData, offset);
             writeMessage(sm);
@@ -2271,7 +2268,7 @@ endFor:;
             }
         }
 
-        sd->setDepthClipping(clipping.depthClipping);
+        sd->setDepthClipping(clipping.minDepthClipping, clipping.maxDepthClipping);
         updateSDGroup(sd);
 
         //Send to all
@@ -3285,7 +3282,7 @@ endFor:;
 
     void VFVServer::sendSubDatasetClippingEvent(VFVClientSocket* client, const VFVSetSubDatasetClipping& clipping)
     {
-        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 1*sizeof(float);
+        uint32_t dataSize = sizeof(uint16_t) + 2*sizeof(uint32_t) + 2*sizeof(float);
         uint8_t* data = (uint8_t*)malloc(dataSize);
         uint32_t offset=0;
 
@@ -3298,10 +3295,12 @@ endFor:;
         writeUint32(data+offset, clipping.subDatasetID); //SubDataset ID
         offset += sizeof(uint32_t); 
 
-        writeFloat(data+offset, clipping.depthClipping);
+        writeFloat(data+offset, clipping.minDepthClipping);
         offset += sizeof(float);
 
-        INFO << "Sending SET CLIPPING SUBDATASET Event data Dataset ID " << clipping.datasetID << " sdID : " << clipping.subDatasetID << " depthClipping: " << clipping.depthClipping << std::endl;
+        writeFloat(data+offset, clipping.maxDepthClipping);
+        offset += sizeof(float);
+
         std::shared_ptr<uint8_t> sharedData(data, free);
         SocketMessage<int> sm(client->socket, sharedData, offset);
         writeMessage(sm);
@@ -3654,7 +3653,8 @@ endFor:;
         VFVSetSubDatasetClipping clipping;
         clipping.datasetID = datasetID;
         clipping.subDatasetID = sd->getID();
-        clipping.depthClipping = sd->getDepthClipping();
+        clipping.minDepthClipping = sd->getMinDepthClipping();
+        clipping.maxDepthClipping = sd->getMaxDepthClipping();
         sendSubDatasetClippingEvent(client, clipping);
 
         sendSubDatasetOwner(client, sdMT);
@@ -3821,6 +3821,8 @@ endFor:;
             WARNING << "Cannot send the anchoring data. The client already has the anchoring data sent\n";
             return;
         }
+
+        INFO << "Sending Anchoring to an headset\n";
 
         //Send segment by segment
         for(auto& itSegment : m_anchorData.getSegmentData())
