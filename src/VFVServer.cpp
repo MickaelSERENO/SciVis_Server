@@ -8,7 +8,7 @@
 #include <filesystem>
 
 #ifndef TEST
-#define TEST
+//#define TEST
 #endif
 
 namespace sereno
@@ -352,37 +352,24 @@ namespace sereno
 #endif
 
 #ifdef TEST
-        ////Add the dataset the users will play with
-        //VFVVTKDatasetInformation vtkInfo;
-        //vtkInfo.name = "history.vtk";
-        //vtkInfo.nbPtFields = 1;
-        //vtkInfo.ptFields.push_back(1);
+        //Add the dataset the users will play with
+        VFVVTKDatasetInformation vtkInfo;
+        vtkInfo.name = "history2019-12-10.vtk";
+        vtkInfo.nbPtFields = 1;
+        vtkInfo.ptFields.push_back(1);
 
-#ifdef V//FV_LOG_DATA
-        //m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
-        //m_log << ",\n";
-        //m_log << std::flush;
+#ifdef VFV_LOG_DATA
+        m_log << vtkInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset());
+        m_log << ",\n";
+        m_log << std::flush;
 #endif
-        //addVTKDataset(NULL, vtkInfo);
+        addVTKDataset(NULL, vtkInfo);
 
-        //m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
-        //{
-        //    INFO << "Loaded. Status: " << status << std::endl;
-        //}, NULL);
+        m_vtkDatasets[0].dataset->loadValues([](Dataset* dataset, uint32_t status, void* data)
+        {
+            INFO << "Loaded. Status: " << status << std::endl;
+        }, NULL);
 
-        //Open all the datasets necessary for this study
-//        for(auto& s : {"training2.cp", "training3.cp", "training4.cp", "spring.cp", "3.cp", "4.cp"})
-//        {
-//            VFVCloudPointDatasetInformation cloudInfo;
-//            cloudInfo.name = s;
-//
-//#ifdef VFV_LOG_DATA
-//            m_log << cloudInfo.toJson(VFV_SENDER_SERVER, getHeadsetIPAddr(NULL), getTimeOffset()) << ",\n";
-//            m_log << std::flush;
-//#endif
-//
-//            addCloudPointDataset(NULL, cloudInfo);
-//        }
 
 //        VFVCloudPointDatasetInformation cloudInfo;
 //        cloudInfo.name="1.cp";
@@ -3398,6 +3385,10 @@ endFor:;
                 offset++;
                 writeFloat(data+offset, tfSD.mergeTFData.tf1->timestep);
                 offset += sizeof(float);
+                writeFloat(data+offset, tfSD.mergeTFData.tf1->minClipping);
+                offset += sizeof(float);
+                writeFloat(data+offset, tfSD.mergeTFData.tf1->maxClipping);
+                offset += sizeof(float);
                 offset = fillTransferFunctionMessage(data, offset, *tfSD.mergeTFData.tf1.get());
 
                 //TF2
@@ -3406,6 +3397,10 @@ endFor:;
                 data[offset] = tfSD.mergeTFData.tf2->colorMode;
                 offset++;
                 writeFloat(data+offset, tfSD.mergeTFData.tf2->timestep);
+                offset += sizeof(float);
+                writeFloat(data+offset, tfSD.mergeTFData.tf2->minClipping);
+                offset += sizeof(float);
+                writeFloat(data+offset, tfSD.mergeTFData.tf2->maxClipping);
                 offset += sizeof(float);
                 offset = fillTransferFunctionMessage(data, offset, *tfSD.mergeTFData.tf2.get());
 
