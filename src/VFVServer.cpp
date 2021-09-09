@@ -2297,15 +2297,22 @@ endFor:;
 
     void VFVServer::onStartAnnotation(VFVClientSocket* client, const VFVStartAnnotation& startAnnot)
     {
-        std::lock_guard<std::mutex> lockMap(m_mapMutex);
+//        std::lock_guard<std::mutex> lockMap(m_mapMutex);
         if(!client->isTablet())
         {
             VFVSERVER_NOT_A_TABLET
             return;
         }
 
-        if(client->getTabletData().headset != NULL)
-            sendStartAnnotation(client->getTabletData().headset, startAnnot);
+//        if(client->getTabletData().headset != NULL)
+//            sendStartAnnotation(client->getTabletData().headset, startAnnot);
+        VFVAnchorAnnotation anchorAnnot;
+        anchorAnnot.subDatasetID = startAnnot.subDatasetID;
+        anchorAnnot.datasetID    = startAnnot.datasetID;
+        anchorAnnot.localPos[0] = 0.0f;
+        anchorAnnot.localPos[1] = 0.0f;
+        anchorAnnot.localPos[2] = 0.0f;
+        onAnchorAnnotation(nullptr, anchorAnnot);
     }
 
     void VFVServer::onAnchorAnnotation(VFVClientSocket* client, VFVAnchorAnnotation& anchorAnnot)
@@ -2554,6 +2561,22 @@ endFor:;
         for(auto& clt : m_clientTable)
             sendAddSubjectiveViewGroup(clt.second, cpyAddSV);
 
+        if(addSV.svType == SD_GROUP_SV_STACKED ||
+           addSV.svType == SD_GROUP_SV_LINKED  ||
+           addSV.svType == SD_GROUP_SV_STACKED_LINKED)
+        {
+            SubDatasetSubjectiveStackedLinkedGroup* svg = (SubDatasetSubjectiveStackedLinkedGroup*)svGroup;
+            VFVSetSVStackedGroupGlobalParameters params;
+            params.sdgID = sdgMT.sdgID;
+            params.merged = svg->getMerge();
+            params.gap = svg->getGap();
+            params.stackMethod = svg->getStackingMethod();
+
+            for(auto& clt : m_clientTable)
+            {
+                sendSVStackedGroupGlobalParameters(clt.second, params);
+            }
+        }
 
         INFO << "Create a personal subjective view for this client...." << std::endl;
         //Create a subjective view for this client (if applied)
