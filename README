@@ -1,3 +1,35 @@
+This repository accompanies our paper (if you use the software we would appreciate a citation):
+
+Mickael Sereno, Stéphane Gosset, Lonni Besançon, and Tobias Isenberg.
+Hybrid Touch/Tangible Spatial Selection in Augmented Reality.
+Computer Graphics Forum, 41(3):403–415, June 2022.
+doi: 10.1111/cgf.14550
+
+BibTeX:
+
+@article{Sereno:2022:HTT,
+  author      = {Mickael Sereno and St{\'e}phane Gosset and Lonni Besan{\c{c}}on and Tobias Isenberg},
+  title       = {Hybrid Touch/Tangible Spatial Selection in Augmented Reality},
+  journal     = {Computer Graphics Forum},
+  year        = {2022},
+  volume      = {41},
+  number      = {3},
+  month       = jun,
+  pages       = {403--415},
+  doi         = {10.1111/cgf.14550},
+  shortdoi    = {10/gqq53j},
+  doi_url     = {https://doi.org/10.1111/cgf.14550},
+  oa_hal_url  = {https://hal.science/hal-03699232},
+  osf_url     = {https://osf.io/qu634/},
+  osf_url2    = {https://osf.io/pwauq},
+  osf_url3    = {https://osf.io/rvpuc},
+  url         = {https://tobias.isenberg.cc/p/Sereno2022HTT},
+  github_url  = {https://github.com/MickaelSERENO/SciVis_Server/tree/CHI2020},
+  github_url2 = {https://github.com/MickaelSERENO/TangibleBrushAR_GRSI},
+  pdf         = {https://tobias.isenberg.cc/personal/papers/Sereno_2022_HTT.pdf},
+  video       = {https://youtu.be/JrBdTcuqHts},
+}
+
 Server communication between the android and the hololens device for scientific visualization. Runs only under linux.
 
 Needed library:
